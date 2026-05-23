@@ -63,33 +63,34 @@ export default function Dashboard() {
   );
 
   return (
-    <section className="space-y-7">
-      <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+    <section className="space-y-6 sm:space-y-7">
+      <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-display text-5xl leading-[0.9] tracking-[-0.055em] text-[#111] sm:text-6xl">
+          <h1 className="font-display text-5xl leading-[0.9] tracking-[-0.055em] text-[#111] sm:text-6xl lg:text-7xl">
             Проекты
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-[#626961]">
-            Здесь видно, что происходит с контентом: когда следующий сбор трендов,
-            сколько постов уже вышло и какой проект ждет ближайшую публикацию.
+          <p className="mt-4 max-w-3xl text-base leading-7 text-[#626961] sm:text-lg">
+            Главный экран: ближайший сбор трендов, опубликованные посты и проекты,
+            которые сейчас ждут публикацию.
           </p>
         </div>
+
         <button
           type="button"
           onClick={() => void loadSummary()}
           disabled={isLoading}
-          className="inline-flex h-12 w-fit items-center gap-3 rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] shadow-sm transition hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] shadow-sm transition hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
         >
           {isLoading ? <Spinner /> : <RefreshIcon />}
           Обновить
         </button>
       </header>
 
-      <div className="grid auto-rows-[minmax(170px,auto)] gap-4 xl:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-4">
         <SystemWidget
           nextTrendCheck={summary?.next_trend_check ?? null}
           isLoading={isLoading}
-          className="xl:col-span-2"
+          className="lg:col-span-2"
         />
         <StatsWidget
           icon={<FolderIcon />}
@@ -103,17 +104,18 @@ export default function Dashboard() {
           value={isLoading ? "..." : String(totalPublished)}
           description="постов вышло через систему"
         />
+      </div>
 
+      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {isLoading ? (
           <SkeletonProjects />
         ) : !summary || summary.projects.length === 0 ? (
           <EmptyProjects />
         ) : (
-          summary.projects.map((project, index) => (
+          summary.projects.map((project) => (
             <ProjectCard
               key={project.id}
               project={project}
-              priority={index}
               isDeleting={deletingProjectId === project.id}
               onDelete={() => void handleDeleteProject(project)}
             />
@@ -135,11 +137,11 @@ function SystemWidget({
 }) {
   return (
     <article
-      className={`relative overflow-hidden rounded-[32px] border border-[#151b17] bg-[#080d0b] p-7 text-white shadow-[0_24px_90px_rgba(10,10,10,0.20)] ${className}`}
+      className={`relative min-h-[21rem] overflow-hidden rounded-[32px] border border-[#151b17] bg-[#080d0b] p-6 text-white shadow-[0_24px_90px_rgba(10,10,10,0.20)] sm:p-7 ${className}`}
     >
       <div className="absolute right-[-70px] top-[-100px] h-64 w-64 rounded-full bg-[#70ff35]/16 blur-3xl" />
       <div className="absolute bottom-[-100px] left-[30%] h-64 w-64 rounded-full bg-[#0076ff]/20 blur-3xl" />
-      <div className="relative flex h-full flex-col justify-between gap-10">
+      <div className="relative flex h-full min-h-[17rem] flex-col justify-between gap-8">
         <div>
           <div className="flex items-center gap-3">
             <span className="relative flex h-3 w-3">
@@ -148,7 +150,7 @@ function SystemWidget({
             </span>
             <span className="text-sm text-white/68">Система онлайн</span>
           </div>
-          <h2 className="mt-7 max-w-xl font-display text-5xl leading-[0.9] tracking-[-0.055em]">
+          <h2 className="mt-7 max-w-xl font-display text-4xl leading-[0.92] tracking-[-0.055em] sm:text-5xl">
             Автономный контур активен
           </h2>
         </div>
@@ -158,7 +160,7 @@ function SystemWidget({
             <RadarIcon />
             <span className="text-sm">Следующий сбор трендов</span>
           </div>
-          <p className="mt-3 text-2xl text-white">
+          <p className="mt-3 text-xl text-white sm:text-2xl">
             {isLoading ? "Загрузка" : formatDateTime(nextTrendCheck)}
           </p>
         </div>
@@ -179,7 +181,7 @@ function StatsWidget({
   description: string;
 }) {
   return (
-    <article className="rounded-[32px] border border-[#dfe4dc] bg-white p-7 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <article className="rounded-[32px] border border-[#dfe4dc] bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-7">
       <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#eef4ec] text-[#111]">
         {icon}
       </div>
@@ -192,32 +194,24 @@ function StatsWidget({
 
 function ProjectCard({
   project,
-  priority,
   isDeleting,
   onDelete,
 }: {
   project: DashboardProjectSummary;
-  priority: number;
   isDeleting: boolean;
   onDelete: () => void;
 }) {
-  const isLarge = priority === 0;
-
   return (
-    <article
-      className={`group relative overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] p-7 shadow-sm transition hover:-translate-y-0.5 hover:border-[#141815] hover:shadow-md ${
-        isLarge ? "xl:col-span-2" : ""
-      }`}
-    >
+    <article className="group relative overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-[#141815] hover:shadow-md sm:p-7">
       <div className="absolute right-[-70px] top-[-70px] h-44 w-44 rounded-full bg-[#70ff35]/12 blur-3xl transition group-hover:bg-[#0076ff]/16" />
-      <div className="relative flex h-full min-h-48 flex-col justify-between gap-10">
+      <div className="relative flex min-h-48 flex-col justify-between gap-8">
         <div className="flex items-start justify-between gap-5">
           <Link to={`/app/projects/${project.id}`} className="min-w-0 flex-1">
             <h2 className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]">
               {project.name}
             </h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
-              Нажмите, чтобы открыть очередь, тренды, аккаунты и настройки проекта.
+              Откройте проект, чтобы управлять очередью, трендами, аккаунтами и настройками.
             </p>
           </Link>
           <div className="flex shrink-0 items-center gap-2">
@@ -287,7 +281,7 @@ function SkeletonProjects() {
 
 function EmptyProjects() {
   return (
-    <div className="rounded-[32px] border border-dashed border-[#c9d1c7] bg-white/70 p-10 text-center shadow-sm xl:col-span-4">
+    <div className="rounded-[32px] border border-dashed border-[#c9d1c7] bg-white/70 p-8 text-center shadow-sm lg:col-span-2 2xl:col-span-3">
       <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#eef4ec]">
         <FolderIcon />
       </div>

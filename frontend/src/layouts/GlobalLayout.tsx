@@ -12,13 +12,13 @@ const navigation = [
   },
   {
     label: "Аккаунты",
-    hint: "Threads-профили",
+    hint: "профили Threads",
     to: "/app/infrastructure",
     icon: AccountsIcon,
   },
   {
     label: "Стиль",
-    hint: "глобальный промпт",
+    hint: "промпт генерации",
     to: "/app/settings",
     icon: StyleIcon,
   },
@@ -33,43 +33,38 @@ export default function GlobalLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070909] text-[#151515]">
-      <div className="grid min-h-screen lg:grid-cols-[292px_1fr]">
-        <aside className="relative flex min-h-screen flex-col overflow-hidden border-r border-white/10 bg-[#0b0d0d] text-[#f4f1ea]">
-          <div className="pointer-events-none absolute left-[-8rem] top-[-8rem] h-72 w-72 rounded-full bg-[#0076ff]/24 blur-[90px]" />
-          <div className="pointer-events-none absolute bottom-[-10rem] right-[-10rem] h-80 w-80 rounded-full bg-[#70ff35]/14 blur-[100px]" />
+    <div className="min-h-screen bg-[#eef1ea] text-[#111]">
+      <div className="flex min-h-screen flex-col lg:grid lg:grid-cols-[300px_1fr]">
+        <aside className="relative z-20 border-b border-white/10 bg-[#070909] text-[#f4f1ea] lg:min-h-screen lg:border-b-0 lg:border-r">
+          <div className="pointer-events-none absolute left-[-8rem] top-[-8rem] hidden h-72 w-72 rounded-full bg-[#0076ff]/24 blur-[90px] lg:block" />
+          <div className="pointer-events-none absolute bottom-[-10rem] right-[-10rem] hidden h-80 w-80 rounded-full bg-[#70ff35]/14 blur-[100px] lg:block" />
 
-          <div className="relative px-6 py-7">
+          <div className="relative flex items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:block lg:px-6 lg:py-7">
             <NavLink to="/app" className="flex items-center gap-3">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.06]">
-                <img src="/threadsgo-logo.png" alt="ThreadsGo" className="h-9 w-9 object-contain" />
+              <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] sm:h-12 sm:w-12">
+                <img src="/threadsgo-logo.png" alt="ThreadsGo" className="h-8 w-8 object-contain sm:h-9 sm:w-9" />
               </span>
               <span className="font-display text-3xl leading-none tracking-[-0.04em] text-white">
                 ThreadsGo
               </span>
             </NavLink>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-full border border-white/14 px-4 py-2 text-sm text-white/64 transition hover:border-white/35 hover:bg-white hover:text-[#070909] lg:hidden"
+            >
+              Выйти
+            </button>
           </div>
 
-          <nav className="relative grid gap-2 px-4">
+          <nav className="relative flex gap-2 overflow-x-auto px-4 pb-4 sm:px-6 lg:grid lg:gap-3 lg:overflow-visible lg:px-4 lg:pb-0">
             {navigation.map((item) => (
               <SidebarLink key={item.to} {...item} />
             ))}
           </nav>
 
-          <div className="relative mt-auto p-4">
-            <div className="mb-4 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="flex items-center gap-3">
-                <span className="relative flex h-3 w-3">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#70ff35] opacity-60" />
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-[#70ff35]" />
-                </span>
-                <span className="text-sm text-white/72">Система активна</span>
-              </div>
-              <p className="mt-3 text-xs leading-5 text-white/38">
-                Генерация, тренды и публикации работают в фоне.
-              </p>
-            </div>
-
+          <div className="relative mt-auto hidden p-4 lg:block">
             <button
               type="button"
               onClick={handleLogout}
@@ -81,10 +76,9 @@ export default function GlobalLayout() {
           </div>
         </aside>
 
-        <main className="min-w-0 bg-[#f5f6f1]">
-          <header className="flex items-center justify-between gap-4 border-b border-[#d9ddd4] px-5 py-5 sm:px-8 lg:px-10">
-            <div className="flex items-center gap-3">
-              <img src="/threadsgo-logo.png" alt="" className="h-9 w-9 object-contain lg:hidden" />
+        <main className="min-w-0 flex-1 bg-[#f5f6f1]">
+          <header className="border-b border-[#d9ddd4] px-4 py-5 sm:px-6 lg:px-10">
+            <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4">
               <div>
                 <p className="text-sm text-[#6d746d]">Панель управления</p>
                 <h1 className="font-display text-3xl leading-none tracking-[-0.04em] text-[#111] sm:text-4xl">
@@ -92,14 +86,9 @@ export default function GlobalLayout() {
                 </h1>
               </div>
             </div>
-
-            <div className="hidden items-center gap-2 rounded-full border border-[#cfd5cc] bg-white px-4 py-2 text-sm text-[#3f463f] shadow-sm sm:flex">
-              <span className="h-2 w-2 rounded-full bg-[#70ff35]" />
-              Онлайн
-            </div>
           </header>
 
-          <section className="px-5 py-7 sm:px-8 lg:px-10">
+          <section className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
             <Outlet />
           </section>
         </main>
@@ -125,19 +114,19 @@ function SidebarLink({
       end={to === "/app"}
       className={({ isActive }) =>
         [
-          "group flex items-center gap-3 rounded-3xl px-4 py-4 transition",
+          "group flex min-w-[10.5rem] items-center gap-3 rounded-3xl px-3 py-3 transition sm:min-w-[12rem] lg:min-w-0 lg:px-4 lg:py-4",
           isActive
             ? "bg-white text-[#07100e] shadow-[0_20px_70px_rgba(0,0,0,0.22)]"
             : "text-white/58 hover:bg-white/[0.06] hover:text-white",
         ].join(" ")
       }
     >
-      <span className="grid h-11 w-11 place-items-center rounded-2xl border border-current/12 bg-current/[0.04]">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-current/12 bg-current/[0.04] sm:h-11 sm:w-11">
         <Icon />
       </span>
-      <span>
-        <span className="block text-base">{label}</span>
-        <span className="mt-0.5 block text-xs opacity-48">{hint}</span>
+      <span className="min-w-0">
+        <span className="block truncate text-base">{label}</span>
+        <span className="mt-0.5 block truncate text-xs opacity-48">{hint}</span>
       </span>
     </NavLink>
   );

@@ -72,48 +72,48 @@ export default function LandingPage() {
 
           <Link
             to="/login"
-            className="rounded-full border border-white/14 bg-white/[0.05] px-5 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-white/75 transition hover:border-white/40 hover:bg-white hover:text-[#070909]"
+            className="shrink-0 rounded-full border border-white/14 bg-white/[0.05] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-white/75 transition hover:border-white/40 hover:bg-white hover:text-[#070909] sm:px-5 sm:text-[11px]"
           >
             войти
           </Link>
         </header>
 
-        <div className="grid flex-1 items-center gap-12 py-20 lg:grid-cols-[0.95fr_1.05fr] lg:py-10">
+        <div className="grid flex-1 items-center gap-10 py-14 sm:py-20 lg:grid-cols-[0.95fr_1.05fr] lg:py-10">
           <div className="landing-reveal max-w-3xl [animation-delay:120ms]">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 backdrop-blur">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 backdrop-blur">
               <span className="h-2 w-2 animate-pulse rounded-full bg-[#70ff35]" />
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/52">
+              <span className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-white/52 sm:text-[10px] sm:tracking-[0.2em]">
                 автономный контент-оператор для threads
               </span>
             </div>
 
-            <h1 className="mt-8 max-w-4xl font-display text-[clamp(4rem,10vw,9.5rem)] leading-[0.78] tracking-[-0.075em] text-white">
+            <h1 className="mt-8 max-w-4xl font-display text-[clamp(3.15rem,16vw,9.5rem)] leading-[0.84] tracking-[-0.075em] text-white sm:leading-[0.78]">
               Посты, которые сначала слушают рынок.
             </h1>
 
-            <p className="mt-8 max-w-2xl text-lg leading-8 text-white/62">
+            <p className="mt-7 max-w-2xl text-base leading-7 text-white/62 sm:mt-8 sm:text-lg sm:leading-8">
               ThreadsGo собирает сигналы из ленты, превращает их в понятные паттерны
               и готовит посты под голос проекта. Не “автокопирайтер”, а рабочая панель
               для контент-операций: тренды, генерация, очередь, сессии и ручной контроль.
             </p>
 
-            <div className="mt-10 flex flex-wrap gap-3">
+            <div className="mt-9 grid gap-3 sm:mt-10 sm:flex sm:flex-wrap">
               <Link
                 to="/login"
-                className="group rounded-full bg-white px-7 py-4 font-mono text-xs uppercase tracking-[0.18em] text-[#070909] transition hover:bg-[#70ff35]"
+                className="group rounded-full bg-white px-7 py-4 text-center font-mono text-xs uppercase tracking-[0.18em] text-[#070909] transition hover:bg-[#70ff35]"
               >
                 открыть кабинет
                 <span className="ml-3 inline-block transition group-hover:translate-x-1">→</span>
               </Link>
               <a
                 href="#system"
-                className="rounded-full border border-white/14 px-7 py-4 font-mono text-xs uppercase tracking-[0.18em] text-white/68 transition hover:border-white/40 hover:text-white"
+                className="rounded-full border border-white/14 px-7 py-4 text-center font-mono text-xs uppercase tracking-[0.18em] text-white/68 transition hover:border-white/40 hover:text-white"
               >
                 посмотреть систему
               </a>
             </div>
 
-            <div className="mt-14 grid max-w-2xl grid-cols-3 gap-3">
+            <div className="mt-10 grid max-w-2xl grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:mt-14">
               {stats.map((item) => (
                 <div key={item.label} className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur">
                   <p className="font-display text-4xl leading-none text-white">{item.value}</p>
@@ -129,7 +129,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="system" className="relative z-10 mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10">
+      <section id="system" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <article className="landing-card rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur md:p-10">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#70ff35]/70">
@@ -154,7 +154,8 @@ export default function LandingPage() {
                 <div
                   key={post}
                   className="rounded-3xl border border-[#d7dfd4] bg-white/65 p-5 shadow-sm"
-                  style={{ transform: `translateX(${index * 18}px)` }}
+                  style={{ ["--offset" as string]: `${index * 18}px` }}
+                  data-offset-card
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="rounded-full bg-[#08100d] px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-white">
@@ -170,7 +171,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="workflow" className="relative z-10 mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10">
+      <section id="workflow" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
         <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-white/35">pipeline</p>
@@ -188,7 +189,7 @@ export default function LandingPage() {
           {workflow.map((item, index) => (
             <article
               key={item.title}
-              className="landing-card group min-h-72 rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 transition duration-300 hover:-translate-y-1 hover:bg-white/[0.075]"
+              className="landing-card group min-h-56 rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 transition duration-300 hover:-translate-y-1 hover:bg-white/[0.075] sm:min-h-72"
             >
               <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30">
                 {String(index + 1).padStart(2, "0")}
@@ -202,7 +203,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="control" className="relative z-10 mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10">
+      <section id="control" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
         <div className="rounded-[2.4rem] border border-white/10 bg-[#eff6ed] p-5 text-[#08100d] shadow-[0_40px_140px_rgba(0,0,0,0.35)] md:p-8">
           <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
             <div className="rounded-[2rem] bg-[#08100d] p-8 text-white">
@@ -232,7 +233,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="relative z-10 mx-auto max-w-7xl px-5 pb-10 pt-16 sm:px-8 lg:px-10">
+      <section className="relative z-10 mx-auto max-w-7xl px-5 pb-10 pt-12 sm:px-8 sm:pt-16 lg:px-10">
         <div className="landing-card overflow-hidden rounded-[2.4rem] border border-white/10 bg-white/[0.045] p-8 text-center backdrop-blur md:p-14">
           <img src="/threadsgo-logo.png" alt="" className="mx-auto h-20 w-20 object-contain" />
           <h2 className="mx-auto mt-7 max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">

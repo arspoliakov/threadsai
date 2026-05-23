@@ -1,4 +1,5 @@
 .env
+secrets.txt
 venv/
 .venv/
 __pycache__/

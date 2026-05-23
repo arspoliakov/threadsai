@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user_id, get_db
 from app.db.models import Account, AccountStatus, Project
 from app.db.repositories.accounts import AccountRepository
+from app.posting.adapters.threads import ThreadsAdapter
+from app.posting.exceptions import SessionExpiredException
 from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
 
 
@@ -15,6 +17,13 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 class AccountStatusUpdate(BaseModel):
     status: AccountStatus
     last_error: str | None = None
+
+
+class AccountSessionCheckRead(BaseModel):
+    account_id: int
+    status: AccountStatus
+    message: str
+    detected_username: str | None = None
 
 
 @router.post("/", response_model=AccountRead, status_code=status.HTTP_201_CREATED)
@@ -130,6 +139,77 @@ async def update_account(
     await db.commit()
     await db.refresh(account)
     return account
+
+
+@router.post(
+    "/{account_id}/unlink",
+    response_model=AccountRead,
+    status_code=status.HTTP_200_OK,
+)
+async def unlink_account_from_project(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+) -> AccountRead:
+    account = await _get_owned_account(account_id, current_user_id, db)
+    account.project_id = None
+    await db.commit()
+    await db.refresh(account)
+    return account
+
+
+@router.post(
+    "/{account_id}/check-session",
+    response_model=AccountSessionCheckRead,
+    status_code=status.HTTP_200_OK,
+)
+async def check_account_session(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+) -> AccountSessionCheckRead:
+    account = await _get_owned_account(account_id, current_user_id, db)
+
+    if account.platform.value != "threads":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Session check is available only for Threads accounts.",
+        )
+
+    try:
+        result = await ThreadsAdapter(timeout_seconds=20).check_session(account)
+        if result.detected_username:
+            account.username = result.detected_username
+        account.status = AccountStatus.ACTIVE
+        account.last_error = None
+        await db.commit()
+        await db.refresh(account)
+        return AccountSessionCheckRead(
+            account_id=account.id,
+            status=account.status,
+            detected_username=result.detected_username,
+            message="Сессия Threads активна. Cookies работают.",
+        )
+    except SessionExpiredException as exc:
+        account.status = AccountStatus.COOKIES_EXPIRED
+        account.last_error = str(exc)
+        await db.commit()
+        await db.refresh(account)
+        return AccountSessionCheckRead(
+            account_id=account.id,
+            status=account.status,
+            message="Сессия Threads истекла. Обновите cookies.",
+        )
+    except Exception as exc:
+        account.status = AccountStatus.ERROR
+        account.last_error = str(exc)
+        await db.commit()
+        await db.refresh(account)
+        return AccountSessionCheckRead(
+            account_id=account.id,
+            status=account.status,
+            message=f"Не удалось проверить сессию: {exc}",
+        )
 
 
 async def _get_owned_project(project_id: int, owner_id: int, db: AsyncSession) -> Project | None:

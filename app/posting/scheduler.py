@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -26,6 +27,7 @@ MAX_GENERATIONS_PER_SCHEDULER_RUN = 50
 FIRST_POST_DELAY_MINUTES = 15
 
 scheduler = AsyncIOScheduler()
+logger = logging.getLogger(__name__)
 
 
 def setup_posting_scheduler() -> AsyncIOScheduler:
@@ -71,11 +73,12 @@ async def analyze_daily_trends() -> None:
                     raw_posts=scrape_result.raw_posts,
                     session=session,
                 )
-                await send_admin_notification(
-                    f"Daily trend analysis completed for project #{project_id}. "
-                    f"Scraped posts: {len(scrape_result.raw_posts)}. "
-                    f"New raw trends: {scrape_result.saved_raw_count}. "
-                    f"Analyzed trends: {len(saved_trends)}."
+                logger.info(
+                    "Daily trend analysis completed for project #%s. Scraped=%s raw=%s analyzed=%s",
+                    project_id,
+                    len(scrape_result.raw_posts),
+                    scrape_result.saved_raw_count,
+                    len(saved_trends),
                 )
             except Exception as exc:
                 await session.rollback()
@@ -140,15 +143,19 @@ async def ensure_account_based_queue() -> None:
                         use_trends=True,
                     )
                     generated_count += 1
-                    await send_admin_notification(
-                        f"Generated scheduled task #{task.id} for project #{project.id}, "
-                        f"account @{account.username}. Scheduled at: {task.scheduled_at}."
+                    logger.info(
+                        "Generated scheduled task #%s for project #%s, account @%s. Scheduled at: %s.",
+                        task.id,
+                        project.id,
+                        account.username,
+                        task.scheduled_at,
                     )
                 except Exception as exc:
                     await session.rollback()
-                    await send_admin_notification(
-                        f"Account-based generation failed for project #{project.id}, "
-                        f"account #{account.id}.\n\nError: {exc}"
+                    logger.exception(
+                        "Account-based generation failed for project #%s, account #%s.",
+                        project.id,
+                        account.id,
                     )
 
 
@@ -369,7 +376,7 @@ async def _run_task_with_jitter(task_id: int) -> None:
     except Exception as exc:
         await _mark_scheduler_task_failed(task_id=task_id, error_message=str(exc))
         await send_admin_notification(
-            f"Posting task #{task_id} crashed before execution.\n\nError: {exc}"
+            f"Фоновая публикация #{task_id} упала до запуска Selenium.\n\nОшибка: {exc}"
         )
 
 

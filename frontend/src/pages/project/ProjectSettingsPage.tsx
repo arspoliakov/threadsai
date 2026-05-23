@@ -3,8 +3,10 @@ import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
+  checkAccountSession,
   getAccounts,
   getProjectDashboard,
+  unlinkAccount,
   updateAccount,
   updateProject,
   type Account,
@@ -29,6 +31,8 @@ export default function ProjectSettingsPage() {
   const [isSavingStopWords, setIsSavingStopWords] = useState(false);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
   const [savingCookiesId, setSavingCookiesId] = useState<number | null>(null);
+  const [checkingAccountId, setCheckingAccountId] = useState<number | null>(null);
+  const [unlinkingAccountId, setUnlinkingAccountId] = useState<number | null>(null);
 
   async function loadSettings({ silent = false }: { silent?: boolean } = {}) {
     setIsLoading(true);
@@ -173,6 +177,38 @@ export default function ProjectSettingsPage() {
       await loadSettings({ silent: true });
     } finally {
       setSavingCookiesId(null);
+    }
+  }
+
+  async function checkSession(accountId: number) {
+    setCheckingAccountId(accountId);
+
+    try {
+      const checkPromise = checkAccountSession(accountId);
+      toast.promise(checkPromise, {
+        loading: "Проверяем сессию Threads...",
+        success: (result) => result.message,
+        error: "Не удалось проверить сессию",
+      });
+      await checkPromise;
+      await loadSettings({ silent: true });
+    } finally {
+      setCheckingAccountId(null);
+    }
+  }
+
+  async function unlinkFromProject(accountId: number) {
+    setUnlinkingAccountId(accountId);
+
+    try {
+      await toast.promise(unlinkAccount(accountId), {
+        loading: "Отвязываем аккаунт...",
+        success: "Аккаунт отвязан от проекта",
+        error: "Не удалось отвязать аккаунт",
+      });
+      await loadSettings({ silent: true });
+    } finally {
+      setUnlinkingAccountId(null);
     }
   }
 
@@ -351,7 +387,11 @@ export default function ProjectSettingsPage() {
                     key={account.id}
                     account={account}
                     isSavingCookies={savingCookiesId === account.id}
+                    isChecking={checkingAccountId === account.id}
+                    isUnlinking={unlinkingAccountId === account.id}
                     onSaveCookies={(cookies) => void saveAccountCookies(account.id, cookies)}
+                    onCheckSession={() => void checkSession(account.id)}
+                    onUnlink={() => void unlinkFromProject(account.id)}
                   />
                 ))}
               </div>
@@ -414,11 +454,19 @@ export default function ProjectSettingsPage() {
 function AccountCard({
   account,
   isSavingCookies,
+  isChecking,
+  isUnlinking,
   onSaveCookies,
+  onCheckSession,
+  onUnlink,
 }: {
   account: Account;
   isSavingCookies: boolean;
+  isChecking: boolean;
+  isUnlinking: boolean;
   onSaveCookies: (cookies: string) => void;
+  onCheckSession: () => void;
+  onUnlink: () => void;
 }) {
   const [cookiesDraft, setCookiesDraft] = useState("");
   const sessionIsDead = account.status === "cookies_expired" || account.status === "blocked";
@@ -433,6 +481,27 @@ function AccountCard({
         <span className="font-mono text-xs uppercase tracking-[0.14em] text-[#66645d]">
           {account.status}
         </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-[#e1e1dc] pt-4">
+        <button
+          type="button"
+          onClick={onCheckSession}
+          disabled={isChecking || isUnlinking}
+          className="flex items-center gap-2 rounded-2xl border border-[#151515] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isChecking ? <Spinner /> : null}
+          Проверить сессию
+        </button>
+        <button
+          type="button"
+          onClick={onUnlink}
+          disabled={isChecking || isUnlinking}
+          className="flex items-center gap-2 rounded-2xl border border-[#b42318] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#8a2d25] transition-all duration-200 ease-in-out hover:bg-[#b42318] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isUnlinking ? <Spinner /> : null}
+          Отвязать от проекта
+        </button>
       </div>
 
       {sessionIsDead ? (

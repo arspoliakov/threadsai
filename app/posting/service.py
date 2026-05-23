@@ -8,7 +8,7 @@ from app.db.models import Account, AccountStatus, Platform, PostingTask, Posting
 from app.posting.adapters.base import BasePostingAdapter
 from app.posting.adapters.threads import ThreadsAdapter
 from app.posting.exceptions import SessionExpiredException
-from app.telegram.notifications import send_admin_notification, send_user_notification
+from app.telegram.notifications import send_user_notification
 
 
 SESSION_USERNAME_PLACEHOLDERS = {"", "из сессии", "Из сессии", "pending_from_session"}
@@ -37,7 +37,7 @@ async def execute_posting_task(task_id: int, session: AsyncSession) -> PostingTa
         raise ValueError(f"Posting task not found: {task_id}")
 
     if task.account is None:
-        await _mark_failed(session, task, "Posting task has no assigned account.")
+        await _mark_failed(session, task, "У задачи нет привязанного аккаунта публикации.")
         return task
 
     account: Account = task.account
@@ -46,7 +46,7 @@ async def execute_posting_task(task_id: int, session: AsyncSession) -> PostingTa
         task.status = PostingTaskStatus.QUEUED
         task.started_at = None
         task.finished_at = None
-        task.error_message = f"Assigned account is not active: {account.status.value}"
+        task.error_message = f"Аккаунт недоступен для публикации: {account.status.value}"
         await session.commit()
         await session.refresh(task)
         return task
@@ -71,27 +71,16 @@ async def execute_posting_task(task_id: int, session: AsyncSession) -> PostingTa
         account.last_error = None
         await session.commit()
         await session.refresh(task)
-        await send_admin_notification(
-            f"Posting task #{task.id} published successfully on {account.platform.value} "
-            f"with account @{account.username}."
-        )
         return task
     except SessionExpiredException as exc:
         error_message = str(exc)
         await _mark_session_expired(session, task, account, error_message)
         await _notify_account_owner_about_session(account)
-        await send_admin_notification(
-            f"Threads session expired for account @{account.username}. "
-            f"Task #{task.id} returned to queue."
-        )
         return task
     except Exception as exc:
         error_message = str(exc)
         await _mark_failed(session, task, error_message)
-        await send_admin_notification(
-            f"Posting task #{task.id} failed on {account.platform.value} "
-            f"with account @{account.username}.\n\nError: {error_message}"
-        )
+        await _notify_account_owner_about_posting_error(account, task, error_message)
         return task
 
 
@@ -128,8 +117,29 @@ async def _notify_account_owner_about_session(account: Account) -> None:
     telegram_id = owner.telegram_id if owner is not None else None
     username = account.username or "без username"
     text = (
-        f"🚨 Твой аккаунт @{username} вылетел из сессии Threads. "
-        "Публикация приостановлена. Пожалуйста, зайди в настройки проекта и обнови cookies."
+        f"Сессия Threads у аккаунта @{username} истекла.\n\n"
+        "Публикация приостановлена, задача возвращена в очередь. "
+        "Открой настройки проекта и обнови cookies."
+    )
+    await send_user_notification(telegram_id=telegram_id, text=text)
+
+
+async def _notify_account_owner_about_posting_error(
+    account: Account,
+    task: PostingTask,
+    error_message: str,
+) -> None:
+    project = account.project
+    owner = project.owner if project is not None else None
+    telegram_id = owner.telegram_id if owner is not None else None
+    username = account.username or "без username"
+    project_name = project.name if project is not None else f"#{task.project_id}"
+    text = (
+        "Публикация не прошла.\n\n"
+        f"Проект: {project_name}\n"
+        f"Аккаунт: @{username}\n"
+        f"Задача: #{task.id}\n\n"
+        f"Ошибка: {error_message[:1200]}"
     )
     await send_user_notification(telegram_id=telegram_id, text=text)
 

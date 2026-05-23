@@ -181,6 +181,13 @@ export type AccountUpdatePayload = Partial<AccountCreatePayload> & {
   last_error?: string | null;
 };
 
+export type AccountSessionCheckResult = {
+  account_id: number;
+  status: AccountStatus;
+  message: string;
+  detected_username: string | null;
+};
+
 export type PostingTaskStatus =
   | "draft"
   | "queued"
@@ -280,6 +287,7 @@ export type PromptType =
 
 export type GlobalPrompt = {
   id: number;
+  owner_id: number | null;
   prompt_type: PromptType;
   title: string;
   body: string;
@@ -441,6 +449,16 @@ export async function createAccount(data: AccountCreatePayload): Promise<Account
 
 export async function updateAccount(id: number, data: AccountUpdatePayload): Promise<Account> {
   const response = await apiClient.patch<Account>(`/api/v1/accounts/${id}`, data);
+  return response.data;
+}
+
+export async function unlinkAccount(id: number): Promise<Account> {
+  const response = await apiClient.post<Account>(`/api/v1/accounts/${id}/unlink`);
+  return response.data;
+}
+
+export async function checkAccountSession(id: number): Promise<AccountSessionCheckResult> {
+  const response = await apiClient.post<AccountSessionCheckResult>(`/api/v1/accounts/${id}/check-session`);
   return response.data;
 }
 

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import time
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any, Callable, TypeVar
@@ -88,6 +89,30 @@ class ThreadsAdapter(BasePostingAdapter):
     async def publish(self, account: Account, task: PostingTask) -> PublishResult:
         return await asyncio.to_thread(self._publish_sync, account, task)
 
+    async def check_session(self, account: Account) -> PublishResult:
+        return await asyncio.to_thread(self._check_session_sync, account)
+
+    def _check_session_sync(self, account: Account) -> PublishResult:
+        session_payload = self._load_json(account.session_data_encrypted)
+        proxy_url = session_payload.get("proxy") or account.proxy_url
+        proxy_extension_path: Path | None = None
+        driver: WebDriver | None = None
+
+        try:
+            if proxy_url:
+                proxy_extension_path = self._create_proxy_extension(proxy_url, account.id)
+
+            driver = self._create_driver(proxy_extension_path)
+            self._apply_network_blocking(driver)
+            self._authenticate_with_cookies(driver, account)
+            detected_username = self._extract_authenticated_username(driver)
+            logger.info("Threads session check completed for account #%s", account.id)
+            return PublishResult(success=True, detected_username=detected_username)
+        finally:
+            self._quit_driver_safely(driver)
+            if proxy_extension_path is not None:
+                self._remove_file_safely(proxy_extension_path)
+
     def _publish_sync(self, account: Account, task: PostingTask) -> PublishResult:
         session_payload = self._load_json(account.session_data_encrypted)
         proxy_url = session_payload.get("proxy") or account.proxy_url
@@ -128,6 +153,7 @@ class ThreadsAdapter(BasePostingAdapter):
 
     def _create_driver(self, proxy_extension_path: Path | None) -> WebDriver:
         options = Options()
+        user_data_dir = Path(tempfile.mkdtemp(prefix="threadsai_chrome_"))
 
         if _is_headless_browser_enabled():
             options.add_argument("--headless=new")
@@ -136,8 +162,15 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-setuid-sandbox")
+        options.add_argument("--disable-crash-reporter")
+        options.add_argument("--disable-in-process-stack-traces")
+        options.add_argument("--disable-logging")
+        options.add_argument("--no-zygote")
+        options.add_argument("--remote-debugging-pipe")
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--window-size=1440,1200")
+        options.add_argument(f"--user-data-dir={user_data_dir}")
         options.add_argument("--blink-settings=imagesEnabled=false")
         options.add_argument("--disable-notifications")
         options.add_argument("--disable-popup-blocking")
@@ -175,9 +208,18 @@ class ThreadsAdapter(BasePostingAdapter):
         if proxy_extension_path is not None:
             options.add_extension(str(proxy_extension_path))
 
-        driver = webdriver.Chrome(options=options)
-        self._apply_stealth_scripts(driver)
-        return driver
+        try:
+            driver = webdriver.Chrome(options=options)
+            setattr(driver, "_threadsai_user_data_dir", user_data_dir)
+            self._apply_stealth_scripts(driver)
+            return driver
+        except WebDriverException as exc:
+            self._remove_directory_safely(user_data_dir)
+            raise RuntimeError(
+                "Chrome не смог стартовать на сервере. Проверь установку google-chrome/chromium, "
+                "совместимость ChromeDriver и системные библиотеки. "
+                f"Исходная ошибка: {exc}"
+            ) from exc
 
     def _apply_stealth_scripts(self, driver: WebDriver) -> None:
         driver.execute_cdp_cmd(
@@ -920,10 +962,22 @@ chrome.webRequest.onAuthRequired.addListener(
     def _quit_driver_safely(self, driver: WebDriver | None) -> None:
         if driver is None:
             return
+        user_data_dir = getattr(driver, "_threadsai_user_data_dir", None)
 
         try:
             driver.quit()
         except WebDriverException:
+            pass
+        finally:
+            if isinstance(user_data_dir, Path):
+                self._remove_directory_safely(user_data_dir)
+
+    def _remove_directory_safely(self, path: Path) -> None:
+        try:
+            import shutil
+
+            shutil.rmtree(path, ignore_errors=True)
+        except OSError:
             pass
 
     def _is_recoverable_browser_crash(self, exc: Exception) -> bool:

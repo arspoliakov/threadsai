@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, get_current_user_id, get_db
+from app.api.deps import get_current_user_id, get_db
 from app.core.default_prompts import DEFAULT_GLOBAL_PROMPT
 from app.db.models import GlobalPrompt, Project, ProjectPrompt, PromptType
 
@@ -33,6 +33,7 @@ class GlobalPromptRead(GlobalPromptCreate):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    owner_id: int | None
     created_at: datetime
     updated_at: datetime
 
@@ -70,9 +71,9 @@ class ProjectPromptRead(ProjectPromptCreate):
 async def create_global_prompt(
     payload: GlobalPromptCreate,
     db: AsyncSession = Depends(get_db),
-    _: str = Depends(get_current_admin),
+    current_user_id: int = Depends(get_current_user_id),
 ) -> GlobalPromptRead:
-    prompt = GlobalPrompt(**payload.model_dump())
+    prompt = GlobalPrompt(**payload.model_dump(), owner_id=current_user_id)
     db.add(prompt)
     await db.commit()
     await db.refresh(prompt)
@@ -87,9 +88,12 @@ async def create_global_prompt(
 async def get_active_global_prompts(
     prompt_type: PromptType | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
-    _: str = Depends(get_current_admin),
+    current_user_id: int = Depends(get_current_user_id),
 ) -> list[GlobalPromptRead]:
-    stmt = select(GlobalPrompt).where(GlobalPrompt.is_active.is_(True))
+    stmt = select(GlobalPrompt).where(
+        GlobalPrompt.is_active.is_(True),
+        GlobalPrompt.owner_id == current_user_id,
+    )
 
     if prompt_type is not None:
         stmt = stmt.where(GlobalPrompt.prompt_type == prompt_type)
@@ -101,6 +105,7 @@ async def get_active_global_prompts(
         return prompts
 
     default_prompt = GlobalPrompt(
+        owner_id=current_user_id,
         prompt_type=PromptType.VIRALITY,
         title="Default Anti-AI global content prompt",
         body=DEFAULT_GLOBAL_PROMPT,
@@ -121,10 +126,11 @@ async def get_active_global_prompts(
 async def get_global_prompt(
     prompt_id: int,
     db: AsyncSession = Depends(get_db),
-    _: str = Depends(get_current_admin),
+    current_user_id: int = Depends(get_current_user_id),
 ) -> GlobalPromptRead:
-    prompt = await db.get(GlobalPrompt, prompt_id)
-
+    prompt = await db.scalar(
+        select(GlobalPrompt).where(GlobalPrompt.id == prompt_id, GlobalPrompt.owner_id == current_user_id)
+    )
     if prompt is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -143,10 +149,11 @@ async def update_global_prompt(
     prompt_id: int,
     payload: GlobalPromptUpdate,
     db: AsyncSession = Depends(get_db),
-    _: str = Depends(get_current_admin),
+    current_user_id: int = Depends(get_current_user_id),
 ) -> GlobalPromptRead:
-    prompt = await db.get(GlobalPrompt, prompt_id)
-
+    prompt = await db.scalar(
+        select(GlobalPrompt).where(GlobalPrompt.id == prompt_id, GlobalPrompt.owner_id == current_user_id)
+    )
     if prompt is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

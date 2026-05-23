@@ -255,6 +255,7 @@ class GlobalPrompt(Base, TimestampMixin):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     prompt_type: Mapped[PromptType] = mapped_column(
         SAEnum(PromptType, values_callable=enum_values),
         nullable=False,

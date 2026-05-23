@@ -1,13 +1,17 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import GlobalPrompt, ProjectPrompt
+from app.db.models import GlobalPrompt, Project, ProjectPrompt
 
 
 async def build_system_prompt(project_id: int, session: AsyncSession) -> str:
+    owner_id = await session.scalar(select(Project.owner_id).where(Project.id == project_id))
     global_prompts_stmt = (
         select(GlobalPrompt)
-        .where(GlobalPrompt.is_active.is_(True))
+        .where(
+            GlobalPrompt.is_active.is_(True),
+            GlobalPrompt.owner_id == owner_id,
+        )
         .order_by(GlobalPrompt.prompt_type, GlobalPrompt.id)
     )
     project_prompts_stmt = (
@@ -42,4 +46,3 @@ async def build_system_prompt(project_id: int, session: AsyncSession) -> str:
         )
 
     return "\n\n".join(sections)
-

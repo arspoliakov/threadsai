@@ -150,19 +150,12 @@ export default function LoginPage() {
             </span>
             <div>
               <p className="font-display text-2xl leading-none text-white">ThreadsGo</p>
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.22em] text-white/36">
-                telegram protected console
-              </p>
             </div>
           </div>
 
           <h1 className="mt-10 font-display text-6xl leading-[0.82] tracking-[-0.06em] text-white sm:text-7xl">
             Вход в кабинет.
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-8 text-white/58">
-            Авторизация проходит через Telegram Login Widget. Backend проверяет подпись,
-            создает пользователя и выдает защищенный JWT-токен для API.
-          </p>
 
           <div className="mt-8 rounded-[1.6rem] border border-white/10 bg-black/24 p-5">
             <div className="relative grid min-h-20 place-items-center rounded-[1.2rem] border border-white/8 bg-[#050807]/70 p-5">
@@ -220,11 +213,6 @@ export default function LoginPage() {
             </div>
           ) : null}
 
-          <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-xs leading-6 text-white/38">
-            Если виджет не появился после обновления, проверьте, что на сервере во
-            frontend `.env` задан `VITE_TELEGRAM_BOT_USERNAME=threadsLLMAI_bot`, затем
-            выполнен новый `npm run build`.
-          </div>
         </div>
       </section>
     </main>

@@ -14,6 +14,10 @@ body {
   font-family: Aptos, "Segoe UI", sans-serif;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 .field-label {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 11px;
@@ -33,4 +37,54 @@ body {
 
 .field-control:focus {
   border-color: #77766f;
+}
+
+.landing-shell {
+  font-feature-settings:
+    "ss01" on,
+    "cv05" on;
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(circle at 50% 20%, black, transparent 68%);
+}
+
+.landing-reveal {
+  animation: landing-reveal 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.landing-card {
+  animation: landing-card-in both;
+  animation-timeline: view();
+  animation-range: entry 8% cover 28%;
+}
+
+@keyframes landing-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+    filter: blur(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes landing-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(34px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

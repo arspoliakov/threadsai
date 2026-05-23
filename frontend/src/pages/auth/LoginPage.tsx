@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -21,21 +21,21 @@ declare global {
 }
 
 const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
+const WIDGET_TIMEOUT_MS = 4500;
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as LocationState | null;
   const widgetContainerRef = useRef<HTMLDivElement | null>(null);
+  const widgetTimeoutRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [widgetKey, setWidgetKey] = useState(0);
+  const [widgetStatus, setWidgetStatus] = useState<"loading" | "ready" | "failed">("loading");
 
-  useEffect(() => {
-    if (!widgetContainerRef.current || !TELEGRAM_BOT_USERNAME) {
-      return;
-    }
-
-    window.onTelegramAuth = async (user: TelegramAuthPayload) => {
+  const handleTelegramAuth = useCallback(
+    async (user: TelegramAuthPayload) => {
       setError(null);
       setIsLoading(true);
 
@@ -54,73 +54,178 @@ export default function LoginPage() {
       } finally {
         setIsLoading(false);
       }
-    };
+    },
+    [navigate, state?.from],
+  );
 
+  useEffect(() => {
+    if (!widgetContainerRef.current || !TELEGRAM_BOT_USERNAME) {
+      setWidgetStatus("failed");
+      return;
+    }
+
+    setWidgetStatus("loading");
+    setError(null);
+    window.onTelegramAuth = handleTelegramAuth;
     widgetContainerRef.current.innerHTML = "";
+
     const script = document.createElement("script");
     script.async = true;
     script.src = "https://telegram.org/js/telegram-widget.js?22";
-    script.setAttribute("data-telegram-login", TELEGRAM_BOT_USERNAME);
+    script.setAttribute("data-telegram-login", TELEGRAM_BOT_USERNAME.replace(/^@/, ""));
     script.setAttribute("data-size", "large");
-    script.setAttribute("data-radius", "10");
+    script.setAttribute("data-radius", "16");
     script.setAttribute("data-userpic", "false");
     script.setAttribute("data-request-access", "write");
     script.setAttribute("data-onauth", "onTelegramAuth(user)");
+    script.onload = () => {
+      window.setTimeout(() => {
+        const hasWidget = Boolean(widgetContainerRef.current?.querySelector("iframe"));
+        setWidgetStatus(hasWidget ? "ready" : "failed");
+      }, 800);
+    };
+    script.onerror = () => setWidgetStatus("failed");
+
     widgetContainerRef.current.appendChild(script);
+
+    widgetTimeoutRef.current = window.setTimeout(() => {
+      const hasWidget = Boolean(widgetContainerRef.current?.querySelector("iframe"));
+      if (!hasWidget) {
+        setWidgetStatus("failed");
+      }
+    }, WIDGET_TIMEOUT_MS);
 
     return () => {
       delete window.onTelegramAuth;
+      if (widgetTimeoutRef.current) {
+        window.clearTimeout(widgetTimeoutRef.current);
+      }
       if (widgetContainerRef.current) {
         widgetContainerRef.current.innerHTML = "";
       }
     };
-  }, [navigate, state?.from]);
+  }, [handleTelegramAuth, widgetKey]);
 
   if (isAuthenticated()) {
     return <Navigate to={state?.from || "/app"} replace />;
   }
 
-  return (
-    <main className="grid min-h-screen bg-[#101010] px-6 py-10 text-[#f4f1ea]">
-      <section className="m-auto w-full max-w-md rounded-3xl border border-white/15 bg-[#141414] p-8 shadow-sm">
-        <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-white/40">
-          Telegram protected console
-        </p>
-        <h1 className="mt-4 font-display text-5xl leading-none">Вход</h1>
-        <p className="mt-5 text-sm leading-6 text-white/55">
-          Войдите через Telegram. Backend проверит подпись виджета, создаст пользователя
-          и выдаст JWT-токен для API.
-        </p>
+  const botLink = TELEGRAM_BOT_USERNAME
+    ? `https://t.me/${TELEGRAM_BOT_USERNAME.replace(/^@/, "")}`
+    : "https://t.me/";
 
-        <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
-          {TELEGRAM_BOT_USERNAME ? (
-            <div className="grid min-h-12 place-items-center" ref={widgetContainerRef}>
-              {isLoading ? <Spinner /> : null}
-            </div>
-          ) : (
-            <div className="text-sm leading-6 text-[#ffb4a9]">
-              Не задан `VITE_TELEGRAM_BOT_USERNAME` во frontend `.env`.
-            </div>
-          )}
+  return (
+    <main className="landing-shell relative grid min-h-screen overflow-hidden bg-[#070909] px-5 py-8 text-[#eff6ed] sm:px-8">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="landing-aurora absolute left-[-12rem] top-[-12rem] h-[30rem] w-[30rem] rounded-full bg-[#0076ff]/28 blur-[110px]" />
+        <div className="landing-aurora absolute bottom-[-14rem] right-[-10rem] h-[34rem] w-[34rem] rounded-full bg-[#73ff2d]/22 blur-[130px] [animation-delay:-6s]" />
+        <div className="landing-grid absolute inset-0 opacity-[0.16]" />
+      </div>
+
+      <section className="landing-reveal relative m-auto grid w-full max-w-6xl overflow-hidden rounded-[2.2rem] border border-white/10 bg-white/[0.045] shadow-[0_50px_160px_rgba(0,0,0,0.55)] backdrop-blur md:grid-cols-[0.95fr_1.05fr]">
+        <div className="relative min-h-[22rem] overflow-hidden border-b border-white/10 bg-[#08100d] md:border-b-0 md:border-r md:border-white/10">
+          <img
+            src="/landing/mobile-preview.webp"
+            alt=""
+            className="landing-phone-image absolute left-1/2 top-6 h-[35rem] max-w-none -translate-x-1/2 object-contain opacity-95 md:top-0 md:h-[42rem]"
+          />
+          <img
+            src="/landing/hero-orb.webp"
+            alt=""
+            className="landing-orb absolute left-8 top-8 h-24 w-24 object-contain opacity-80"
+          />
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#08100d] to-transparent" />
+          <Link
+            to="/"
+            className="absolute left-5 top-5 rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-white/62 transition hover:border-white/35 hover:text-white"
+          >
+            ← лендинг
+          </Link>
         </div>
 
-        {isLoading ? (
-          <div className="mt-5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-white/45">
-            <Spinner />
-            Проверка Telegram
+        <div className="relative p-7 sm:p-9 lg:p-12">
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.06]">
+              <img src="/threadsgo-logo.png" alt="ThreadsGo" className="h-9 w-9 object-contain" />
+            </span>
+            <div>
+              <p className="font-display text-2xl leading-none text-white">ThreadsGo</p>
+              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.22em] text-white/36">
+                telegram protected console
+              </p>
+            </div>
           </div>
-        ) : null}
 
-        {error ? (
-          <div className="mt-5 rounded-2xl border border-[#b42318]/40 bg-[#2a1110] px-4 py-3 text-sm text-[#ffb4a9]">
-            {error}
+          <h1 className="mt-10 font-display text-6xl leading-[0.82] tracking-[-0.06em] text-white sm:text-7xl">
+            Вход в кабинет.
+          </h1>
+          <p className="mt-6 max-w-xl text-base leading-8 text-white/58">
+            Авторизация проходит через Telegram Login Widget. Backend проверяет подпись,
+            создает пользователя и выдает защищенный JWT-токен для API.
+          </p>
+
+          <div className="mt-8 rounded-[1.6rem] border border-white/10 bg-black/24 p-5">
+            <div className="relative grid min-h-20 place-items-center rounded-[1.2rem] border border-white/8 bg-[#050807]/70 p-5">
+              {widgetStatus === "loading" ? (
+                <div className="absolute inset-0 grid place-items-center">
+                  <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-white/42">
+                    <Spinner />
+                    загружаем telegram
+                  </div>
+                </div>
+              ) : null}
+
+              {TELEGRAM_BOT_USERNAME ? (
+                <div className={widgetStatus === "failed" ? "hidden" : "grid place-items-center"} ref={widgetContainerRef} />
+              ) : null}
+
+              {widgetStatus === "failed" ? (
+                <div className="max-w-md text-center">
+                  <p className="text-sm leading-6 text-white/62">
+                    Виджет Telegram не отрисовался. Обычно это значит, что браузер заблокировал
+                    внешний скрипт или frontend был собран без имени бота.
+                  </p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setWidgetKey((current) => current + 1)}
+                      className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35]"
+                    >
+                      попробовать снова
+                    </button>
+                    <a
+                      href={botLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border border-white/14 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white/68 transition hover:border-white/40 hover:text-white"
+                    >
+                      открыть бота
+                    </a>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
-        ) : null}
 
-        <p className="mt-6 text-xs leading-5 text-white/35">
-          Если окно Telegram не появилось, проверьте username бота и домен в настройках
-          Telegram Login Widget.
-        </p>
+          {isLoading ? (
+            <div className="mt-5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-white/45">
+              <Spinner />
+              Проверка Telegram
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="mt-5 rounded-2xl border border-[#b42318]/40 bg-[#2a1110] px-4 py-3 text-sm text-[#ffb4a9]">
+              {error}
+            </div>
+          ) : null}
+
+          <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-xs leading-6 text-white/38">
+            Если виджет не появился после обновления, проверьте, что на сервере во
+            frontend `.env` задан `VITE_TELEGRAM_BOT_USERNAME=threadsLLMAI_bot`, затем
+            выполнен новый `npm run build`.
+          </div>
+        </div>
       </section>
     </main>
   );

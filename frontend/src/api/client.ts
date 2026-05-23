@@ -243,8 +243,23 @@ export type SavedTrend = {
 
 export type TriggerScrapingResult = {
   project_id: number;
-  collected_posts_count: number;
-  saved_trends_count: number;
+  operation_id: number;
+  status: ProjectOperationStatus;
+  message: string | null;
+};
+
+export type ProjectOperationType = "scraping" | "generation";
+export type ProjectOperationStatus = "running" | "success" | "failed";
+
+export type ProjectOperation = {
+  id: number;
+  project_id: number;
+  action_type: ProjectOperationType;
+  status: ProjectOperationStatus;
+  message: string | null;
+  result_json: Record<string, unknown> | null;
+  started_at: string;
+  finished_at: string | null;
 };
 
 export type TriggerGenerationResult = {
@@ -392,6 +407,17 @@ export async function updateGlobalPrompt(
 export async function triggerScraping(projectId: number): Promise<TriggerScrapingResult> {
   const response = await apiClient.post<TriggerScrapingResult>(
     `/api/v1/projects/${projectId}/trigger-scraping`,
+  );
+  return response.data;
+}
+
+export async function getLatestProjectOperation(
+  projectId: number,
+  actionType: ProjectOperationType,
+): Promise<ProjectOperation | null> {
+  const response = await apiClient.get<ProjectOperation | null>(
+    `/api/v1/projects/${projectId}/operations/latest`,
+    { params: { action_type: actionType } },
   );
   return response.data;
 }

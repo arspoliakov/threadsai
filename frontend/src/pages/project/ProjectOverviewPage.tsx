@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
+  getLatestProjectOperation,
   getProjectDashboard,
   triggerGeneration,
   triggerScraping,
@@ -10,6 +11,7 @@ import {
   type Project,
   type ProjectAccountState,
   type ProjectDashboard,
+  type ProjectOperation,
 } from "../../api/client";
 
 type RunningAction = "scraping" | "generation" | null;
@@ -23,6 +25,7 @@ export default function ProjectOverviewPage() {
   const [dashboard, setDashboard] = useState<ProjectDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [runningAction, setRunningAction] = useState<RunningAction>(null);
+  const [latestScrapingOperation, setLatestScrapingOperation] = useState<ProjectOperation | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +44,60 @@ export default function ProjectOverviewPage() {
     }
   }
 
-  useEffect(() => {
-    if (Number.isFinite(projectId)) {
-      void loadDashboard();
+  async function refreshScrapingOperation() {
+    const operation = await getLatestProjectOperation(projectId, "scraping");
+    setLatestScrapingOperation(operation);
+
+    if (operation?.status === "running") {
+      setRunningAction("scraping");
+      setError(null);
+      setStatusMessage(operation.message || "Анализ трендов выполняется в фоне.");
+      return operation;
     }
+
+    setRunningAction((current) => (current === "scraping" ? null : current));
+
+    if (operation?.status === "success") {
+      const saved = operation.result_json?.saved_trends_count;
+      setError(null);
+      setStatusMessage(
+        typeof saved === "number"
+          ? `Анализ трендов завершен: сохранено ${saved}.`
+          : operation.message || "Анализ трендов завершен.",
+      );
+    }
+
+    if (operation?.status === "failed") {
+      setError(operation.message || "Анализ трендов завершился ошибкой.");
+    }
+
+    return operation;
+  }
+
+  useEffect(() => {
+    if (!Number.isFinite(projectId)) {
+      return;
+    }
+
+    void loadDashboard();
+    void refreshScrapingOperation();
   }, [projectId]);
+
+  useEffect(() => {
+    if (latestScrapingOperation?.status !== "running") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshScrapingOperation().then((operation) => {
+        if (operation?.status !== "running") {
+          void loadDashboard();
+        }
+      });
+    }, 3500);
+
+    return () => window.clearInterval(intervalId);
+  }, [latestScrapingOperation?.status, projectId]);
 
   async function handleTriggerScraping() {
     setRunningAction("scraping");
@@ -54,15 +106,12 @@ export default function ProjectOverviewPage() {
 
     try {
       const result = await triggerScraping(projectId);
-      setStatusMessage(
-        `Анализ трендов завершен: собрано ${result.collected_posts_count}, сохранено ${result.saved_trends_count}.`,
-      );
-      toast.success(`Анализ трендов завершен: сохранено ${result.saved_trends_count}`);
-      await loadDashboard();
+      setStatusMessage(result.message || "Анализ трендов запущен в фоне.");
+      toast.success("Анализ трендов запущен в фоне");
+      await refreshScrapingOperation();
     } catch {
       toast.error("Не удалось запустить анализ трендов");
       setError("Не удалось запустить анализ трендов.");
-    } finally {
       setRunningAction(null);
     }
   }
@@ -130,6 +179,11 @@ export default function ProjectOverviewPage() {
         />
       </div>
 
+      {latestScrapingOperation?.status === "running" ? (
+        <Notice tone="neutral">
+          Анализ трендов идет в фоне. Можно перейти в настройки или очередь: статус сохранен на бэкенде и восстановится при возврате.
+        </Notice>
+      ) : null}
       {statusMessage ? <Notice tone="neutral">{statusMessage}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
 
@@ -151,7 +205,16 @@ export default function ProjectOverviewPage() {
             <LogRow label="Последняя генерация" value={formatDate(dashboard.last_generation_at)} />
             <LogRow label="Тренды в базе" value={String(dashboard.saved_trends_count)} />
             <LogRow label="Задачи по статусам" value={formatTaskStatuses(dashboard.posting_tasks_by_status)} />
-            <LogRow label="Последняя ошибка" value={dashboard.recent_errors[0] || "Ошибок нет"} isError={dashboard.recent_errors.length > 0} />
+            <LogRow
+              label="Последний анализ трендов"
+              value={formatOperation(latestScrapingOperation)}
+              isError={latestScrapingOperation?.status === "failed"}
+            />
+            <LogRow
+              label="Последняя ошибка"
+              value={dashboard.recent_errors[0] || "Ошибок нет"}
+              isError={dashboard.recent_errors.length > 0}
+            />
           </div>
         ) : (
           <EmptyLine text="Нет данных" />
@@ -363,6 +426,16 @@ function formatTaskStatuses(statuses: Record<string, number>) {
   }
 
   return entries.map(([status, count]) => `${status}: ${count}`).join("; ");
+}
+
+function formatOperation(operation: ProjectOperation | null) {
+  if (!operation) {
+    return "Еще не запускался";
+  }
+
+  const started = new Date(operation.started_at).toLocaleString("ru-RU");
+  const finished = operation.finished_at ? new Date(operation.finished_at).toLocaleString("ru-RU") : "в процессе";
+  return `${operation.status}; старт: ${started}; финиш: ${finished}; ${operation.message || ""}`;
 }
 
 function formatDate(value: string | null) {

@@ -1,20 +1,35 @@
+import logging
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db
 from app.ai_engine.generators import generate_post
-from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project, SavedTrend
+from app.db.models import (
+    Account,
+    AccountStatus,
+    Platform,
+    PostingTask,
+    PostingTaskStatus,
+    Project,
+    ProjectOperation,
+    ProjectOperationStatus,
+    ProjectOperationType,
+    SavedTrend,
+)
 from app.db.repositories.projects import ProjectRepository
+from app.db.session import AsyncSessionLocal
 from app.parsers.scraper import scrape_trends
 from app.parsers.trend_analyzer import analyze_and_save_trends
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+logger = logging.getLogger(__name__)
 
 
 class ProjectAccountStateRead(BaseModel):
@@ -38,8 +53,22 @@ class ProjectDashboardRead(BaseModel):
 
 class TriggerScrapingRead(BaseModel):
     project_id: int
-    collected_posts_count: int
-    saved_trends_count: int
+    operation_id: int
+    status: ProjectOperationStatus
+    message: str | None
+
+
+class ProjectOperationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    action_type: ProjectOperationType
+    status: ProjectOperationStatus
+    message: str | None
+    result_json: dict[str, Any] | None
+    started_at: datetime
+    finished_at: datetime | None
 
 
 class TriggerGenerationRead(BaseModel):
@@ -181,22 +210,77 @@ async def get_project_dashboard(
 )
 async def trigger_project_scraping(
     project_id: int,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ) -> TriggerScrapingRead:
     project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
-    scrape_result = await scrape_trends(project_id=project.id, session=db)
-    saved_trends = await analyze_and_save_trends(
-        project_id=project.id,
-        raw_posts=scrape_result.raw_posts,
-        session=db,
+
+    running_operation = await db.scalar(
+        select(ProjectOperation)
+        .where(
+            ProjectOperation.project_id == project.id,
+            ProjectOperation.owner_id == current_user_id,
+            ProjectOperation.action_type == ProjectOperationType.SCRAPING,
+            ProjectOperation.status == ProjectOperationStatus.RUNNING,
+        )
+        .order_by(ProjectOperation.started_at.desc())
+        .limit(1)
     )
+
+    if running_operation is not None:
+        return TriggerScrapingRead(
+            project_id=project.id,
+            operation_id=running_operation.id,
+            status=running_operation.status,
+            message=running_operation.message,
+        )
+
+    operation = ProjectOperation(
+        project_id=project.id,
+        owner_id=current_user_id,
+        action_type=ProjectOperationType.SCRAPING,
+        status=ProjectOperationStatus.RUNNING,
+        message="Анализ трендов запущен. Можно уйти со страницы, процесс продолжится в фоне.",
+    )
+    db.add(operation)
+    await db.commit()
+    await db.refresh(operation)
+
+    background_tasks.add_task(_run_scraping_operation, operation.id)
 
     return TriggerScrapingRead(
         project_id=project.id,
-        collected_posts_count=len(scrape_result.raw_posts),
-        saved_trends_count=len(saved_trends),
+        operation_id=operation.id,
+        status=operation.status,
+        message=operation.message,
     )
+
+
+@router.get(
+    "/{project_id}/operations/latest",
+    response_model=ProjectOperationRead | None,
+    status_code=status.HTTP_200_OK,
+)
+async def get_latest_project_operation(
+    project_id: int,
+    action_type: ProjectOperationType = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+) -> ProjectOperationRead | None:
+    project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
+    operation = await db.scalar(
+        select(ProjectOperation)
+        .where(
+            ProjectOperation.project_id == project.id,
+            ProjectOperation.owner_id == current_user_id,
+            ProjectOperation.action_type == action_type,
+        )
+        .order_by(ProjectOperation.started_at.desc())
+        .limit(1)
+    )
+
+    return operation
 
 
 @router.post(
@@ -289,6 +373,48 @@ async def _get_owned_project(project_id: int, owner_id: int, db: AsyncSession) -
         )
 
     return project
+
+
+async def _run_scraping_operation(operation_id: int) -> None:
+    async with AsyncSessionLocal() as session:
+        operation = await session.get(ProjectOperation, operation_id)
+
+        if operation is None:
+            logger.warning("Project scraping operation %s not found.", operation_id)
+            return
+
+        try:
+            logger.info("Project scraping operation %s started for project %s.", operation.id, operation.project_id)
+            scrape_result = await scrape_trends(project_id=operation.project_id, session=session)
+            saved_trends = await analyze_and_save_trends(
+                project_id=operation.project_id,
+                raw_posts=scrape_result.raw_posts,
+                session=session,
+            )
+            operation.status = ProjectOperationStatus.SUCCESS
+            operation.message = (
+                f"Анализ трендов завершен: собрано {len(scrape_result.raw_posts)}, "
+                f"сохранено {len(saved_trends)}."
+            )
+            operation.result_json = {
+                "collected_posts_count": len(scrape_result.raw_posts),
+                "saved_trends_count": len(saved_trends),
+            }
+            operation.finished_at = datetime.now(UTC)
+            await session.commit()
+            logger.info("Project scraping operation %s completed.", operation.id)
+        except Exception as exc:
+            await session.rollback()
+            failed_operation = await session.get(ProjectOperation, operation_id)
+
+            if failed_operation is not None:
+                failed_operation.status = ProjectOperationStatus.FAILED
+                failed_operation.message = f"Анализ трендов завершился ошибкой: {exc}"
+                failed_operation.result_json = {"error": str(exc)}
+                failed_operation.finished_at = datetime.now(UTC)
+                await session.commit()
+
+            logger.exception("Project scraping operation %s failed.", operation_id)
 
 
 def _build_generation_topic(project: ProjectRead) -> str:

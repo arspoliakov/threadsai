@@ -41,6 +41,17 @@ class PostingTaskStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class ProjectOperationType(StrEnum):
+    SCRAPING = "scraping"
+    GENERATION = "generation"
+
+
+class ProjectOperationStatus(StrEnum):
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
 class PromptType(StrEnum):
     VIRALITY = "virality"
     HOOK = "hook"
@@ -96,6 +107,10 @@ class Project(Base, TimestampMixin):
         cascade="all, delete-orphan",
     )
     project_prompts: Mapped[list[ProjectPrompt]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+    operations: Mapped[list[ProjectOperation]] = relationship(
         back_populates="project",
         cascade="all, delete-orphan",
     )
@@ -248,3 +263,30 @@ class GlobalPrompt(Base, TimestampMixin):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     version: Mapped[str] = mapped_column(String(50), default="1.0.0", nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+
+
+class ProjectOperation(Base, TimestampMixin):
+    __tablename__ = "project_operations"
+    __table_args__ = (
+        Index("ix_project_operations_project_action", "project_id", "action_type"),
+        Index("ix_project_operations_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    action_type: Mapped[ProjectOperationType] = mapped_column(
+        SAEnum(ProjectOperationType, values_callable=enum_values),
+        nullable=False,
+    )
+    status: Mapped[ProjectOperationStatus] = mapped_column(
+        SAEnum(ProjectOperationStatus, values_callable=enum_values),
+        default=ProjectOperationStatus.RUNNING,
+        nullable=False,
+    )
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    project: Mapped[Project] = relationship(back_populates="operations")

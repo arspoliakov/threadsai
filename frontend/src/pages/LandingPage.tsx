@@ -1,5 +1,13 @@
 import { Link } from "react-router-dom";
 
+const landingImages = {
+  heroOrb: "/landing/hero-orb.webp",
+  dashboard: "/landing/dashboard-mockup.webp",
+  trendRadar: "/landing/trend-radar.webp",
+  humanControl: "/landing/human-control.webp",
+  mobilePreview: "/landing/mobile-preview.webp",
+};
+
 const stats = [
   { label: "сигналы из ленты", value: "300+" },
   { label: "ручной контроль", value: "100%" },
@@ -44,9 +52,9 @@ export default function LandingPage() {
   return (
     <main className="landing-shell min-h-screen overflow-hidden bg-[#070909] text-[#eff6ed]">
       <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute left-[-14rem] top-[-10rem] h-[32rem] w-[32rem] rounded-full bg-[#0076ff]/30 blur-[110px]" />
-        <div className="absolute right-[-12rem] top-[12rem] h-[34rem] w-[34rem] rounded-full bg-[#73ff2d]/25 blur-[120px]" />
-        <div className="absolute bottom-[-18rem] left-[30%] h-[34rem] w-[34rem] rounded-full bg-[#00d8b7]/20 blur-[130px]" />
+        <div className="landing-aurora absolute left-[-14rem] top-[-10rem] h-[32rem] w-[32rem] rounded-full bg-[#0076ff]/30 blur-[110px]" />
+        <div className="landing-aurora absolute right-[-12rem] top-[12rem] h-[34rem] w-[34rem] rounded-full bg-[#73ff2d]/25 blur-[120px] [animation-delay:-5s]" />
+        <div className="landing-aurora absolute bottom-[-18rem] left-[30%] h-[34rem] w-[34rem] rounded-full bg-[#00d8b7]/20 blur-[130px] [animation-delay:-9s]" />
         <div className="landing-grid absolute inset-0 opacity-[0.18]" />
       </div>
 
@@ -80,6 +88,13 @@ export default function LandingPage() {
 
         <div className="grid flex-1 items-center gap-10 py-14 sm:py-20 lg:grid-cols-[0.95fr_1.05fr] lg:py-10">
           <div className="landing-reveal max-w-3xl [animation-delay:120ms]">
+            <img
+              src={landingImages.heroOrb}
+              alt=""
+              className="landing-orb pointer-events-none absolute right-[-6rem] top-24 hidden w-72 opacity-40 blur-[0.2px] lg:block xl:right-[42%] xl:top-28 xl:w-80"
+              loading="eager"
+            />
+
             <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 backdrop-blur">
               <span className="h-2 w-2 animate-pulse rounded-full bg-[#70ff35]" />
               <span className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-white/52 sm:text-[10px] sm:tracking-[0.2em]">
@@ -169,6 +184,28 @@ export default function LandingPage() {
             </div>
           </article>
         </div>
+
+        <div className="landing-card relative mt-4 overflow-hidden rounded-[2.4rem] border border-white/10 bg-white/[0.035]">
+          <img
+            src={landingImages.trendRadar}
+            alt="Карта тренд-сигналов"
+            className="landing-pan-image h-[26rem] w-full object-cover opacity-88 sm:h-[34rem]"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#070909] via-[#070909]/30 to-transparent" />
+          <div className="absolute bottom-0 left-0 max-w-xl p-7 sm:p-10">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#70ff35]/75">
+              trend graph
+            </p>
+            <h3 className="mt-4 font-display text-4xl leading-none tracking-[-0.05em] text-white sm:text-6xl">
+              Лента превращается в карту спроса.
+            </h3>
+            <p className="mt-5 text-sm leading-7 text-white/58">
+              Посты, реакции и паттерны становятся понятным сигналом: что зацепило,
+              почему сработало и как это адаптировать под ваш проект.
+            </p>
+          </div>
+        </div>
       </section>
 
       <section id="workflow" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
@@ -230,25 +267,58 @@ export default function LandingPage() {
 
             <ControlMockup />
           </div>
+
+          <div className="landing-card relative mt-5 overflow-hidden rounded-[2rem] bg-[#050807]">
+            <img
+              src={landingImages.humanControl}
+              alt="Ручное управление публикацией"
+              className="h-[24rem] w-full object-cover opacity-90 sm:h-[34rem]"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#050807] via-transparent to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
+              <div className="max-w-xl rounded-3xl border border-white/12 bg-[#07100e]/70 p-5 text-white backdrop-blur">
+                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#70ff35]/70">
+                  approve / rewrite / publish
+                </p>
+                <p className="mt-3 text-sm leading-7 text-white/62">
+                  Автоматизация не забирает контроль. Она готовит черновики, а человек
+                  решает, что выпускать в ленту.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
       <section className="relative z-10 mx-auto max-w-7xl px-5 pb-10 pt-12 sm:px-8 sm:pt-16 lg:px-10">
-        <div className="landing-card overflow-hidden rounded-[2.4rem] border border-white/10 bg-white/[0.045] p-8 text-center backdrop-blur md:p-14">
-          <img src="/threadsgo-logo.png" alt="" className="mx-auto h-20 w-20 object-contain" />
-          <h2 className="mx-auto mt-7 max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
-            Соберите контент-оператора для своего проекта.
-          </h2>
-          <p className="mx-auto mt-6 max-w-xl text-sm leading-7 text-white/54">
-            Начните с Telegram-входа, добавьте проект, подключите Threads-профиль
-            и запустите первый сбор трендов.
-          </p>
-          <Link
-            to="/login"
-            className="mt-9 inline-flex rounded-full bg-white px-8 py-4 font-mono text-xs uppercase tracking-[0.18em] text-[#070909] transition hover:bg-[#70ff35]"
-          >
-            войти в кабинет
-          </Link>
+        <div className="landing-card grid overflow-hidden rounded-[2.4rem] border border-white/10 bg-white/[0.045] backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="p-8 text-center md:p-14 lg:text-left">
+            <img src="/threadsgo-logo.png" alt="" className="mx-auto h-20 w-20 object-contain lg:mx-0" />
+            <h2 className="mt-7 max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
+              Соберите контент-оператора для своего проекта.
+            </h2>
+            <p className="mt-6 max-w-xl text-sm leading-7 text-white/54">
+              Начните с Telegram-входа, добавьте проект, подключите Threads-профиль
+              и запустите первый сбор трендов.
+            </p>
+            <Link
+              to="/login"
+              className="mt-9 inline-flex rounded-full bg-white px-8 py-4 font-mono text-xs uppercase tracking-[0.18em] text-[#070909] transition hover:bg-[#70ff35]"
+            >
+              войти в кабинет
+            </Link>
+          </div>
+
+          <div className="relative min-h-[28rem] overflow-hidden">
+            <img
+              src={landingImages.mobilePreview}
+              alt="Мобильная панель ThreadsGo"
+              className="landing-phone-image absolute left-1/2 top-6 h-[36rem] max-w-none -translate-x-1/2 object-contain lg:top-[-1rem] lg:h-[44rem]"
+              loading="lazy"
+            />
+            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#070909] to-transparent" />
+          </div>
         </div>
       </section>
     </main>
@@ -263,79 +333,36 @@ function HeroDashboard() {
         <p className="mt-2 text-sm text-white">cookies active</p>
       </div>
 
-      <div className="relative rounded-[2.2rem] border border-white/12 bg-[#101615]/80 p-3 shadow-[0_50px_160px_rgba(0,0,0,0.5)] backdrop-blur">
-        <div className="rounded-[1.7rem] border border-white/8 bg-[#eff6ed] p-4 text-[#08100d]">
-          <div className="flex items-center justify-between gap-4 border-b border-[#d7dfd4] pb-4">
-            <div className="flex items-center gap-3">
-              <img src="/threadsgo-logo.png" alt="" className="h-10 w-10 object-contain" />
-              <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#698073]">
-                  project cockpit
-                </p>
-                <h2 className="font-display text-3xl leading-none">MosRiders</h2>
-              </div>
+      <div className="landing-dashboard-frame relative rounded-[2.2rem] border border-white/12 bg-[#101615]/80 p-2 shadow-[0_50px_160px_rgba(0,0,0,0.5)] backdrop-blur sm:p-3">
+        <img
+          src={landingImages.dashboard}
+          alt="ThreadsGo dashboard"
+          className="landing-dashboard-image aspect-[1.5/1] w-full rounded-[1.7rem] object-cover object-center"
+          loading="eager"
+        />
+
+        <div className="absolute inset-x-5 bottom-5 hidden rounded-3xl border border-white/12 bg-[#07100e]/80 p-4 text-white shadow-2xl backdrop-blur md:block">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-white/40">
+                generated post
+              </p>
+              <p className="mt-2 max-w-lg text-sm leading-6 text-white/74">
+                Система поймала тренд, собрала черновик и поставила публикацию в очередь.
+              </p>
             </div>
-            <span className="rounded-full bg-[#08100d] px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-white">
-              live
+            <span className="landing-signal-pill rounded-full bg-[#70ff35] px-4 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#07100e]">
+              ready
             </span>
           </div>
+        </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <DashboardMetric label="тренды" value="10" />
-            <DashboardMetric label="очередь" value="5" />
-            <DashboardMetric label="профиль" value="active" />
-          </div>
-
-          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_0.85fr]">
-            <div className="rounded-3xl bg-[#08100d] p-5 text-white">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-white/35">
-                    generated post
-                  </p>
-                  <p className="mt-4 text-sm leading-7 text-white/74">
-                    Нас уже 20 человек на воскресный круг. Стартуем в 12:30, спокойно
-                    едем по маршруту и потом садимся за пиццу. Если хочешь влиться —
-                    напиши, скину детали.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 flex gap-2">
-                <span className="rounded-full bg-white/10 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-white/55">
-                  edit
-                </span>
-                <span className="rounded-full bg-[#70ff35] px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#08100d]">
-                  publish
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3">
-              <MiniPanel title="applied angle" text="Social proof без давления" />
-              <MiniPanel title="next post" text="сегодня, 18:40" />
-              <MiniPanel title="trend check" text="завтра, 09:00" />
-            </div>
-          </div>
+        <div className="landing-float-card absolute -right-3 top-8 rounded-3xl border border-white/12 bg-[#08100d]/90 p-4 text-white shadow-2xl backdrop-blur sm:-right-5">
+          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/35">today</p>
+          <p className="mt-2 font-display text-3xl leading-none">5</p>
+          <p className="mt-1 text-xs text-white/48">постов в очереди</p>
         </div>
       </div>
-    </div>
-  );
-}
-
-function DashboardMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-3xl border border-[#d7dfd4] bg-white/70 p-4">
-      <p className="font-display text-3xl leading-none">{value}</p>
-      <p className="mt-3 font-mono text-[9px] uppercase tracking-[0.18em] text-[#698073]">{label}</p>
-    </div>
-  );
-}
-
-function MiniPanel({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-3xl border border-[#d7dfd4] bg-white/70 p-4">
-      <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#698073]">{title}</p>
-      <p className="mt-2 text-sm leading-5 text-[#26372f]">{text}</p>
     </div>
   );
 }

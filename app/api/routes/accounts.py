@@ -212,6 +212,20 @@ async def check_account_session(
         )
 
 
+@router.delete(
+    "/{account_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_account(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+) -> None:
+    account = await _get_owned_account(account_id, current_user_id, db)
+    await db.delete(account)
+    await db.commit()
+
+
 async def _get_owned_project(project_id: int, owner_id: int, db: AsyncSession) -> Project | None:
     return await db.scalar(
         select(Project)

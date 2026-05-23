@@ -462,6 +462,10 @@ export async function checkAccountSession(id: number): Promise<AccountSessionChe
   return response.data;
 }
 
+export async function deleteAccount(id: number): Promise<void> {
+  await apiClient.delete(`/api/v1/accounts/${id}`);
+}
+
 export async function getProjectTrends(projectId: number): Promise<SavedTrend[]> {
   const response = await apiClient.get<SavedTrend[]>("/api/v1/trends/", {
     params: { project_id: projectId },

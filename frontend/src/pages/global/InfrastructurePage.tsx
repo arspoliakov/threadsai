@@ -1,7 +1,16 @@
 import { FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { createAccount, getAccounts, type Account, type Platform } from "../../api/client";
+import {
+  checkAccountSession,
+  createAccount,
+  deleteAccount,
+  getAccounts,
+  unlinkAccount,
+  type Account,
+  type AccountStatus,
+  type Platform,
+} from "../../api/client";
 
 const THREADS_PLATFORM: Platform = "threads";
 const PROXY_POOL_STORAGE_KEY = "threadsbot.proxyPool";
@@ -14,18 +23,18 @@ export default function InfrastructurePage() {
   const [proxyPool, setProxyPool] = useState<string[]>(() => loadProxyPool());
   const [newProxyUrl, setNewProxyUrl] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [checkingId, setCheckingId] = useState<number | null>(null);
+  const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   async function loadAccounts() {
     setIsLoading(true);
-    setError(null);
 
     try {
       setAccounts(await getAccounts());
     } catch {
-      toast.error("Не удалось загрузить глобальный пул аккаунтов");
-      setError("Не удалось загрузить глобальный пул аккаунтов.");
+      toast.error("Не удалось загрузить аккаунты");
     } finally {
       setIsLoading(false);
     }
@@ -39,10 +48,12 @@ export default function InfrastructurePage() {
     event.preventDefault();
 
     const normalizedProxy = newProxyUrl.trim();
-    if (!normalizedProxy || proxyPool.includes(normalizedProxy)) {
-      if (proxyPool.includes(normalizedProxy)) {
-        toast.error("Такой прокси уже есть в пуле");
-      }
+    if (!normalizedProxy) {
+      return;
+    }
+
+    if (proxyPool.includes(normalizedProxy)) {
+      toast.error("Такой прокси уже есть в пуле");
       setNewProxyUrl("");
       return;
     }
@@ -51,74 +62,185 @@ export default function InfrastructurePage() {
     setProxyPool(nextProxyPool);
     saveProxyPool(nextProxyPool);
     setNewProxyUrl("");
-    toast.success("Прокси добавлен в пул");
+    toast.success("Прокси добавлен");
+  }
+
+  function removeProxy(proxyUrl: string) {
+    const nextProxyPool = proxyPool.filter((item) => item !== proxyUrl);
+    setProxyPool(nextProxyPool);
+    saveProxyPool(nextProxyPool);
+    toast.success("Прокси удален из локального пула");
+  }
+
+  async function handleCheckSession(accountId: number) {
+    setCheckingId(accountId);
+
+    try {
+      const promise = checkAccountSession(accountId);
+      toast.promise(promise, {
+        loading: "Проверяем cookies-сессию...",
+        success: (result) => result.message,
+        error: "Не удалось проверить сессию",
+      });
+      await promise;
+      await loadAccounts();
+    } finally {
+      setCheckingId(null);
+    }
+  }
+
+  async function handleUnlink(accountId: number) {
+    setUnlinkingId(accountId);
+
+    try {
+      await toast.promise(unlinkAccount(accountId), {
+        loading: "Отвязываем аккаунт от проекта...",
+        success: "Аккаунт вернулся в общий пул",
+        error: "Не удалось отвязать аккаунт",
+      });
+      await loadAccounts();
+    } finally {
+      setUnlinkingId(null);
+    }
+  }
+
+  async function handleDelete(accountId: number) {
+    const confirmed = window.confirm("Удалить аккаунт из пула? Cookies и настройки аккаунта будут удалены.");
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(accountId);
+
+    try {
+      await toast.promise(deleteAccount(accountId), {
+        loading: "Удаляем аккаунт...",
+        success: "Аккаунт удален",
+        error: "Не удалось удалить аккаунт",
+      });
+      await loadAccounts();
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
-    <section className="space-y-10">
-      <div className="grid gap-6 border-b border-[#c9c9c3] pb-8 md:grid-cols-[1fr_auto]">
+    <section className="space-y-8">
+      <header className="grid gap-6 border-b border-[#c9c9c3] pb-8 md:grid-cols-[1fr_auto]">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-            Global resource pool
+            Аккаунты и прокси
           </p>
-          <h1 className="mt-4 font-display text-5xl leading-none">Инфраструктура</h1>
+          <h1 className="mt-4 font-display text-5xl leading-none">Аккаунты</h1>
           <p className="mt-5 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Единый пул Threads-аккаунтов и прокси. Username больше не вводится
-            вручную: скрипт должен получить его из авторизованной сессии.
+            Здесь хранится общий пул Threads-профилей. Аккаунт можно держать свободным,
+            привязать к проекту, проверить cookies-сессию или удалить из системы.
           </p>
         </div>
         <button
           type="button"
           onClick={() => setIsCreateOpen(true)}
-          className="h-11 self-end border border-[#151515] bg-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515]"
+          className="h-11 self-end rounded-2xl border border-[#151515] bg-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515]"
         >
           Добавить аккаунт
         </button>
-      </div>
+      </header>
 
-      {error ? <Notice>{error}</Notice> : null}
+      <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
+              Threads profiles
+            </p>
+            <h2 className="mt-2 font-display text-3xl">Пул аккаунтов</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadAccounts()}
+            disabled={isLoading}
+            className="flex items-center gap-2 rounded-2xl border border-[#151515] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isLoading ? <Spinner /> : null}
+            Обновить
+          </button>
+        </div>
 
-      <ResourceSection title="Аккаунты" eyebrow="Threads identity pool">
-        <AccountsTable accounts={accounts} isLoading={isLoading} />
-      </ResourceSection>
+        <div className="mt-5 grid gap-3">
+          {isLoading ? (
+            <AccountSkeleton />
+          ) : accounts.length === 0 ? (
+            <EmptyState
+              title="Пока нет аккаунтов"
+              description="Добавьте Threads-профиль через cookies. После проверки система сама определит username."
+            />
+          ) : (
+            accounts.map((account) => (
+              <AccountCard
+                key={account.id}
+                account={account}
+                checking={checkingId === account.id}
+                unlinking={unlinkingId === account.id}
+                deleting={deletingId === account.id}
+                onCheck={() => void handleCheckSession(account.id)}
+                onUnlink={() => void handleUnlink(account.id)}
+                onDelete={() => void handleDelete(account.id)}
+              />
+            ))
+          )}
+        </div>
+      </section>
 
-      <ResourceSection title="Пул прокси" eyebrow="Traffic routing">
-        <form
-          onSubmit={handleAddProxy}
-          className="grid gap-4 border-b border-[#c9c9c3] p-4 md:grid-cols-[1fr_auto]"
-        >
+      <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
+        <div className="border-b border-[#e7e5de] pb-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
+            Proxy pool
+          </p>
+          <h2 className="mt-2 font-display text-3xl">Прокси</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
+            Это локальный список для формы добавления аккаунта. Сам прокси сохраняется внутри аккаунта.
+          </p>
+        </div>
+
+        <form onSubmit={handleAddProxy} className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
           <input
             value={newProxyUrl}
             onChange={(event) => setNewProxyUrl(event.target.value)}
             placeholder="http://user:pass@ip:port"
-            className="field-control"
+            className="rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] px-4 py-3 text-sm outline-none transition focus:border-[#151515]"
           />
           <button
             type="submit"
-            className="border border-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] transition hover:bg-[#151515] hover:text-white"
+            className="rounded-2xl border border-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] transition hover:bg-[#151515] hover:text-white"
           >
-            Добавить прокси
+            Добавить
           </button>
         </form>
 
-        {proxyPool.length === 0 ? (
-          <div className="px-4 py-12 text-center font-mono text-xs uppercase tracking-[0.18em] text-[#77766f]">
-            Прокси еще не добавлены
-          </div>
-        ) : (
-          <div>
-            {proxyPool.map((proxyUrl, index) => (
+        <div className="mt-5 grid gap-2">
+          {proxyPool.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-[#d8d8d2] px-4 py-8 text-center text-sm text-[#77766f]">
+              Прокси пока не добавлены
+            </p>
+          ) : (
+            proxyPool.map((proxyUrl, index) => (
               <div
                 key={proxyUrl}
-                className="grid grid-cols-[80px_1fr] border-b border-[#e1e1dc] px-4 py-4 text-sm last:border-b-0"
+                className="grid gap-3 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] px-4 py-3 text-sm md:grid-cols-[80px_1fr_auto]"
               >
                 <span className="font-mono text-xs uppercase text-[#77766f]">#{index + 1}</span>
                 <span className="truncate font-mono text-xs text-[#252525]">{proxyUrl}</span>
+                <button
+                  type="button"
+                  onClick={() => removeProxy(proxyUrl)}
+                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#8a2d25] transition hover:text-[#b42318]"
+                >
+                  удалить
+                </button>
               </div>
-            ))}
-          </div>
-        )}
-      </ResourceSection>
+            ))
+          )}
+        </div>
+      </section>
 
       {isCreateOpen ? (
         <CreateAccountPanel
@@ -134,77 +256,61 @@ export default function InfrastructurePage() {
   );
 }
 
-function ResourceSection({
-  title,
-  eyebrow,
-  children,
+function AccountCard({
+  account,
+  checking,
+  unlinking,
+  deleting,
+  onCheck,
+  onUnlink,
+  onDelete,
 }: {
-  title: string;
-  eyebrow: string;
-  children: React.ReactNode;
+  account: Account;
+  checking: boolean;
+  unlinking: boolean;
+  deleting: boolean;
+  onCheck: () => void;
+  onUnlink: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <section className="border border-[#c9c9c3] bg-white">
-      <header className="border-b border-[#c9c9c3] px-4 py-5">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-          {eyebrow}
-        </p>
-        <h2 className="mt-2 font-display text-3xl">{title}</h2>
-      </header>
-      {children}
-    </section>
-  );
-}
-
-function AccountsTable({ accounts, isLoading }: { accounts: Account[]; isLoading: boolean }) {
-  return (
-    <div>
-      <div className="grid grid-cols-[1fr_1.2fr_1.5fr_0.8fr_0.8fr] border-b border-[#c9c9c3] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">
-        <span>Платформа</span>
-        <span>Username</span>
-        <span>Прокси</span>
-        <span>Статус</span>
-        <span>Проект</span>
-      </div>
-
-      {isLoading ? (
-        <div className="px-4 py-12 text-center font-mono text-xs uppercase tracking-[0.18em] text-[#77766f]">
-          Загрузка аккаунтов
+    <article className="rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4 transition hover:border-[#151515] hover:shadow-sm">
+      <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-center">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">Профиль</p>
+          <p className="mt-1 text-sm text-[#24231f]">{formatUsername(account.username)}</p>
         </div>
-      ) : accounts.length === 0 ? (
-        <div className="px-4 py-16 text-center">
-          <p className="font-display text-3xl">Пул аккаунтов пуст</p>
-          <p className="mt-3 text-sm text-[#66645d]">
-            Добавь первый Threads-аккаунт, затем привяжи его к нужному проекту.
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">Статус</p>
+          <StatusBadge status={account.status} />
+        </div>
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">Проект</p>
+          <p className="mt-1 text-sm text-[#24231f]">
+            {account.project_id === null ? "Свободен" : `Привязан к проекту #${account.project_id}`}
           </p>
         </div>
-      ) : (
-        accounts.map((account) => (
-          <div
-            key={account.id}
-            className="grid grid-cols-[1fr_1.2fr_1.5fr_0.8fr_0.8fr] border-b border-[#e1e1dc] px-4 py-4 text-sm last:border-b-0"
-          >
-            <span className="font-mono uppercase">{account.platform}</span>
-            <span>{formatUsername(account.username)}</span>
-            <span className="truncate font-mono text-xs text-[#66645d]">
-              {account.proxy_url || "Без прокси / Динамический"}
-            </span>
-            <span className="font-mono text-xs uppercase">{account.status}</span>
-            <span className="font-mono text-xs">
-              {account.project_id === null ? "Свободен" : `#${account.project_id}`}
-            </span>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
+        <div className="flex flex-wrap gap-2">
+          <ActionButton onClick={onCheck} disabled={checking || unlinking || deleting}>
+            {checking ? "проверка..." : "проверить cookies"}
+          </ActionButton>
+          {account.project_id !== null ? (
+            <ActionButton onClick={onUnlink} disabled={checking || unlinking || deleting}>
+              {unlinking ? "отвязка..." : "отвязать"}
+            </ActionButton>
+          ) : null}
+          <ActionButton danger onClick={onDelete} disabled={checking || unlinking || deleting}>
+            {deleting ? "удаление..." : "удалить"}
+          </ActionButton>
+        </div>
+      </div>
 
-function Notice({ children }: { children: string }) {
-  return (
-    <div className="border-l-2 border-[#b42318] bg-white px-5 py-4 text-sm text-[#61140e]">
-      {children}
-    </div>
+      {account.last_error ? (
+        <p className="mt-4 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
+          {account.last_error}
+        </p>
+      ) : null}
+    </article>
   );
 }
 
@@ -253,7 +359,7 @@ function CreateAccountPanel({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "Аккаунт не создан. Проверь API и формат данных.",
+          : "Проверьте формат cookies и доступность API.",
       );
     } finally {
       setIsSubmitting(false);
@@ -266,14 +372,14 @@ function CreateAccountPanel({
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
             <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-              Account pool
+              Новый профиль
             </p>
             <h2 className="mt-2 font-display text-3xl">Добавить аккаунт</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="border border-[#151515] px-3 py-2 font-mono text-xs uppercase transition hover:bg-[#151515] hover:text-white"
+            className="rounded-2xl border border-[#151515] px-3 py-2 font-mono text-xs uppercase transition hover:bg-[#151515] hover:text-white"
           >
             Закрыть
           </button>
@@ -281,38 +387,29 @@ function CreateAccountPanel({
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-y-auto px-7 py-8">
           <label className="grid gap-2">
-            <span className="field-label">Platform</span>
+            <span className="field-label">Платформа</span>
             <select value={THREADS_PLATFORM} disabled className="field-control opacity-70">
               <option value="threads">Threads</option>
             </select>
           </label>
 
-          <div className="mt-8 border-l border-[#c9c9c3] pl-4 text-xs leading-5 text-[#66645d]">
-            Username не вводится вручную. После первой проверки сессии Selenium должен
-            прочитать имя аккаунта из Threads и обновить запись.
+          <div className="mt-8 rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
+            Username вводить не нужно. После проверки cookies система сама определит профиль Threads.
           </div>
 
           <div className="mt-8">
-            <span className="field-label">Тип авторизации</span>
-            <div className="mt-3 grid grid-cols-2 border border-[#151515]">
-              <AuthTab
-                label="По паролю"
-                isActive={authMode === "password"}
-                onClick={() => setAuthMode("password")}
-              />
-              <AuthTab
-                label="По Cookies"
-                isActive={authMode === "cookies"}
-                onClick={() => setAuthMode("cookies")}
-              />
+            <span className="field-label">Способ входа</span>
+            <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-2xl border border-[#151515]">
+              <AuthTab label="По паролю" isActive={authMode === "password"} onClick={() => setAuthMode("password")} />
+              <AuthTab label="По cookies" isActive={authMode === "cookies"} onClick={() => setAuthMode("cookies")} />
             </div>
           </div>
 
           {authMode === "password" ? (
-            <Field label="Password" value={password} onChange={setPassword} type="password" required />
+            <Field label="Пароль" value={password} onChange={setPassword} type="password" required />
           ) : (
             <label className="mt-8 grid gap-2">
-              <span className="field-label">Cookies JSON / Cookie string</span>
+              <span className="field-label">Cookies JSON или cookie-строка</span>
               <textarea
                 value={cookiesInput}
                 onChange={(event) => setCookiesInput(event.target.value)}
@@ -321,10 +418,9 @@ function CreateAccountPanel({
                 placeholder='[{"name":"sessionid","value":"...","domain":".threads.net"}]'
                 className="field-control resize-none leading-6"
               />
-              <div className="border-l border-[#c9c9c3] pl-4 text-xs leading-5 text-[#66645d]">
-                Как получить куки: установите расширение Cookie-Editor или EditThisCookie,
-                зайдите на threads.net под своим аккаунтом, нажмите Export JSON и вставьте
-                содержимое сюда. Это исключит ввод пароля и снизит риск блокировки.
+              <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
+                Как получить cookies: установите Cookie-Editor, зайдите на threads.net под нужным аккаунтом,
+                нажмите Export JSON и вставьте результат сюда. Это безопаснее, чем хранить пароль.
               </div>
             </label>
           )}
@@ -336,7 +432,7 @@ function CreateAccountPanel({
               onChange={(event) => setSelectedProxyUrl(event.target.value)}
               className="field-control"
             >
-              <option value="">Без прокси / Динамический</option>
+              <option value="">Без прокси / динамический IP</option>
               {proxyPool.map((proxyUrl) => (
                 <option key={proxyUrl} value={proxyUrl}>
                   {proxyUrl}
@@ -355,9 +451,9 @@ function CreateAccountPanel({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full rounded-2xl border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {isSubmitting ? "Создание" : "Добавить аккаунт"}
+              {isSubmitting ? "Создание..." : "Добавить аккаунт"}
             </button>
           </div>
         </form>
@@ -366,15 +462,7 @@ function CreateAccountPanel({
   );
 }
 
-function AuthTab({
-  label,
-  isActive,
-  onClick,
-}: {
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-}) {
+function AuthTab({ label, isActive, onClick }: { label: string; isActive: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -417,11 +505,82 @@ function Field({
   );
 }
 
+function ActionButton({
+  children,
+  onClick,
+  disabled,
+  danger = false,
+}: {
+  children: string;
+  onClick: () => void;
+  disabled: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        danger
+          ? "rounded-2xl border border-[#b42318] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#8a2d25] transition hover:bg-[#b42318] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          : "rounded-2xl border border-[#151515] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function StatusBadge({ status }: { status: AccountStatus }) {
+  const label = statusLabels[status] ?? status;
+  const tone = status === "active" ? "bg-[#edf8e8] text-[#25551f]" : status === "cookies_expired" || status === "blocked" ? "bg-[#fff4df] text-[#8a4b00]" : "bg-[#f7e8e5] text-[#8a2d25]";
+  return (
+    <span className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs ${tone}`}>
+      {label}
+    </span>
+  );
+}
+
+const statusLabels: Record<AccountStatus, string> = {
+  active: "активен",
+  disabled: "выключен",
+  error: "ошибка",
+  warming_up: "прогрев",
+  cookies_expired: "cookies истекли",
+  blocked: "заблокирован",
+};
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-3xl border border-dashed border-[#c9c9c3] bg-white/70 px-6 py-12 text-center shadow-sm">
+      <p className="font-display text-3xl leading-none text-[#151515]">{title}</p>
+      <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d]">{description}</p>
+    </div>
+  );
+}
+
+function AccountSkeleton() {
+  return (
+    <div className="grid gap-3">
+      {[1, 2, 3].map((item) => (
+        <div key={item} className="h-20 animate-pulse rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
+          <div className="h-3 w-1/2 rounded-full bg-[#deded7]" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Spinner() {
+  return <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />;
+}
+
 function normalizeCookies(value: string) {
   const trimmedValue = value.trim();
 
   if (!trimmedValue) {
-    throw new Error("Вставь JSON-массив cookies или cookie-строку.");
+    throw new Error("Вставьте JSON-массив cookies или cookie-строку.");
   }
 
   try {
@@ -433,7 +592,7 @@ function normalizeCookies(value: string) {
 }
 
 function formatUsername(username: string) {
-  return username === SESSION_USERNAME_PLACEHOLDER ? "Из сессии" : username;
+  return username === SESSION_USERNAME_PLACEHOLDER ? "Из сессии" : `@${username.replace(/^@/, "")}`;
 }
 
 function loadProxyPool() {

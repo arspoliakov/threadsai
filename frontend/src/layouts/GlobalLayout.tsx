@@ -1,4 +1,6 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+
+import { logout } from "../auth";
 
 const navigation = [
   { label: "Проекты", to: "/app" },
@@ -7,6 +9,13 @@ const navigation = [
 ];
 
 export default function GlobalLayout() {
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/", { replace: true });
+  }
+
   return (
     <div className="min-h-screen bg-[#e8e8e4] text-[#151515]">
       <div className="grid min-h-screen lg:grid-cols-[272px_1fr]">
@@ -49,6 +58,16 @@ export default function GlobalLayout() {
               <br />
               trends / content
             </p>
+          </div>
+
+          <div className="mt-auto px-6 py-6">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full border border-white/20 px-4 py-3 font-mono text-[10px] uppercase tracking-[0.18em] text-white/55 transition hover:border-white hover:text-white"
+            >
+              Выйти
+            </button>
           </div>
         </aside>
 

@@ -10,6 +10,7 @@ import {
   updateAccount,
   updateProject,
   type Account,
+  type AccountStatus,
   type Project,
 } from "../../api/client";
 
@@ -52,7 +53,7 @@ export default function ProjectSettingsPage() {
         timezone: dashboardResult.project.timezone ?? "Europe/Moscow",
       });
       if (!silent) {
-        toast.success("Настройки проекта обновлены");
+        toast.success("Настройки обновлены");
       }
     } catch {
       toast.error("Не удалось загрузить настройки проекта");
@@ -137,7 +138,7 @@ export default function ProjectSettingsPage() {
       });
       toast.promise(savePromise, {
         loading: "Сохраняем расписание...",
-        success: "Расписание публикаций сохранено",
+        success: "Расписание сохранено",
         error: "Не удалось сохранить расписание",
       });
       const savedProject = await savePromise;
@@ -156,7 +157,7 @@ export default function ProjectSettingsPage() {
   async function saveAccountCookies(accountId: number, cookies: string) {
     const normalizedCookies = cookies.trim();
     if (!normalizedCookies) {
-      toast.error("Вставьте JSON cookies перед сохранением");
+      toast.error("Вставьте свежий JSON cookies");
       return;
     }
 
@@ -170,7 +171,7 @@ export default function ProjectSettingsPage() {
       });
       toast.promise(savePromise, {
         loading: "Обновляем cookies...",
-        success: "Cookies обновлены, аккаунт снова активен",
+        success: "Cookies обновлены",
         error: "Не удалось обновить cookies",
       });
       await savePromise;
@@ -216,12 +217,11 @@ export default function ProjectSettingsPage() {
     <section className="space-y-8">
       <header>
         <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-          Project resources
+          Настройки проекта
         </p>
-        <h1 className="mt-4 font-display text-5xl leading-none">Настройки и аккаунты</h1>
+        <h1 className="mt-4 font-display text-5xl leading-none">Проект и аккаунты</h1>
         <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
-          Привязка аккаунтов из глобального пула к проекту. Секреты не копируются,
-          меняется только принадлежность ресурса.
+          Здесь задаются стоп-слова, скорость публикаций и Threads-профили, через которые проект выходит в ленту.
         </p>
       </header>
 
@@ -230,13 +230,12 @@ export default function ProjectSettingsPage() {
           <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-                Negative Keywords
+                Negative keywords
               </p>
-              <h2 className="mt-2 font-display text-3xl">Стоп-слова проекта</h2>
+              <h2 className="mt-2 font-display text-3xl">Стоп-слова</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-                Эти слова добавляются в промпт только для текущего проекта. Используйте их
-                для локальных табу вроде неудачных терминов, старых мемов или слов,
-                которые конкретно здесь ломают тон.
+                Эти слова запрещаются только для текущего проекта. Используйте их для локальных табу:
+                неудачных терминов, старых мемов или слов, которые ломают тон.
               </p>
             </div>
 
@@ -246,10 +245,10 @@ export default function ProjectSettingsPage() {
                 type="button"
                 onClick={() => void saveStopWords()}
                 disabled={isLoading || isSavingStopWords || !project}
-                className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition-all duration-200 ease-in-out hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isSavingStopWords ? <Spinner /> : null}
-                {isSavingStopWords ? "Сохранение" : "Сохранить стоп-слова"}
+                {isSavingStopWords ? "Сохранение..." : "Сохранить стоп-слова"}
               </button>
             </div>
           </div>
@@ -259,20 +258,17 @@ export default function ProjectSettingsPage() {
           <div className="grid gap-6 lg:grid-cols-[1fr_520px]">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-                Posting Schedule
+                Posting schedule
               </p>
-              <h2 className="mt-2 font-display text-3xl">Расписание публикаций</h2>
+              <h2 className="mt-2 font-display text-3xl">Расписание</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-                Управляет скоростью проекта: сколько постов выпускать в день и в какое
-                локальное окно разрешено публиковать. Вне окна планировщик переносит задачи.
+                Управляет скоростью проекта: сколько постов выпускать в день и в какое локальное окно можно публиковать.
               </p>
             </div>
 
             <div className="grid gap-4 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
               <label className="grid gap-2">
-                <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#77766f]">
-                  Постов в день
-                </span>
+                <span className="field-label">Постов в день</span>
                 <input
                   type="number"
                   min={1}
@@ -284,15 +280,13 @@ export default function ProjectSettingsPage() {
                       posts_per_day: Number(event.target.value),
                     }))
                   }
-                  className="rounded-2xl border border-[#d8d8d2] bg-white px-4 py-3 text-sm outline-none transition-all duration-200 ease-in-out focus:border-[#151515]"
+                  className="field-control"
                 />
               </label>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#77766f]">
-                    С
-                  </span>
+                  <span className="field-label">С</span>
                   <input
                     type="time"
                     value={scheduleDraft.active_hours_start}
@@ -302,14 +296,12 @@ export default function ProjectSettingsPage() {
                         active_hours_start: event.target.value,
                       }))
                     }
-                    className="rounded-2xl border border-[#d8d8d2] bg-white px-4 py-3 text-sm outline-none transition-all duration-200 ease-in-out focus:border-[#151515]"
+                    className="field-control"
                   />
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#77766f]">
-                    До
-                  </span>
+                  <span className="field-label">До</span>
                   <input
                     type="time"
                     value={scheduleDraft.active_hours_end}
@@ -319,15 +311,13 @@ export default function ProjectSettingsPage() {
                         active_hours_end: event.target.value,
                       }))
                     }
-                    className="rounded-2xl border border-[#d8d8d2] bg-white px-4 py-3 text-sm outline-none transition-all duration-200 ease-in-out focus:border-[#151515]"
+                    className="field-control"
                   />
                 </label>
               </div>
 
               <label className="grid gap-2">
-                <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#77766f]">
-                  Timezone
-                </span>
+                <span className="field-label">Часовой пояс</span>
                 <input
                   value={scheduleDraft.timezone}
                   onChange={(event) =>
@@ -336,7 +326,7 @@ export default function ProjectSettingsPage() {
                       timezone: event.target.value,
                     }))
                   }
-                  className="rounded-2xl border border-[#d8d8d2] bg-white px-4 py-3 text-sm outline-none transition-all duration-200 ease-in-out focus:border-[#151515]"
+                  className="field-control"
                 />
               </label>
 
@@ -344,10 +334,10 @@ export default function ProjectSettingsPage() {
                 type="button"
                 onClick={() => void saveSchedule()}
                 disabled={isLoading || isSavingSchedule || !project}
-                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition-all duration-200 ease-in-out hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isSavingSchedule ? <Spinner /> : null}
-                {isSavingSchedule ? "Сохранение" : "Сохранить расписание"}
+                {isSavingSchedule ? "Сохранение..." : "Сохранить расписание"}
               </button>
             </div>
           </div>
@@ -357,7 +347,7 @@ export default function ProjectSettingsPage() {
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-                Accounts
+                Threads profiles
               </p>
               <h2 className="mt-2 font-display text-3xl">Аккаунты проекта</h2>
             </div>
@@ -365,7 +355,7 @@ export default function ProjectSettingsPage() {
               type="button"
               onClick={() => void loadSettings()}
               disabled={isLoading}
-              className="flex items-center gap-2 rounded-2xl border border-[#151515] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center gap-2 rounded-2xl border border-[#151515] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading ? <Spinner /> : null}
               Обновить
@@ -378,7 +368,7 @@ export default function ProjectSettingsPage() {
             ) : projectAccounts.length === 0 ? (
               <EmptyState
                 title="Аккаунты еще не привязаны"
-                description="Выберите свободный аккаунт из глобального пула в правом блоке."
+                description="Выберите свободный аккаунт из общего пула справа."
               />
             ) : (
               <div className="grid gap-3">
@@ -401,27 +391,24 @@ export default function ProjectSettingsPage() {
 
         <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-            Bind resource
+            Bind profile
           </p>
           <h2 className="mt-2 font-display text-3xl">Привязать аккаунт</h2>
           <p className="mt-3 text-sm leading-6 text-[#66645d]">
-            В списке только свободные аккаунты. Если список пуст, добавьте аккаунт в
-            разделе инфраструктуры.
+            В списке только свободные аккаунты. Если список пуст, добавьте профиль в разделе “Аккаунты”.
           </p>
 
           <label className="mt-6 grid gap-2">
-            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#77766f]">
-              Свободный аккаунт
-            </span>
+            <span className="field-label">Свободный аккаунт</span>
             <select
               value={selectedAccountId}
               onChange={(event) => setSelectedAccountId(event.target.value)}
-              className="rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] px-4 py-3 text-sm outline-none transition-all duration-200 ease-in-out focus:border-[#151515]"
+              className="field-control"
             >
               <option value="">Выберите аккаунт</option>
               {freeAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
-                  {account.platform} / {account.username}
+                  {formatUsername(account.username)} / {statusLabels[account.status]}
                 </option>
               ))}
             </select>
@@ -431,16 +418,14 @@ export default function ProjectSettingsPage() {
             type="button"
             onClick={bindAccount}
             disabled={!selectedAccountId || isBinding}
-            className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition-all duration-200 ease-in-out hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isBinding ? <Spinner /> : null}
-            {isBinding ? "Привязка" : "Привязать"}
+            {isBinding ? "Привязка..." : "Привязать"}
           </button>
 
           <div className="mt-6 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">
-              Пул
-            </p>
+            <p className="field-label">Пул</p>
             <p className="mt-2 text-sm text-[#333]">
               Свободно: {freeAccounts.length} / Всего: {accounts.length}
             </p>
@@ -469,66 +454,93 @@ function AccountCard({
   onUnlink: () => void;
 }) {
   const [cookiesDraft, setCookiesDraft] = useState("");
-  const sessionIsDead = account.status === "cookies_expired" || account.status === "blocked";
+  const sessionNeedsUpdate = account.status === "cookies_expired" || account.status === "blocked" || account.status === "error";
 
   return (
-    <article className={`rounded-2xl border p-4 transition-all duration-200 ease-in-out hover:shadow-sm ${sessionIsDead ? "border-[#d88a35]/50 bg-[#fff4df]" : "border-[#e1e1dc] bg-[#fbfaf5] hover:border-[#151515]"}`}>
-      <div className="grid gap-3 md:grid-cols-[1fr_1.3fr_0.8fr]">
-        <span className="font-mono text-xs uppercase tracking-[0.14em] text-[#333]">
-          {account.platform}
-        </span>
-        <span className="text-sm text-[#24231f]">{account.username}</span>
-        <span className="font-mono text-xs uppercase tracking-[0.14em] text-[#66645d]">
-          {account.status}
-        </span>
+    <article className={`rounded-2xl border p-4 transition hover:shadow-sm ${sessionNeedsUpdate ? "border-[#d88a35]/50 bg-[#fff4df]" : "border-[#e1e1dc] bg-[#fbfaf5] hover:border-[#151515]"}`}>
+      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-center">
+        <div>
+          <p className="field-label">Профиль</p>
+          <p className="mt-1 text-sm text-[#24231f]">{formatUsername(account.username)}</p>
+        </div>
+        <div>
+          <p className="field-label">Статус</p>
+          <StatusBadge status={account.status} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ActionButton onClick={onCheckSession} disabled={isChecking || isUnlinking}>
+            {isChecking ? "проверка..." : "проверить cookies"}
+          </ActionButton>
+          <ActionButton danger onClick={onUnlink} disabled={isChecking || isUnlinking}>
+            {isUnlinking ? "отвязка..." : "отвязать"}
+          </ActionButton>
+        </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-[#e1e1dc] pt-4">
-        <button
-          type="button"
-          onClick={onCheckSession}
-          disabled={isChecking || isUnlinking}
-          className="flex items-center gap-2 rounded-2xl border border-[#151515] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isChecking ? <Spinner /> : null}
-          Проверить сессию
-        </button>
-        <button
-          type="button"
-          onClick={onUnlink}
-          disabled={isChecking || isUnlinking}
-          className="flex items-center gap-2 rounded-2xl border border-[#b42318] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#8a2d25] transition-all duration-200 ease-in-out hover:bg-[#b42318] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isUnlinking ? <Spinner /> : null}
-          Отвязать от проекта
-        </button>
-      </div>
+      {account.last_error ? (
+        <p className="mt-4 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
+          {account.last_error}
+        </p>
+      ) : null}
 
-      {sessionIsDead ? (
+      {sessionNeedsUpdate ? (
         <div className="mt-4 border-t border-[#d88a35]/30 pt-4">
           <p className="text-sm leading-6 text-[#4a2b08]">
-            Сессия Threads истекла. Вставьте свежий JSON cookies, чтобы вернуть аккаунт в публикацию.
+            Если сессия слетела, вставьте свежий Export JSON из Cookie-Editor и сохраните.
           </p>
           <textarea
             value={cookiesDraft}
             onChange={(event) => setCookiesDraft(event.target.value)}
             rows={5}
-            placeholder="Вставьте Export JSON из Cookie-Editor"
-            className="mt-3 w-full resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-xs leading-5 text-[#24231f] outline-none transition-all duration-200 ease-in-out focus:border-[#151515]"
+            placeholder="Вставьте свежий JSON cookies"
+            className="mt-3 w-full resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-xs leading-5 text-[#24231f] outline-none transition focus:border-[#151515]"
           />
           <button
             type="button"
             onClick={() => onSaveCookies(cookiesDraft)}
             disabled={isSavingCookies}
-            className="mt-3 flex items-center gap-2 rounded-2xl border border-[#4a2b08] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#4a2b08] transition-all duration-200 ease-in-out hover:bg-[#4a2b08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-3 flex items-center gap-2 rounded-2xl border border-[#4a2b08] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#4a2b08] transition hover:bg-[#4a2b08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSavingCookies ? <Spinner /> : null}
-            Обновить Cookies
+            Обновить cookies
           </button>
         </div>
       ) : null}
     </article>
   );
+}
+
+function ActionButton({
+  children,
+  onClick,
+  disabled,
+  danger = false,
+}: {
+  children: string;
+  onClick: () => void;
+  disabled: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        danger
+          ? "rounded-2xl border border-[#b42318] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#8a2d25] transition hover:bg-[#b42318] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          : "rounded-2xl border border-[#151515] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function StatusBadge({ status }: { status: AccountStatus }) {
+  const label = statusLabels[status] ?? status;
+  const tone = status === "active" ? "bg-[#edf8e8] text-[#25551f]" : status === "cookies_expired" || status === "blocked" ? "bg-[#fff4df] text-[#8a4b00]" : "bg-[#f7e8e5] text-[#8a2d25]";
+  return <span className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs ${tone}`}>{label}</span>;
 }
 
 function AccountSkeleton() {
@@ -583,16 +595,10 @@ function TagInput({
     setDraft("");
   }
 
-  function removeWord(word: string) {
-    onChange(value.filter((item) => item !== word));
-  }
-
   return (
     <div>
       <label className="grid gap-2">
-        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#77766f]">
-          Добавить слово
-        </span>
+        <span className="field-label">Добавить слово</span>
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -604,7 +610,7 @@ function TagInput({
           }}
           disabled={disabled}
           placeholder="например: сплиты"
-          className="rounded-2xl border border-[#d8d8d2] bg-white px-4 py-3 text-sm outline-none transition-all duration-200 ease-in-out focus:border-[#151515] disabled:opacity-50"
+          className="field-control disabled:opacity-50"
         />
       </label>
 
@@ -620,9 +626,9 @@ function TagInput({
               {word}
               <button
                 type="button"
-                onClick={() => removeWord(word)}
+                onClick={() => onChange(value.filter((item) => item !== word))}
                 disabled={disabled}
-                className="grid h-5 w-5 place-items-center rounded-full text-[#77766f] transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="grid h-5 w-5 place-items-center rounded-full text-[#77766f] transition hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label={`Удалить ${word}`}
               >
                 ×
@@ -633,6 +639,19 @@ function TagInput({
       </div>
     </div>
   );
+}
+
+const statusLabels: Record<AccountStatus, string> = {
+  active: "активен",
+  disabled: "выключен",
+  error: "ошибка",
+  warming_up: "прогрев",
+  cookies_expired: "cookies истекли",
+  blocked: "заблокирован",
+};
+
+function formatUsername(username: string) {
+  return username === "pending_from_session" ? "Из сессии" : `@${username.replace(/^@/, "")}`;
 }
 
 function normalizeStopWords(words: string[]) {

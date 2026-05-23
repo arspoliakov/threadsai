@@ -66,17 +66,8 @@ export default function LandingPage() {
             </span>
             <span>
               <span className="block font-display text-xl tracking-[-0.04em] text-white">ThreadsGo</span>
-              <span className="block font-mono text-[10px] uppercase tracking-[0.22em] text-white/36">
-                AI content cockpit
-              </span>
             </span>
           </Link>
-
-          <nav className="hidden items-center gap-7 font-mono text-[11px] uppercase tracking-[0.18em] text-white/45 md:flex">
-            <a href="#system" className="transition hover:text-white">система</a>
-            <a href="#workflow" className="transition hover:text-white">процесс</a>
-            <a href="#control" className="transition hover:text-white">контроль</a>
-          </nav>
 
           <Link
             to="/login"
@@ -88,21 +79,7 @@ export default function LandingPage() {
 
         <div className="grid flex-1 items-center gap-10 py-14 sm:py-20 lg:grid-cols-[0.95fr_1.05fr] lg:py-10">
           <div className="landing-reveal max-w-3xl [animation-delay:120ms]">
-            <img
-              src={landingImages.heroOrb}
-              alt=""
-              className="landing-orb pointer-events-none absolute right-[-6rem] top-24 hidden w-72 opacity-40 blur-[0.2px] lg:block xl:right-[42%] xl:top-28 xl:w-80"
-              loading="eager"
-            />
-
-            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 backdrop-blur">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-[#70ff35]" />
-              <span className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-white/52 sm:text-[10px] sm:tracking-[0.2em]">
-                автономный контент-оператор для threads
-              </span>
-            </div>
-
-            <h1 className="mt-8 max-w-4xl font-display text-[clamp(3.15rem,16vw,9.5rem)] leading-[0.84] tracking-[-0.075em] text-white sm:leading-[0.78]">
+            <h1 className="max-w-4xl font-display text-[clamp(3.15rem,16vw,9.5rem)] leading-[0.84] tracking-[-0.075em] text-white sm:leading-[0.78]">
               Посты, которые сначала слушают рынок.
             </h1>
 
@@ -327,12 +304,13 @@ export default function LandingPage() {
 
 function HeroDashboard() {
   return (
-    <div className="landing-reveal relative [animation-delay:240ms]">
-      <div className="absolute -left-6 top-16 hidden rounded-3xl border border-white/10 bg-[#0e1412]/90 p-4 shadow-2xl backdrop-blur lg:block">
-        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/35">session</p>
-        <p className="mt-2 text-sm text-white">cookies active</p>
-      </div>
-
+    <div className="landing-reveal relative pt-20 [animation-delay:240ms] sm:pt-24 lg:pt-32">
+      <img
+        src={landingImages.heroOrb}
+        alt=""
+        className="landing-orb pointer-events-none absolute right-3 top-0 z-10 w-40 opacity-80 blur-[0.1px] sm:right-10 sm:w-56 lg:right-20 lg:w-72"
+        loading="eager"
+      />
       <div className="landing-dashboard-frame relative rounded-[2.2rem] border border-white/12 bg-[#101615]/80 p-2 shadow-[0_50px_160px_rgba(0,0,0,0.5)] backdrop-blur sm:p-3">
         <img
           src={landingImages.dashboard}

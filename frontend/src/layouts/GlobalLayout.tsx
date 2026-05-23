@@ -1,9 +1,9 @@
 import { NavLink, Outlet } from "react-router-dom";
 
 const navigation = [
-  { label: "Дашборд", to: "/" },
-  { label: "Инфраструктура", to: "/infrastructure" },
-  { label: "Глобальные настройки", to: "/settings" },
+  { label: "Проекты", to: "/app" },
+  { label: "Аккаунты", to: "/app/infrastructure" },
+  { label: "Стиль генерации", to: "/app/settings" },
 ];
 
 export default function GlobalLayout() {
@@ -13,10 +13,10 @@ export default function GlobalLayout() {
         <aside className="border-r border-black bg-[#101010] text-[#f4f1ea]">
           <div className="border-b border-white/10 px-6 py-7">
             <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-white/40">
-              Global Control
+              Workspace
             </p>
             <h1 className="mt-4 font-display text-2xl leading-none text-white">
-              Auto Poster
+              ThreadsAI
             </h1>
           </div>
 
@@ -25,7 +25,7 @@ export default function GlobalLayout() {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === "/"}
+                end={item.to === "/app"}
                 className={({ isActive }) =>
                   [
                     "grid grid-cols-[36px_1fr] border-t border-white/10 px-6 py-4 text-sm transition",
@@ -45,9 +45,9 @@ export default function GlobalLayout() {
 
           <div className="px-6 py-8">
             <p className="font-mono text-[11px] uppercase leading-6 tracking-[0.18em] text-white/35">
-              Global resource pool
+              Projects / accounts
               <br />
-              proxies / accounts / prompts
+              trends / content
             </p>
           </div>
         </aside>
@@ -56,14 +56,14 @@ export default function GlobalLayout() {
           <header className="grid gap-3 border-b border-[#c9c9c3] px-6 py-6 md:grid-cols-[1fr_auto] md:px-10">
             <div>
               <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-[#77766f]">
-                Web control plane
+                Рабочая панель
               </p>
               <h2 className="mt-2 font-display text-4xl leading-none tracking-tight">
-                Глобальная панель
+                Кабинет
               </h2>
             </div>
             <div className="self-end border border-[#151515] px-3 py-2 font-mono text-xs uppercase tracking-[0.16em]">
-              dev-admin-token
+              telegram auth
             </div>
           </header>
 

@@ -435,7 +435,20 @@ function formatOperation(operation: ProjectOperation | null) {
 
   const started = new Date(operation.started_at).toLocaleString("ru-RU");
   const finished = operation.finished_at ? new Date(operation.finished_at).toLocaleString("ru-RU") : "в процессе";
-  return `${operation.status}; старт: ${started}; финиш: ${finished}; ${operation.message || ""}`;
+  const collected = operation.result_json?.collected_posts_count;
+  const saved = operation.result_json?.saved_trends_count;
+  const status =
+    operation.status === "running"
+      ? "идет сбор"
+      : operation.status === "success"
+        ? "завершено"
+        : "ошибка";
+  const result =
+    typeof saved === "number" || typeof collected === "number"
+      ? `Найдено постов: ${String(collected ?? "неизвестно")}. Новых трендов сохранено: ${String(saved ?? 0)}.`
+      : "";
+
+  return `${status}; старт: ${started}; финиш: ${finished}. ${result} ${operation.message || ""}`.trim();
 }
 
 function formatDate(value: string | null) {

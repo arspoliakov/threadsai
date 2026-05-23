@@ -137,7 +137,7 @@ function ProjectCard({ project, priority }: { project: DashboardProjectSummary; 
 
   return (
     <Link
-      to={`/projects/${project.id}`}
+      to={`/app/projects/${project.id}`}
       className={`group rounded-[28px] border border-[#deded7] bg-[#fbfaf5] p-7 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:border-[#151515] hover:shadow-md ${
         isLarge ? "lg:col-span-2" : ""
       }`}

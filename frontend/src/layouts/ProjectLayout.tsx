@@ -5,14 +5,14 @@ import { getProjectDashboard, type ProjectDashboard } from "../api/client";
 
 const sections = [
   { label: "Сводка", suffix: "" },
-  { label: "Очередь", suffix: "/queue" },
+  { label: "Посты", suffix: "/queue" },
   { label: "Тренды", suffix: "/trends" },
-  { label: "Настройки и Аккаунты", suffix: "/settings" },
+  { label: "Настройки", suffix: "/settings" },
 ];
 
 export default function ProjectLayout() {
   const { id } = useParams();
-  const projectBasePath = `/projects/${id}`;
+  const projectBasePath = `/app/projects/${id}`;
   const [dashboard, setDashboard] = useState<ProjectDashboard | null>(null);
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export default function ProjectLayout() {
       .catch(() => setDashboard(null));
   }, [id]);
 
-  const projectTitle = dashboard?.project.name || `Project #${id}`;
+  const projectTitle = dashboard?.project.name || `Проект #${id}`;
   const hasDeadSession = dashboard?.account_states.some((account) =>
     account.status === "cookies_expired" || account.status === "blocked"
   ) ?? false;
@@ -37,10 +37,10 @@ export default function ProjectLayout() {
         <aside className="border-r border-black bg-[#141414] text-[#f4f1ea]">
           <div className="border-b border-white/10 px-6 py-7">
             <Link
-              to="/"
+              to="/app"
               className="inline-block font-mono text-[11px] uppercase tracking-[0.18em] text-white/55 transition hover:text-white"
             >
-              ← Назад к проектам
+              ← к проектам
             </Link>
             <h1 className="mt-5 font-display text-2xl leading-none text-white">
               {projectTitle}
@@ -72,9 +72,9 @@ export default function ProjectLayout() {
 
           <div className="px-6 py-8">
             <p className="font-mono text-[11px] uppercase leading-6 tracking-[0.18em] text-white/35">
-              Project workspace
+              queue / trends
               <br />
-              isolated queue / trends / accounts
+              accounts / schedule
             </p>
           </div>
         </aside>
@@ -82,7 +82,7 @@ export default function ProjectLayout() {
         <main className="min-w-0 bg-[#f6f6f2]">
           <header className="border-b border-[#c9c9c3] px-6 py-6 md:px-10">
             <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-[#77766f]">
-              Project control plane
+              Проект
             </p>
             <h2 className="mt-2 font-display text-4xl leading-none tracking-tight">
               {projectTitle}
@@ -107,17 +107,17 @@ function SessionWarningBanner({ projectBasePath }: { projectBasePath: string }) 
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#9b5c13]">
-            Session health warning
+            Нужно обновить cookies
           </p>
           <p className="mt-2 text-sm leading-6">
-            ⚠️ Сессия Threads истекла. Генерация работает, но публикация приостановлена.
+            Сессия Threads истекла. Генерация работает, но публикация приостановлена.
           </p>
         </div>
         <Link
           to={`${projectBasePath}/settings`}
           className="w-fit rounded-2xl border border-[#4a2b08] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition-all duration-200 ease-in-out hover:bg-[#4a2b08] hover:text-white"
         >
-          Обновить Cookies
+          Обновить cookies
         </Link>
       </div>
     </div>

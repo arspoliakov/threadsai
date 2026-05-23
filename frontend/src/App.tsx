@@ -5,6 +5,7 @@ import GlobalLayout from "./layouts/GlobalLayout";
 import ProjectLayout from "./layouts/ProjectLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
+import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/auth/LoginPage";
 import InfrastructurePage from "./pages/global/InfrastructurePage";
 import GlobalSettingsPage from "./pages/global/GlobalSettingsPage";
@@ -25,16 +26,17 @@ export default function App() {
         }}
       />
       <Routes>
+        <Route index element={<LandingPage />} />
         <Route path="login" element={<LoginPage />} />
 
         <Route element={<ProtectedRoute />}>
-          <Route element={<GlobalLayout />}>
+          <Route path="app" element={<GlobalLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="infrastructure" element={<InfrastructurePage />} />
             <Route path="settings" element={<GlobalSettingsPage />} />
           </Route>
 
-          <Route path="projects/:id" element={<ProjectLayout />}>
+          <Route path="app/projects/:id" element={<ProjectLayout />}>
             <Route index element={<ProjectOverviewPage />} />
             <Route path="queue" element={<ProjectQueuePage />} />
             <Route path="trends" element={<ProjectTrendsPage />} />
@@ -42,6 +44,9 @@ export default function App() {
           </Route>
         </Route>
 
+        <Route path="infrastructure" element={<Navigate to="/app/infrastructure" replace />} />
+        <Route path="settings" element={<Navigate to="/app/settings" replace />} />
+        <Route path="projects/:id/*" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

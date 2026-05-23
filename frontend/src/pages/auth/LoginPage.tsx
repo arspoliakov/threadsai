@@ -43,7 +43,7 @@ export default function LoginPage() {
         const response = await loginWithTelegram(user);
         setStoredAuthToken(response.access_token);
         toast.success("Вход через Telegram выполнен");
-        navigate(state?.from || "/", { replace: true });
+        navigate(state?.from || "/app", { replace: true });
       } catch (telegramError) {
         const message =
           telegramError instanceof LoginError
@@ -77,7 +77,7 @@ export default function LoginPage() {
   }, [navigate, state?.from]);
 
   if (isAuthenticated()) {
-    return <Navigate to={state?.from || "/"} replace />;
+    return <Navigate to={state?.from || "/app"} replace />;
   }
 
   return (

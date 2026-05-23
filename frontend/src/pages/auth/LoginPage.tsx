@@ -125,12 +125,12 @@ export default function LoginPage() {
       <section className="landing-reveal relative m-auto grid w-full max-w-6xl overflow-hidden rounded-[2.2rem] border border-white/10 bg-white/[0.045] shadow-[0_50px_160px_rgba(0,0,0,0.55)] backdrop-blur md:grid-cols-[0.95fr_1.05fr]">
         <div className="relative min-h-[22rem] overflow-hidden border-b border-white/10 bg-[#08100d] md:border-b-0 md:border-r md:border-white/10">
           <img
-            src="/landing/mobile-preview.webp"
+            src="/landing/secure-mobile-console.webp"
             alt=""
             className="landing-phone-image absolute left-1/2 top-6 h-[35rem] max-w-none -translate-x-1/2 object-contain opacity-95 md:top-0 md:h-[42rem]"
           />
           <img
-            src="/landing/hero-orb.webp"
+            src="/landing/login-auth-orb.webp"
             alt=""
             className="landing-orb absolute left-8 top-8 h-24 w-24 object-contain opacity-80"
           />

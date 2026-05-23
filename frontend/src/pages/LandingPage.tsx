@@ -124,10 +124,7 @@ export default function LandingPage() {
       <section id="system" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <article className="landing-card rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur md:p-10">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#70ff35]/70">
-              why it sells
-            </p>
-            <h2 className="mt-5 max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
+            <h2 className="max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
               Не генерируем в пустоту. Работаем от доказанного спроса.
             </h2>
             <p className="mt-7 max-w-2xl text-base leading-8 text-white/58">
@@ -138,10 +135,7 @@ export default function LandingPage() {
           </article>
 
           <article className="landing-card overflow-hidden rounded-[2rem] border border-white/10 bg-[#eff6ed] p-7 text-[#08100d] md:p-8">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#355447]">
-              signal stream
-            </p>
-            <div className="mt-8 space-y-3">
+            <div className="space-y-3">
               {posts.map((post, index) => (
                 <div
                   key={post}
@@ -171,10 +165,7 @@ export default function LandingPage() {
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#070909] via-[#070909]/30 to-transparent" />
           <div className="absolute bottom-0 left-0 max-w-xl p-7 sm:p-10">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#70ff35]/75">
-              trend graph
-            </p>
-            <h3 className="mt-4 font-display text-4xl leading-none tracking-[-0.05em] text-white sm:text-6xl">
+            <h3 className="font-display text-4xl leading-none tracking-[-0.05em] text-white sm:text-6xl">
               Лента превращается в карту спроса.
             </h3>
             <p className="mt-5 text-sm leading-7 text-white/58">
@@ -188,8 +179,7 @@ export default function LandingPage() {
       <section id="workflow" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
         <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-white/35">pipeline</p>
-            <h2 className="mt-4 font-display text-5xl leading-none tracking-[-0.055em] text-white md:text-7xl">
+            <h2 className="font-display text-5xl leading-none tracking-[-0.055em] text-white md:text-7xl">
               От ленты до публикации.
             </h2>
           </div>
@@ -221,10 +211,7 @@ export default function LandingPage() {
         <div className="rounded-[2.4rem] border border-white/10 bg-[#eff6ed] p-5 text-[#08100d] shadow-[0_40px_140px_rgba(0,0,0,0.35)] md:p-8">
           <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
             <div className="rounded-[2rem] bg-[#08100d] p-8 text-white">
-              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#70ff35]/70">
-                human-in-the-loop
-              </p>
-              <h2 className="mt-5 font-display text-5xl leading-[0.9] tracking-[-0.055em]">
+              <h2 className="font-display text-5xl leading-[0.9] tracking-[-0.055em]">
                 Автономия, которую можно держать за руку.
               </h2>
               <p className="mt-7 text-sm leading-7 text-white/58">
@@ -255,10 +242,7 @@ export default function LandingPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-[#050807] via-transparent to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
               <div className="max-w-xl rounded-3xl border border-white/12 bg-[#07100e]/70 p-5 text-white backdrop-blur">
-                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#70ff35]/70">
-                  approve / rewrite / publish
-                </p>
-                <p className="mt-3 text-sm leading-7 text-white/62">
+                <p className="text-sm leading-7 text-white/62">
                   Автоматизация не забирает контроль. Она готовит черновики, а человек
                   решает, что выпускать в ленту.
                 </p>
@@ -322,10 +306,7 @@ function HeroDashboard() {
         <div className="absolute inset-x-5 bottom-5 hidden rounded-3xl border border-white/12 bg-[#07100e]/80 p-4 text-white shadow-2xl backdrop-blur md:block">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-white/40">
-                generated post
-              </p>
-              <p className="mt-2 max-w-lg text-sm leading-6 text-white/74">
+              <p className="max-w-lg text-sm leading-6 text-white/74">
                 Система поймала тренд, собрала черновик и поставила публикацию в очередь.
               </p>
             </div>
@@ -336,8 +317,7 @@ function HeroDashboard() {
         </div>
 
         <div className="landing-float-card absolute -right-3 top-8 rounded-3xl border border-white/12 bg-[#08100d]/90 p-4 text-white shadow-2xl backdrop-blur sm:-right-5">
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/35">today</p>
-          <p className="mt-2 font-display text-3xl leading-none">5</p>
+          <p className="font-display text-3xl leading-none">5</p>
           <p className="mt-1 text-xs text-white/48">постов в очереди</p>
         </div>
       </div>
@@ -350,7 +330,6 @@ function ControlMockup() {
     <div className="grid gap-4">
       <div className="rounded-[2rem] border border-[#d7dfd4] bg-white/75 p-5">
         <div className="flex items-center justify-between">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#698073]">queue</p>
           <span className="rounded-full bg-[#fff2d6] px-3 py-1 text-xs text-[#8a5b12]">ожидает проверки</span>
         </div>
         <p className="mt-5 text-sm leading-7 text-[#26372f]">
@@ -372,13 +351,11 @@ function ControlMockup() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-[2rem] border border-[#d7dfd4] bg-white/75 p-5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#698073]">cookies</p>
-          <p className="mt-4 font-display text-3xl leading-none">healthy</p>
+          <p className="font-display text-3xl leading-none">healthy</p>
           <p className="mt-3 text-xs leading-5 text-[#557162]">публикация доступна</p>
         </div>
         <div className="rounded-[2rem] border border-[#d7dfd4] bg-white/75 p-5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#698073]">velocity</p>
-          <p className="mt-4 font-display text-3xl leading-none">3/day</p>
+          <p className="font-display text-3xl leading-none">3/day</p>
           <p className="mt-3 text-xs leading-5 text-[#557162]">окно 09:00–21:00</p>
         </div>
       </div>

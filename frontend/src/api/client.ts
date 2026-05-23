@@ -329,6 +329,10 @@ export async function login(password: string): Promise<LoginResponse> {
         throw new LoginError("Слишком много попыток входа. Подождите минуту и попробуйте снова.");
       }
 
+      if (error.response?.status === 403) {
+        throw new LoginError("Доступ пока не открыт. Напишите владельцу сервиса, чтобы он добавил ваш Telegram ID в список допуска.");
+      }
+
       if (!error.response) {
         throw new LoginError("API недоступен. Проверьте, что backend запущен на 127.0.0.1:8000.");
       }

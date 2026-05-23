@@ -71,6 +71,14 @@ async def telegram_login(
     logger.info("Telegram login attempt from %s for telegram_id=%s", client_host, payload.id)
 
     _validate_telegram_auth(payload)
+
+    if not settings.is_telegram_id_approved(payload.id):
+        logger.warning("Telegram login denied for unapproved telegram_id=%s", payload.id)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Telegram user is not approved yet",
+        )
+
     user = await _get_or_create_telegram_user(payload=payload, db=db)
     token = create_access_token(
         {

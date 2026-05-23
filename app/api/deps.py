@@ -38,6 +38,18 @@ async def get_current_admin(
             detail="Invalid admin token",
         ) from exc
 
+    telegram_id = payload.get("telegram_id")
+    try:
+        normalized_telegram_id = int(telegram_id) if telegram_id is not None else None
+    except (TypeError, ValueError):
+        normalized_telegram_id = None
+
+    if not settings.is_telegram_id_approved(normalized_telegram_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Telegram user is not approved for dashboard access",
+        )
+
     return str(payload.get("sub") or "telegram-user")
 
 

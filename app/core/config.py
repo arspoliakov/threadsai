@@ -51,6 +51,32 @@ class Settings(BaseSettings):
         default=60 * 60 * 24,
         validation_alias="TELEGRAM_AUTH_MAX_AGE_SECONDS",
     )
+    approved_telegram_ids: str = Field(
+        default="641434769",
+        validation_alias="APPROVED_TELEGRAM_IDS",
+    )
+
+    def approved_telegram_id_set(self) -> set[int]:
+        raw_ids = self.approved_telegram_ids.replace(";", ",").replace(" ", ",")
+        approved_ids: set[int] = set()
+
+        for raw_id in raw_ids.split(","):
+            value = raw_id.strip()
+            if not value:
+                continue
+
+            try:
+                approved_ids.add(int(value))
+            except ValueError:
+                continue
+
+        return approved_ids
+
+    def is_telegram_id_approved(self, telegram_id: int | None) -> bool:
+        if telegram_id is None:
+            return False
+
+        return telegram_id in self.approved_telegram_id_set()
 
 
 @lru_cache

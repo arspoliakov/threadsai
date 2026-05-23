@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
-import { getDashboardSummary, type DashboardProjectSummary, type DashboardSummary } from "../api/client";
+import {
+  deleteProject,
+  getDashboardSummary,
+  type DashboardProjectSummary,
+  type DashboardSummary,
+} from "../api/client";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
 
   async function loadSummary({ silent = false }: { silent?: boolean } = {}) {
     setIsLoading(true);
@@ -27,6 +33,29 @@ export default function Dashboard() {
   useEffect(() => {
     void loadSummary({ silent: true });
   }, []);
+
+  async function handleDeleteProject(project: DashboardProjectSummary) {
+    const confirmed = window.confirm(
+      `Удалить проект «${project.name}»?\n\nОчередь, тренды и настройки проекта будут удалены. Аккаунты Threads останутся в общем пуле.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingProjectId(project.id);
+
+    try {
+      await toast.promise(deleteProject(project.id), {
+        loading: "Удаляем проект...",
+        success: "Проект удален. Аккаунты вернулись в общий пул.",
+        error: "Не удалось удалить проект.",
+      });
+      await loadSummary({ silent: true });
+    } finally {
+      setDeletingProjectId(null);
+    }
+  }
 
   const totalPublished = useMemo(
     () => summary?.projects.reduce((sum, project) => sum + project.published_count, 0) ?? 0,
@@ -81,7 +110,13 @@ export default function Dashboard() {
           <EmptyProjects />
         ) : (
           summary.projects.map((project, index) => (
-            <ProjectCard key={project.id} project={project} priority={index} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              priority={index}
+              isDeleting={deletingProjectId === project.id}
+              onDelete={() => void handleDeleteProject(project)}
+            />
           ))
         )}
       </div>
@@ -155,12 +190,21 @@ function StatsWidget({
   );
 }
 
-function ProjectCard({ project, priority }: { project: DashboardProjectSummary; priority: number }) {
+function ProjectCard({
+  project,
+  priority,
+  isDeleting,
+  onDelete,
+}: {
+  project: DashboardProjectSummary;
+  priority: number;
+  isDeleting: boolean;
+  onDelete: () => void;
+}) {
   const isLarge = priority === 0;
 
   return (
-    <Link
-      to={`/app/projects/${project.id}`}
+    <article
       className={`group relative overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] p-7 shadow-sm transition hover:-translate-y-0.5 hover:border-[#141815] hover:shadow-md ${
         isLarge ? "xl:col-span-2" : ""
       }`}
@@ -168,17 +212,33 @@ function ProjectCard({ project, priority }: { project: DashboardProjectSummary; 
       <div className="absolute right-[-70px] top-[-70px] h-44 w-44 rounded-full bg-[#70ff35]/12 blur-3xl transition group-hover:bg-[#0076ff]/16" />
       <div className="relative flex h-full min-h-48 flex-col justify-between gap-10">
         <div className="flex items-start justify-between gap-5">
-          <div>
+          <Link to={`/app/projects/${project.id}`} className="min-w-0 flex-1">
             <h2 className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]">
               {project.name}
             </h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
               Нажмите, чтобы открыть очередь, тренды, аккаунты и настройки проекта.
             </p>
+          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => handleDeleteClick(event, onDelete)}
+              disabled={isDeleting}
+              className="grid h-11 w-11 place-items-center rounded-2xl border border-[#e2e6df] bg-white/70 text-[#7a2d2d] transition hover:border-[#7a2d2d] hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={`Удалить проект ${project.name}`}
+              title="Удалить проект"
+            >
+              {isDeleting ? <Spinner /> : <TrashIcon />}
+            </button>
+            <Link
+              to={`/app/projects/${project.id}`}
+              className="grid h-11 w-11 place-items-center rounded-2xl bg-[#101413] text-white transition group-hover:bg-[#70ff35] group-hover:text-[#07100e]"
+              aria-label={`Открыть проект ${project.name}`}
+            >
+              <ArrowIcon />
+            </Link>
           </div>
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#101413] text-white transition group-hover:bg-[#70ff35] group-hover:text-[#07100e]">
-            <ArrowIcon />
-          </span>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -186,8 +246,14 @@ function ProjectCard({ project, priority }: { project: DashboardProjectSummary; 
           <Metric icon={<ClockIcon />} label="Ближайший пост" value={formatDateTime(project.next_post_time)} />
         </div>
       </div>
-    </Link>
+    </article>
   );
+}
+
+function handleDeleteClick(event: MouseEvent<HTMLButtonElement>, onDelete: () => void) {
+  event.preventDefault();
+  event.stopPropagation();
+  onDelete();
 }
 
 function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
@@ -289,6 +355,14 @@ function ArrowIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M7 17 17 7M9 7h8v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9 4h6M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

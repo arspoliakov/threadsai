@@ -389,6 +389,10 @@ export async function updateProject(id: number, data: ProjectUpdatePayload): Pro
   return response.data;
 }
 
+export async function deleteProject(id: number): Promise<void> {
+  await apiClient.delete(`/api/v1/projects/${id}`);
+}
+
 export async function getProjectDashboard(id: number): Promise<ProjectDashboard> {
   const response = await apiClient.get<ProjectDashboard>(`/api/v1/projects/${id}/dashboard`);
   return response.data;

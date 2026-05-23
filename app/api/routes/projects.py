@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db
@@ -19,6 +19,7 @@ from app.db.models import (
     ProjectOperation,
     ProjectOperationStatus,
     ProjectOperationType,
+    ProjectPrompt,
     SavedTrend,
 )
 from app.db.repositories.projects import ProjectRepository
@@ -128,6 +129,32 @@ async def replace_project(
     current_user_id: int = Depends(get_current_user_id),
 ) -> ProjectRead:
     return await update_project(project_id=project_id, payload=payload, db=db, current_user_id=current_user_id)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+) -> None:
+    project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
+
+    await db.execute(
+        update(Account)
+        .where(Account.project_id == project.id)
+        .values(project_id=None)
+    )
+    await db.execute(delete(PostingTask).where(PostingTask.project_id == project.id))
+    await db.execute(delete(SavedTrend).where(SavedTrend.project_id == project.id))
+    await db.execute(delete(ProjectPrompt).where(ProjectPrompt.project_id == project.id))
+    await db.execute(delete(ProjectOperation).where(ProjectOperation.project_id == project.id))
+    await db.execute(
+        delete(Project).where(
+            Project.id == project.id,
+            Project.owner_id == current_user_id,
+        )
+    )
+    await db.commit()
 
 
 @router.get(

@@ -1,0 +1,61 @@
+from functools import lru_cache
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    database_url: str = Field(
+        default="sqlite+aiosqlite:///./data/app.db",
+        validation_alias="DATABASE_URL",
+    )
+    deepinfra_api_key: str = Field(
+        default="",
+        validation_alias="DEEPINFRA_API_KEY",
+    )
+    telegram_bot_token: str = Field(
+        default="",
+        validation_alias="TELEGRAM_BOT_TOKEN",
+    )
+    telegram_bot_username: str = Field(
+        default="",
+        validation_alias="TELEGRAM_BOT_USERNAME",
+    )
+    admin_chat_id: int | None = Field(
+        default=None,
+        validation_alias="ADMIN_CHAT_ID",
+    )
+    web_admin_token: str = Field(
+        default="dev-admin-token",
+        validation_alias="WEB_ADMIN_TOKEN",
+    )
+    web_admin_password: str = Field(
+        default="Arsarsars5!",
+        validation_alias="WEB_ADMIN_PASSWORD",
+    )
+    jwt_secret_key: str = Field(
+        default="change-me-local-jwt-secret",
+        validation_alias="JWT_SECRET_KEY",
+    )
+    jwt_access_token_expire_minutes: int = Field(
+        default=60 * 24 * 7,
+        validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
+    )
+    telegram_auth_max_age_seconds: int = Field(
+        default=60 * 60 * 24,
+        validation_alias="TELEGRAM_AUTH_MAX_AGE_SECONDS",
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()

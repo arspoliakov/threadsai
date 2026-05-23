@@ -1,0 +1,457 @@
+import axios from "axios";
+
+export const AUTH_TOKEN_STORAGE_KEY = "threadsbot.admin_token";
+export const API_BASE_URL = "http://127.0.0.1:8000";
+
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+export function getStoredAuthToken() {
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+}
+
+export function setStoredAuthToken(token: string) {
+  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+}
+
+export function clearStoredAuthToken() {
+  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+}
+
+apiClient.interceptors.request.use((config) => {
+  const token = getStoredAuthToken();
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    delete config.headers.Authorization;
+  }
+
+  return config;
+});
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      clearStoredAuthToken();
+      window.localStorage.removeItem("threadsbot.authenticated");
+
+      if (window.location.pathname !== "/login") {
+        window.location.assign("/login");
+      }
+    }
+
+    return Promise.reject(error);
+  },
+);
+
+export type LoginResponse = {
+  access_token: string;
+  token_type: "bearer";
+};
+
+export type TelegramAuthPayload = {
+  id: number;
+  first_name: string;
+  username?: string;
+  photo_url?: string;
+  auth_date: number;
+  hash: string;
+};
+
+export class LoginError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LoginError";
+  }
+}
+
+export type Project = {
+  id: number;
+  owner_id: number | null;
+  name: string;
+  slug: string;
+  description: string | null;
+  niche: string | null;
+  target_audience: string | null;
+  tone_of_voice: string | null;
+  product_context: string | null;
+  stop_words: string[];
+  posts_per_day: number;
+  active_hours_start: string;
+  active_hours_end: string;
+  timezone: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProjectCreatePayload = {
+  name: string;
+  slug: string;
+  description?: string | null;
+  stop_words?: string[];
+  is_active?: boolean;
+};
+
+export type ProjectUpdatePayload = Partial<ProjectCreatePayload> & {
+  niche?: string | null;
+  target_audience?: string | null;
+  tone_of_voice?: string | null;
+  product_context?: string | null;
+  stop_words?: string[];
+  posts_per_day?: number;
+  active_hours_start?: string;
+  active_hours_end?: string;
+  timezone?: string;
+};
+
+export type ProjectDashboard = {
+  project: Project;
+  accounts_count: number;
+  saved_trends_count: number;
+  posting_tasks_by_status: Record<string, number>;
+  recent_errors: string[];
+  account_states: ProjectAccountState[];
+  last_generation_at: string | null;
+};
+
+export type DashboardProjectSummary = {
+  id: number;
+  name: string;
+  published_count: number;
+  next_post_time: string | null;
+  avg_engagement: number | null;
+};
+
+export type DashboardSummary = {
+  next_trend_check: string | null;
+  projects: DashboardProjectSummary[];
+};
+
+export type ProjectAccountState = {
+  id: number;
+  username: string;
+  platform: Platform;
+  status: AccountStatus;
+  last_error: string | null;
+  last_used_at: string | null;
+};
+
+export type Platform = "threads";
+export type AccountStatus =
+  | "active"
+  | "disabled"
+  | "error"
+  | "warming_up"
+  | "cookies_expired"
+  | "blocked";
+
+export type Account = {
+  id: number;
+  owner_id: number | null;
+  project_id: number | null;
+  platform: Platform;
+  username: string;
+  display_name: string | null;
+  proxy_url: string | null;
+  session_data_encrypted: string | null;
+  cookies_encrypted: string | null;
+  status: AccountStatus;
+  last_used_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AccountCreatePayload = {
+  project_id?: number | null;
+  platform: Platform;
+  username: string;
+  display_name?: string | null;
+  proxy_url?: string | null;
+  session_data_encrypted?: string | null;
+  cookies_encrypted?: string | null;
+  status?: AccountStatus;
+};
+
+export type AccountUpdatePayload = Partial<AccountCreatePayload> & {
+  last_error?: string | null;
+};
+
+export type PostingTaskStatus =
+  | "draft"
+  | "queued"
+  | "running"
+  | "success"
+  | "failed"
+  | "cancelled";
+
+export type PostingTask = {
+  id: number;
+  project_id: number;
+  account_id: number | null;
+  source_trend_id: number | null;
+  platform: Platform;
+  content_text: string;
+  media_url: string | null;
+  status: PostingTaskStatus;
+  scheduled_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  retry_count: number;
+  error_message: string | null;
+  external_post_url: string | null;
+  generation_metadata: GenerationMetadata | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GenerationMetadata = {
+  applied_angle?: string;
+  hook_mechanic?: string;
+  structure_pattern?: string;
+  tone_and_rhythm?: string;
+  trends_used_count?: number;
+  publication_memory_used_count?: number;
+};
+
+export type SavedTrend = {
+  id: number;
+  project_id: number;
+  platform: Platform;
+  source_url: string;
+  author_handle: string | null;
+  raw_text: string;
+  metrics_json: Record<string, unknown> | null;
+  ai_summary: string | null;
+  virality_score: number | null;
+  hook_analysis: string | null;
+  hook_mechanic: string | null;
+  structure_pattern: string | null;
+  tone_and_rhythm: string | null;
+  living_phrases: string[];
+  semantic_forbidden_zone: string[];
+  adaptation_notes: string | null;
+  parsed_at: string | null;
+  analyzed: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TriggerScrapingResult = {
+  project_id: number;
+  collected_posts_count: number;
+  saved_trends_count: number;
+};
+
+export type TriggerGenerationResult = {
+  project_id: number;
+  task_id: number;
+  status: PostingTaskStatus;
+  scheduled_at: string | null;
+  content_text: string;
+};
+
+export type PromptType =
+  | "virality"
+  | "hook"
+  | "formatting"
+  | "retention"
+  | "project_context"
+  | "tone_of_voice";
+
+export type GlobalPrompt = {
+  id: number;
+  prompt_type: PromptType;
+  title: string;
+  body: string;
+  version: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GlobalPromptCreatePayload = {
+  prompt_type: PromptType;
+  title: string;
+  body: string;
+  version?: string;
+  is_active?: boolean;
+};
+
+export type GlobalPromptUpdatePayload = Partial<GlobalPromptCreatePayload>;
+
+export async function login(password: string): Promise<LoginResponse> {
+  try {
+    const response = await axios.post<LoginResponse>(
+      `${API_BASE_URL}/api/v1/auth/login`,
+      { password },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        throw new LoginError("Неверный пароль.");
+      }
+
+      if (error.response?.status === 429) {
+        throw new LoginError("Слишком много попыток входа. Подождите минуту и попробуйте снова.");
+      }
+
+      if (!error.response) {
+        throw new LoginError("API недоступен. Проверьте, что backend запущен на 127.0.0.1:8000.");
+      }
+    }
+
+    throw new LoginError("Не удалось выполнить вход. Попробуйте еще раз.");
+  }
+}
+
+export async function loginWithTelegram(payload: TelegramAuthPayload): Promise<LoginResponse> {
+  try {
+    const response = await axios.post<LoginResponse>(
+      `${API_BASE_URL}/api/v1/auth/telegram`,
+      payload,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        throw new LoginError("Telegram не подтвердил подлинность входа.");
+      }
+
+      if (error.response?.status === 429) {
+        throw new LoginError("Слишком много попыток входа. Подождите минуту и попробуйте снова.");
+      }
+
+      if (!error.response) {
+        throw new LoginError("API недоступен. Проверьте, что backend запущен на 127.0.0.1:8000.");
+      }
+    }
+
+    throw new LoginError("Не удалось выполнить вход через Telegram. Попробуйте еще раз.");
+  }
+}
+
+export async function getProjects(): Promise<Project[]> {
+  const response = await apiClient.get<Project[]>("/api/v1/projects/");
+  return response.data;
+}
+
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  const response = await apiClient.get<DashboardSummary>("/api/v1/dashboard/summary");
+  return response.data;
+}
+
+export async function createProject(data: ProjectCreatePayload): Promise<Project> {
+  const response = await apiClient.post<Project>("/api/v1/projects/", data);
+  return response.data;
+}
+
+export async function updateProject(id: number, data: ProjectUpdatePayload): Promise<Project> {
+  const response = await apiClient.put<Project>(`/api/v1/projects/${id}`, data);
+  return response.data;
+}
+
+export async function getProjectDashboard(id: number): Promise<ProjectDashboard> {
+  const response = await apiClient.get<ProjectDashboard>(`/api/v1/projects/${id}/dashboard`);
+  return response.data;
+}
+
+export async function getActiveGlobalPrompts(): Promise<GlobalPrompt[]> {
+  const response = await apiClient.get<GlobalPrompt[]>("/api/v1/prompts/global/active");
+  return response.data;
+}
+
+export async function createGlobalPrompt(data: GlobalPromptCreatePayload): Promise<GlobalPrompt> {
+  const response = await apiClient.post<GlobalPrompt>("/api/v1/prompts/global", data);
+  return response.data;
+}
+
+export async function updateGlobalPrompt(
+  id: number,
+  data: GlobalPromptUpdatePayload,
+): Promise<GlobalPrompt> {
+  const response = await apiClient.patch<GlobalPrompt>(`/api/v1/prompts/global/${id}`, data);
+  return response.data;
+}
+
+export async function triggerScraping(projectId: number): Promise<TriggerScrapingResult> {
+  const response = await apiClient.post<TriggerScrapingResult>(
+    `/api/v1/projects/${projectId}/trigger-scraping`,
+  );
+  return response.data;
+}
+
+export async function triggerGeneration(projectId: number): Promise<TriggerGenerationResult> {
+  const response = await apiClient.post<TriggerGenerationResult>(
+    `/api/v1/projects/${projectId}/trigger-generation`,
+  );
+  return response.data;
+}
+
+export async function getAccounts(): Promise<Account[]> {
+  const response = await apiClient.get<Account[]>("/api/v1/accounts/");
+  return response.data;
+}
+
+export async function createAccount(data: AccountCreatePayload): Promise<Account> {
+  const response = await apiClient.post<Account>("/api/v1/accounts/", data);
+  return response.data;
+}
+
+export async function updateAccount(id: number, data: AccountUpdatePayload): Promise<Account> {
+  const response = await apiClient.patch<Account>(`/api/v1/accounts/${id}`, data);
+  return response.data;
+}
+
+export async function getProjectTrends(projectId: number): Promise<SavedTrend[]> {
+  const response = await apiClient.get<SavedTrend[]>("/api/v1/trends/", {
+    params: { project_id: projectId },
+  });
+  return response.data;
+}
+
+export async function getProjectTasks(projectId: number): Promise<PostingTask[]> {
+  const response = await apiClient.get<PostingTask[]>("/api/v1/tasks/", {
+    params: { project_id: projectId },
+  });
+  return response.data;
+}
+
+export async function updateTask(taskId: number, contentText: string): Promise<PostingTask> {
+  const response = await apiClient.put<PostingTask>(`/api/v1/tasks/${taskId}`, {
+    content_text: contentText,
+  });
+  return response.data;
+}
+
+export async function regenerateTask(taskId: number): Promise<PostingTask> {
+  const response = await apiClient.post<PostingTask>(`/api/v1/tasks/${taskId}/regenerate`);
+  return response.data;
+}
+
+export async function cancelTask(taskId: number): Promise<PostingTask> {
+  const response = await apiClient.patch<PostingTask>(`/api/v1/tasks/${taskId}/cancel`);
+  return response.data;
+}
+
+export async function publishTaskNow(taskId: number): Promise<{ task_id: number; status: string }> {
+  const response = await apiClient.post<{ task_id: number; status: string }>(
+    `/api/v1/tasks/${taskId}/publish-now`,
+  );
+  return response.data;
+}

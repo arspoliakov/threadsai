@@ -1,0 +1,29 @@
+.env
+venv/
+.venv/
+__pycache__/
+node_modules/
+dist/
+.DS_Store
+
+# Local runtime data
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Logs and temporary files
+*.log
+tmp/
+temp/

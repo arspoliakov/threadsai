@@ -1,0 +1,49 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from "sonner";
+
+import GlobalLayout from "./layouts/GlobalLayout";
+import ProjectLayout from "./layouts/ProjectLayout";
+import ProtectedRoute from "./ProtectedRoute";
+import Dashboard from "./pages/Dashboard";
+import LoginPage from "./pages/auth/LoginPage";
+import InfrastructurePage from "./pages/global/InfrastructurePage";
+import GlobalSettingsPage from "./pages/global/GlobalSettingsPage";
+import ProjectOverviewPage from "./pages/project/ProjectOverviewPage";
+import ProjectQueuePage from "./pages/project/ProjectQueuePage";
+import ProjectTrendsPage from "./pages/project/ProjectTrendsPage";
+import ProjectSettingsPage from "./pages/project/ProjectSettingsPage";
+
+export default function App() {
+  return (
+    <>
+      <Toaster
+        position="top-right"
+        richColors
+        toastOptions={{
+          className:
+            "rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] text-[#151515] shadow-sm",
+        }}
+      />
+      <Routes>
+        <Route path="login" element={<LoginPage />} />
+
+        <Route element={<ProtectedRoute />}>
+          <Route element={<GlobalLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="infrastructure" element={<InfrastructurePage />} />
+            <Route path="settings" element={<GlobalSettingsPage />} />
+          </Route>
+
+          <Route path="projects/:id" element={<ProjectLayout />}>
+            <Route index element={<ProjectOverviewPage />} />
+            <Route path="queue" element={<ProjectQueuePage />} />
+            <Route path="trends" element={<ProjectTrendsPage />} />
+            <Route path="settings" element={<ProjectSettingsPage />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
+  );
+}

@@ -193,7 +193,7 @@ export default function ProjectOverviewPage() {
       </div>
 
       {dashboard ? (
-        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
           <SystemStatusCard
             dashboard={dashboard}
             operations={operations}
@@ -341,8 +341,12 @@ function ReadinessChecklist({
   ];
   const completed = checklist.filter((item) => item.done).length;
 
+  if (completed === checklist.length) {
+    return null;
+  }
+
   return (
-    <section className="rounded-[2rem] border border-[#dfe4dc] bg-white p-6 shadow-sm">
+    <section className="rounded-[2rem] border border-[#dfe4dc] bg-white p-6 shadow-sm xl:sticky xl:top-28">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">Готовность</p>
@@ -352,6 +356,10 @@ function ReadinessChecklist({
           {completed}/{checklist.length} готово
         </span>
       </div>
+      <p className="mt-3 text-xs leading-5 text-[#687168]">
+        Чек-лист исчезнет сам, когда основные шаги будут закрыты. Прокси здесь не обязательны,
+        но для запуска большого числа аккаунтов мы рекомендуем подключить их отдельно.
+      </p>
 
       <div className="mt-5 grid gap-2">
         {checklist.map((item) => (

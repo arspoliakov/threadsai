@@ -234,6 +234,16 @@ export default function InfrastructurePage() {
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
             Это локальный список для формы добавления аккаунта. Сам прокси сохраняется внутри аккаунта.
           </p>
+          <div className="mt-5 rounded-3xl border border-[#dfe4dc] bg-[#f6fbf3] p-5">
+            <p className="text-sm font-medium text-[#07100e]">Зачем нужны прокси</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5d685d]">
+              Для теста можно запустить профиль без прокси, но для масштабирования лучше правило:
+              один Threads-профиль — один отдельный прокси. Если много аккаунтов работают с одного серверного IP,
+              Meta быстрее отправляет их на проверки или блокировки. Оптимальный вариант для боевого режима —
+              динамический мобильный прокси: он имитирует обычную сетевую среду живого пользователя и снижает риск
+              массового бана.
+            </p>
+          </div>
         </div>
 
         <form onSubmit={handleAddProxy} className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">

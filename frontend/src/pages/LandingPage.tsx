@@ -339,6 +339,20 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      <footer className="relative z-10 mx-auto flex max-w-7xl flex-col gap-3 px-5 pb-10 text-xs leading-5 text-white/38 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
+        <p>
+          *Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.
+        </p>
+        <a
+          href="https://t.me/cuartenlol"
+          target="_blank"
+          rel="noreferrer"
+          className="w-fit rounded-full border border-white/12 px-4 py-2 text-white/62 transition hover:border-white/38 hover:text-white"
+        >
+          Связь с разработчиком
+        </a>
+      </footer>
     </main>
   );
 }

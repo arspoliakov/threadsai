@@ -48,10 +48,29 @@ export default function GlobalLayout() {
 
       <main className="relative mx-auto max-w-[1440px] px-4 pb-32 pt-5 sm:px-6 sm:pb-36 sm:pt-8 lg:px-10">
         <Outlet />
+        <FooterUtility />
       </main>
 
       <FloatingDock items={navigation} />
       <OnboardingTour />
     </div>
+  );
+}
+
+function FooterUtility() {
+  return (
+    <footer className="mt-12 flex flex-col gap-3 border-t border-[#d9ddd4] pt-5 text-xs leading-5 text-[#747d73] sm:flex-row sm:items-center sm:justify-between">
+      <p>
+        *Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.
+      </p>
+      <a
+        href="https://t.me/cuartenlol"
+        target="_blank"
+        rel="noreferrer"
+        className="w-fit rounded-full border border-[#cfd6cc] bg-white px-4 py-2 text-[#07100e] transition hover:border-[#07100e] hover:bg-[#07100e] hover:text-white"
+      >
+        Связь с разработчиком
+      </a>
+    </footer>
   );
 }

@@ -37,7 +37,8 @@ export function AppIcon({ name, className = "h-5 w-5" }: { name: AppIconName; cl
     case "style":
       return (
         <svg {...commonProps}>
-          <path d="M5 18.5c4.8-1 8.7-4.9 9.7-9.7l.4-2a1.8 1.8 0 0 1 3.5.7l-.4 2A14 14 0 0 1 7.5 20.2l-2 .4a1.8 1.8 0 0 1-.7-3.5l.2-.1ZM14 10l-2-2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M12 3l1.55 5.05L18.6 9.6l-5.05 1.55L12 16.2l-1.55-5.05L5.4 9.6l5.05-1.55L12 3Z" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M18 14.5l.85 2.65L21.5 18l-2.65.85L18 21.5l-.85-2.65L14.5 18l2.65-.85L18 14.5Z" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case "overview":

@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
+  getActiveGlobalPrompts,
   getLatestProjectOperation,
   getProjectDashboard,
+  getProjectOperations,
   triggerGeneration,
   triggerScraping,
   updateProject,
@@ -26,6 +28,8 @@ export default function ProjectOverviewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [runningAction, setRunningAction] = useState<RunningAction>(null);
   const [latestScrapingOperation, setLatestScrapingOperation] = useState<ProjectOperation | null>(null);
+  const [operations, setOperations] = useState<ProjectOperation[]>([]);
+  const [hasGlobalPrompt, setHasGlobalPrompt] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +39,14 @@ export default function ProjectOverviewPage() {
     setError(null);
 
     try {
-      setDashboard(await getProjectDashboard(projectId));
+      const [dashboardResult, operationsResult, promptsResult] = await Promise.all([
+        getProjectDashboard(projectId),
+        getProjectOperations(projectId, 12),
+        getActiveGlobalPrompts(),
+      ]);
+      setDashboard(dashboardResult);
+      setOperations(operationsResult);
+      setHasGlobalPrompt(promptsResult.some((prompt) => prompt.is_active && prompt.body.trim().length > 0));
     } catch {
       toast.error("Не удалось загрузить сводку проекта");
       setError("Не удалось загрузить сводку проекта.");
@@ -47,6 +58,7 @@ export default function ProjectOverviewPage() {
   async function refreshScrapingOperation() {
     const operation = await getLatestProjectOperation(projectId, "scraping");
     setLatestScrapingOperation(operation);
+    void getProjectOperations(projectId, 12).then(setOperations).catch(() => undefined);
 
     if (operation?.status === "running") {
       setRunningAction("scraping");
@@ -109,6 +121,7 @@ export default function ProjectOverviewPage() {
       setStatusMessage(result.message || "Анализ трендов запущен в фоне.");
       toast.success("Анализ трендов запущен в фоне");
       await refreshScrapingOperation();
+      await loadDashboard();
     } catch {
       toast.error("Не удалось запустить анализ трендов");
       setError("Не удалось запустить анализ трендов.");
@@ -179,6 +192,21 @@ export default function ProjectOverviewPage() {
         />
       </div>
 
+      {dashboard ? (
+        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <SystemStatusCard
+            dashboard={dashboard}
+            operations={operations}
+            latestScrapingOperation={latestScrapingOperation}
+          />
+          <ReadinessChecklist
+            dashboard={dashboard}
+            hasGlobalPrompt={hasGlobalPrompt}
+            projectId={projectId}
+          />
+        </div>
+      ) : null}
+
       {latestScrapingOperation?.status === "running" ? (
         <Notice tone="neutral">
           Анализ трендов идет в фоне. Можно перейти в настройки или очередь: статус сохранен на бэкенде и восстановится при возврате.
@@ -187,35 +215,18 @@ export default function ProjectOverviewPage() {
       {statusMessage ? <Notice tone="neutral">{statusMessage}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
 
-      <section className="border border-[#c9c9c3] bg-white">
+      <section className="overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-white shadow-sm">
         <header className="border-b border-[#c9c9c3] px-5 py-5">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-            Last state log
+            Журнал действий
           </p>
-          <h2 className="mt-2 font-display text-3xl">Лог последнего состояния</h2>
+          <h2 className="mt-2 font-display text-3xl">Что система делала в проекте</h2>
         </header>
 
         {isLoading ? (
           <EmptyLine text="Загрузка сводки" />
         ) : dashboard ? (
-          <div className="divide-y divide-[#e1e1dc]">
-            <LogRow label="Проект" value={dashboard.project.name} />
-            <LogRow label="Описание" value={dashboard.project.description || "Описание не заполнено"} />
-            <LogRow label="Аккаунты" value={formatAccountStates(dashboard.account_states)} />
-            <LogRow label="Последняя генерация" value={formatDate(dashboard.last_generation_at)} />
-            <LogRow label="Тренды в базе" value={String(dashboard.saved_trends_count)} />
-            <LogRow label="Задачи по статусам" value={formatTaskStatuses(dashboard.posting_tasks_by_status)} />
-            <LogRow
-              label="Последний анализ трендов"
-              value={formatOperation(latestScrapingOperation)}
-              isError={latestScrapingOperation?.status === "failed"}
-            />
-            <LogRow
-              label="Последняя ошибка"
-              value={dashboard.recent_errors[0] || "Ошибок нет"}
-              isError={dashboard.recent_errors.length > 0}
-            />
-          </div>
+          <ActivityLog operations={operations} dashboard={dashboard} latestScrapingOperation={latestScrapingOperation} />
         ) : (
           <EmptyLine text="Нет данных" />
         )}
@@ -232,6 +243,203 @@ export default function ProjectOverviewPage() {
         />
       ) : null}
     </section>
+  );
+}
+
+function SystemStatusCard({
+  dashboard,
+  operations,
+  latestScrapingOperation,
+}: {
+  dashboard: ProjectDashboard;
+  operations: ProjectOperation[];
+  latestScrapingOperation: ProjectOperation | null;
+}) {
+  const activeAccounts = dashboard.account_states.filter((account) => account.status === "active").length;
+  const failedAccounts = dashboard.account_states.filter(
+    (account) => account.status === "cookies_expired" || account.status === "blocked" || account.status === "error",
+  ).length;
+  const runningOperation = operations.find((operation) => operation.status === "running") || latestScrapingOperation;
+  const queuedCount = dashboard.posting_tasks_by_status.queued ?? 0;
+  const status = getProjectSystemStatus({
+    runningOperation,
+    activeAccounts,
+    failedAccounts,
+    trendsCount: dashboard.saved_trends_count,
+    queuedCount,
+    recentErrorsCount: dashboard.recent_errors.length,
+  });
+
+  return (
+    <section className="relative overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-[#07100e] p-6 text-white shadow-sm">
+      <div className="absolute right-[-6rem] top-[-7rem] h-64 w-64 rounded-full bg-[#70ff35]/18 blur-[80px]" />
+      <div className="absolute bottom-[-8rem] left-[10%] h-64 w-64 rounded-full bg-[#0076ff]/18 blur-[90px]" />
+      <div className="relative">
+        <div className="flex items-center gap-3">
+          <span className={`relative flex h-3 w-3 ${status.pulse ? "" : "opacity-90"}`}>
+            {status.pulse ? <span className={`absolute h-full w-full animate-ping rounded-full ${status.dotClass} opacity-60`} /> : null}
+            <span className={`relative h-3 w-3 rounded-full ${status.dotClass}`} />
+          </span>
+          <p className="text-sm font-medium text-white/80">Сейчас система</p>
+        </div>
+        <h2 className="mt-6 font-display text-5xl leading-[0.9] tracking-[-0.05em]">
+          {status.title}
+        </h2>
+        <p className="mt-5 max-w-xl text-sm leading-7 text-white/58">{status.description}</p>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <MiniMetric label="Активные аккаунты" value={String(activeAccounts)} />
+          <MiniMetric label="Тренды" value={String(dashboard.saved_trends_count)} />
+          <MiniMetric label="В очереди" value={String(queuedCount)} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ReadinessChecklist({
+  dashboard,
+  hasGlobalPrompt,
+  projectId,
+}: {
+  dashboard: ProjectDashboard;
+  hasGlobalPrompt: boolean;
+  projectId: number;
+}) {
+  const activeAccounts = dashboard.account_states.filter((account) => account.status === "active").length;
+  const checklist = [
+    {
+      title: "Описание проекта",
+      done: Boolean(dashboard.project.description && dashboard.project.description.length >= 30),
+      hint: "Нужно описать продукт, аудиторию и тон.",
+      to: `/app/projects/${projectId}/settings`,
+    },
+    {
+      title: "Глобальный стиль",
+      done: hasGlobalPrompt,
+      hint: "Общий голос для всех ваших проектов.",
+      to: "/app/settings",
+    },
+    {
+      title: "Threads-аккаунт",
+      done: activeAccounts > 0,
+      hint: "Нужен хотя бы один активный профиль.",
+      to: `/app/projects/${projectId}/settings`,
+    },
+    {
+      title: "Тренды проекта",
+      done: dashboard.saved_trends_count > 0,
+      hint: "Запустите анализ, чтобы генерация опиралась на свежую ленту.",
+      to: `/app/projects/${projectId}/trends`,
+    },
+    {
+      title: "Расписание",
+      done: Boolean(dashboard.project.posts_per_day && dashboard.project.active_hours_start && dashboard.project.active_hours_end),
+      hint: "Сколько постов в день и в какое окно выпускать.",
+      to: `/app/projects/${projectId}/settings`,
+    },
+  ];
+  const completed = checklist.filter((item) => item.done).length;
+
+  return (
+    <section className="rounded-[2rem] border border-[#dfe4dc] bg-white p-6 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">Готовность</p>
+          <h2 className="mt-2 font-display text-3xl">Перед большим запуском</h2>
+        </div>
+        <span className="rounded-full bg-[#eef4ec] px-4 py-2 text-sm text-[#4f584f]">
+          {completed}/{checklist.length} готово
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-2">
+        {checklist.map((item) => (
+          <Link
+            key={item.title}
+            to={item.to}
+            className="flex items-start gap-3 rounded-2xl border border-[#e3e7df] bg-[#fbfcf7] p-4 transition hover:border-[#07100e] hover:bg-white"
+          >
+            <span
+              className={[
+                "mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs",
+                item.done ? "bg-[#70ff35] text-[#07100e]" : "bg-[#eef0ea] text-[#687168]",
+              ].join(" ")}
+            >
+              {item.done ? "✓" : "•"}
+            </span>
+            <span>
+              <span className="block text-sm font-medium text-[#07100e]">{item.title}</span>
+              <span className="mt-1 block text-xs leading-5 text-[#687168]">{item.hint}</span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ActivityLog({
+  operations,
+  dashboard,
+  latestScrapingOperation,
+}: {
+  operations: ProjectOperation[];
+  dashboard: ProjectDashboard;
+  latestScrapingOperation: ProjectOperation | null;
+}) {
+  const visibleOperations = operations.length > 0 ? operations : latestScrapingOperation ? [latestScrapingOperation] : [];
+
+  return (
+    <div className="divide-y divide-[#e1e1dc]">
+      {visibleOperations.length === 0 ? (
+        <EmptyLine text="Действий пока не было" />
+      ) : (
+        visibleOperations.map((operation) => (
+          <div key={operation.id} className="grid gap-3 px-5 py-5 md:grid-cols-[190px_1fr_auto] md:items-start">
+            <div>
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">
+                {operation.action_type === "scraping" ? "Анализ трендов" : "Генерация"}
+              </span>
+              <p className="mt-2 text-xs text-[#77766f]">{formatDate(operation.started_at)}</p>
+            </div>
+            <p className={operation.status === "failed" ? "text-sm leading-6 text-[#8a2d25]" : "text-sm leading-6 text-[#252525]"}>
+              {formatOperation(operation)}
+            </p>
+            <OperationBadge status={operation.status} />
+          </div>
+        ))
+      )}
+
+      <LogRow label="Аккаунты" value={formatAccountStates(dashboard.account_states)} />
+      <LogRow label="Задачи по статусам" value={formatTaskStatuses(dashboard.posting_tasks_by_status)} />
+      <LogRow
+        label="Последняя ошибка"
+        value={dashboard.recent_errors[0] || "Ошибок нет"}
+        isError={dashboard.recent_errors.length > 0}
+      />
+    </div>
+  );
+}
+
+function OperationBadge({ status }: { status: ProjectOperation["status"] }) {
+  const className =
+    status === "running"
+      ? "bg-[#e8f1ff] text-[#124e91]"
+      : status === "success"
+        ? "bg-[#edf8e8] text-[#25551f]"
+        : "bg-[#fff1ee] text-[#8a2d25]";
+  const label = status === "running" ? "в процессе" : status === "success" ? "готово" : "ошибка";
+
+  return <span className={`w-fit rounded-full px-3 py-1 text-xs ${className}`}>{label}</span>;
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+      <p className="font-display text-3xl leading-none">{value}</p>
+      <p className="mt-2 text-xs leading-4 text-white/42">{label}</p>
+    </div>
   );
 }
 
@@ -457,4 +665,76 @@ function formatDate(value: string | null) {
   }
 
   return new Date(value).toLocaleString("ru-RU");
+}
+
+function getProjectSystemStatus({
+  runningOperation,
+  activeAccounts,
+  failedAccounts,
+  trendsCount,
+  queuedCount,
+  recentErrorsCount,
+}: {
+  runningOperation: ProjectOperation | null;
+  activeAccounts: number;
+  failedAccounts: number;
+  trendsCount: number;
+  queuedCount: number;
+  recentErrorsCount: number;
+}) {
+  if (runningOperation?.status === "running") {
+    return {
+      title: runningOperation.action_type === "scraping" ? "собирает тренды" : "генерирует пост",
+      description:
+        runningOperation.action_type === "scraping"
+          ? "Система смотрит ленту Threads, отбирает свежие сигналы и готовит паттерны для генерации."
+          : "ИИ собирает контекст проекта, тренды и историю публикаций, чтобы подготовить новый черновик.",
+      dotClass: "bg-[#70ff35]",
+      pulse: true,
+    };
+  }
+
+  if (failedAccounts > 0 || recentErrorsCount > 0) {
+    return {
+      title: "ждет проверки",
+      description:
+        "Есть проблема с аккаунтом или последней публикацией. Проверьте cookies, ошибки и привязанные Threads-профили.",
+      dotClass: "bg-[#ffb020]",
+      pulse: true,
+    };
+  }
+
+  if (activeAccounts === 0) {
+    return {
+      title: "ждет аккаунт",
+      description: "Проекту нужен хотя бы один активный Threads-профиль, иначе генерация есть, а публикация невозможна.",
+      dotClass: "bg-[#9aa39a]",
+      pulse: false,
+    };
+  }
+
+  if (trendsCount === 0) {
+    return {
+      title: "готов к анализу",
+      description: "Аккаунт подключен. Следующий логичный шаг — собрать тренды, чтобы посты опирались на живую ленту.",
+      dotClass: "bg-[#0076ff]",
+      pulse: false,
+    };
+  }
+
+  if (queuedCount > 0) {
+    return {
+      title: "ведет очередь",
+      description: "Черновики уже стоят в расписании. Можно проверять тексты, публиковать вручную или ждать планировщик.",
+      dotClass: "bg-[#70ff35]",
+      pulse: true,
+    };
+  }
+
+  return {
+    title: "готов к генерации",
+    description: "Тренды собраны, аккаунт активен. Можно создать следующий пост вручную или дождаться автогенерации.",
+    dotClass: "bg-[#70ff35]",
+    pulse: false,
+  };
 }

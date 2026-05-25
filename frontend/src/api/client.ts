@@ -451,6 +451,13 @@ export async function getLatestProjectOperation(
   return response.data;
 }
 
+export async function getProjectOperations(projectId: number, limit = 10): Promise<ProjectOperation[]> {
+  const response = await apiClient.get<ProjectOperation[]>(`/api/v1/projects/${projectId}/operations`, {
+    params: { limit },
+  });
+  return response.data;
+}
+
 export async function triggerGeneration(projectId: number): Promise<TriggerGenerationResult> {
   const response = await apiClient.post<TriggerGenerationResult>(
     `/api/v1/projects/${projectId}/trigger-generation`,

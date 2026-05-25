@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -224,6 +224,21 @@ export default function ProjectSettingsPage() {
           Здесь задаются стоп-слова, скорость публикаций и Threads-профили, через которые проект выходит в ленту.
         </p>
       </header>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <StyleLayerCard
+          title="Глобальный стиль"
+          label="общий голос"
+          description="Настраивается в разделе «Стиль» и применяется ко всем вашим проектам: тон, запреты, уровень экспертности, общие правила текста."
+          href="/app/settings"
+        />
+        <StyleLayerCard
+          title="Контекст проекта"
+          label="локальная специфика"
+          description="Настраивается здесь: стоп-слова, расписание, аккаунты и описание конкретного продукта. Это помогает ИИ писать не абстрактно, а под задачу проекта."
+          href={`/app/projects/${projectId}/settings`}
+        />
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm xl:col-span-2">
@@ -507,6 +522,36 @@ function AccountCard({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function StyleLayerCard({
+  title,
+  label,
+  description,
+  href,
+}: {
+  title: string;
+  label: string;
+  description: string;
+  href: string;
+}) {
+  return (
+    <Link
+      to={href}
+      className="group overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#07100e] hover:shadow-md"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">{label}</p>
+          <h2 className="mt-2 font-display text-3xl leading-none tracking-[-0.04em]">{title}</h2>
+        </div>
+        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#eef4ec] text-[#07100e] transition group-hover:bg-[#07100e] group-hover:text-white">
+          →
+        </span>
+      </div>
+      <p className="mt-5 text-sm leading-6 text-[#66645d]">{description}</p>
+    </Link>
   );
 }
 

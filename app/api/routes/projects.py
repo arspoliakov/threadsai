@@ -310,6 +310,31 @@ async def get_latest_project_operation(
     return operation
 
 
+@router.get(
+    "/{project_id}/operations",
+    response_model=list[ProjectOperationRead],
+    status_code=status.HTTP_200_OK,
+)
+async def get_project_operations(
+    project_id: int,
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+) -> list[ProjectOperationRead]:
+    project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
+    operations = await db.scalars(
+        select(ProjectOperation)
+        .where(
+            ProjectOperation.project_id == project.id,
+            ProjectOperation.owner_id == current_user_id,
+        )
+        .order_by(ProjectOperation.started_at.desc())
+        .limit(limit)
+    )
+
+    return list(operations.all())
+
+
 @router.post(
     "/{project_id}/trigger-generation",
     response_model=TriggerGenerationRead,
@@ -338,15 +363,42 @@ async def trigger_project_generation(
             detail="Project has no active Threads account assigned.",
         )
 
-    posting_task = await generate_post(
+    operation = ProjectOperation(
         project_id=project.id,
-        topic_or_context=_build_generation_topic(project),
-        session=db,
-        platform=Platform.THREADS,
-        account_id=account_id,
-        scheduled_at=datetime.now(UTC) + timedelta(minutes=5),
-        use_trends=True,
+        owner_id=current_user_id,
+        action_type=ProjectOperationType.GENERATION,
+        status=ProjectOperationStatus.RUNNING,
+        message="Генерация поста запущена.",
     )
+    db.add(operation)
+    await db.flush()
+
+    try:
+        posting_task = await generate_post(
+            project_id=project.id,
+            topic_or_context=_build_generation_topic(project),
+            session=db,
+            platform=Platform.THREADS,
+            account_id=account_id,
+            scheduled_at=datetime.now(UTC) + timedelta(minutes=5),
+            use_trends=True,
+        )
+        operation.status = ProjectOperationStatus.SUCCESS
+        operation.message = f"Пост сгенерирован и поставлен в очередь: задача #{posting_task.id}."
+        operation.result_json = {
+            "task_id": posting_task.id,
+            "scheduled_at": posting_task.scheduled_at.isoformat() if posting_task.scheduled_at else None,
+        }
+        operation.finished_at = datetime.now(UTC)
+        await db.commit()
+        await db.refresh(posting_task)
+    except Exception as exc:
+        operation.status = ProjectOperationStatus.FAILED
+        operation.message = f"Генерация завершилась ошибкой: {exc}"
+        operation.result_json = {"error": str(exc)}
+        operation.finished_at = datetime.now(UTC)
+        await db.commit()
+        raise
 
     return TriggerGenerationRead(
         project_id=project.id,

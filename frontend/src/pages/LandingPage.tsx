@@ -8,44 +8,72 @@ const landingImages = {
   mobilePreview: "/landing/mobile-preview.webp",
 };
 
+const audienceCards = [
+  {
+    title: "Экспертам и фрилансерам",
+    text: "Развивайте личный бренд без выгорания. ИИ напишет экспертные треды и живые посты, пока вы заняты своей основной работой.",
+  },
+  {
+    title: "Малому бизнесу",
+    text: "Привлекайте аудиторию без найма дорогого копирайтера. Публикуйте контент, который вызывает доверие, а не выглядит как сухая рекламная витрина.",
+  },
+  {
+    title: "SMM-агентствам",
+    text: "Ведите десятки проектов в одном окне. Изолированные прокси, раздельные очереди публикаций и полная безопасность для сеток аккаунтов.",
+  },
+];
+
 const stats = [
-  { label: "сигналы из ленты", value: "300+" },
-  { label: "ручной контроль", value: "100%" },
-  { label: "постинг по расписанию", value: "24/7" },
+  {
+    value: "сотни",
+    label: "трендов в день",
+    description: "Непрерывный анализ ленты Threads",
+  },
+  {
+    value: "100%",
+    label: "ручной контроль",
+    description: "ИИ предлагает, вы публикуете",
+  },
+  {
+    value: "24/7",
+    label: "на автопилоте",
+    description: "Публикации выходят точно в срок",
+  },
 ];
 
 const workflow = [
   {
-    title: "Смотрит на ленту",
-    text: "Система собирает свежие посты из Threads и сохраняет только то, что может стать рабочим сигналом.",
+    title: "Ищет идеи",
+    text: "Система собирает свежие посты в Threads и отбирает только те, которые вызывают живой интерес аудитории.",
   },
   {
-    title: "Достает механику",
-    text: "ИИ разбирает не чужой текст, а его скелет: хук, структуру, ритм и живые формулировки.",
+    title: "Разбирает успех",
+    text: "ИИ анализирует не чужой текст, а его структуру: почему этот пост зацепил? Это полезный совет, шутка или провокация?",
   },
   {
-    title: "Пишет под проект",
-    text: "Генератор учитывает описание бренда, стоп-слова, историю прошлых постов и актуальные тренды.",
+    title: "Пишет под вас",
+    text: "Генератор создает новый пост, учитывая описание вашего бренда, стиль общения, стоп-слова и актуальную повестку.",
   },
   {
-    title: "Отдает на контроль",
-    text: "Перед публикацией текст можно отредактировать, перегенерировать или отправить в очередь вручную.",
+    title: "Ждет одобрения",
+    text: "Перед выходом в ленту вы читаете черновик. Его можно отредактировать, попросить ИИ переписать или сразу отправить в очередь.",
   },
 ];
 
 const capabilities = [
-  "Telegram-вход без паролей",
-  "изоляция проектов и аккаунтов",
-  "проверка cookies-сессий",
-  "пул прокси и ручная привязка профилей",
-  "перегенерация конкретного поста",
-  "алерты, когда сессия Threads слетает",
+  "Быстрый вход через Telegram.",
+  "Полная изоляция каждого проекта.",
+  "Умная защита от теневых банов.",
+  "Работа через ваши приватные прокси.",
+  "Переписывание любого поста в один клик.",
+  "Моментальные уведомления об ошибках.",
+  "Над одним проектом могут работать несколько аккаунтов, набирая в разы больше аудитории.",
 ];
 
 const posts = [
-  "Нас уже 20 человек на воскресный круг. Стартуем в 12:30, спокойно едем по маршруту и потом садимся за пиццу.",
-  "Вчера собрали маршрут и поняли простую вещь: людям нужен не спорт, а понятный повод выйти из дома.",
-  "Пока все усложняют формат, мы делаем проще: встречаемся, едем, разговариваем, потом едим.",
+  "Пост набирает реакции не потому, что громче всех кричит. Он попадает в ситуацию, которую аудитория узнает за секунду.",
+  "Когда тема уже обсуждается в ленте, вам не нужно угадывать интерес. Нужно понять механику и сказать это своим голосом.",
+  "Хороший пост выглядит простым. За ним обычно стоит правильный хук, понятная структура и точное время публикации.",
 ];
 
 export default function LandingPage() {
@@ -64,29 +92,26 @@ export default function LandingPage() {
             <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur">
               <img src="/threadsgo-logo.png" alt="ThreadsGo" className="h-8 w-8 object-contain" />
             </span>
-            <span>
-              <span className="block font-display text-xl tracking-[-0.04em] text-white">ThreadsGo</span>
-            </span>
+            <span className="block font-display text-xl tracking-[-0.04em] text-white">ThreadsGo</span>
           </Link>
 
           <Link
             to="/login"
             className="shrink-0 rounded-full border border-white/14 bg-white/[0.05] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-white/75 transition hover:border-white/40 hover:bg-white hover:text-[#070909] sm:px-5 sm:text-[11px]"
           >
-            войти
+            Войти
           </Link>
         </header>
 
         <div className="grid flex-1 items-center gap-10 py-14 sm:py-20 lg:grid-cols-[0.95fr_1.05fr] lg:py-10">
           <div className="landing-reveal max-w-3xl [animation-delay:120ms]">
-            <h1 className="max-w-4xl font-display text-[clamp(3.15rem,16vw,9.5rem)] leading-[0.84] tracking-[-0.075em] text-white sm:leading-[0.78]">
-              Посты, которые сначала слушают рынок.
+            <h1 className="max-w-4xl font-display text-[clamp(3.15rem,13vw,8.5rem)] leading-[0.88] tracking-[-0.075em] text-white sm:leading-[0.82]">
+              Умный автопостинг для Threads. Пишет то, что хотят читать.
             </h1>
 
             <p className="mt-7 max-w-2xl text-base leading-7 text-white/62 sm:mt-8 sm:text-lg sm:leading-8">
-              ThreadsGo собирает сигналы из ленты, превращает их в понятные паттерны
-              и готовит посты под голос проекта. Не “автокопирайтер”, а рабочая панель
-              для контент-операций: тренды, генерация, очередь, сессии и ручной контроль.
+              Забудьте про запросы в духе «ИИ, напиши пост». Наша система сама находит обсуждаемые темы в вашей нише,
+              перенимает стиль вашего проекта и ведет аккаунт 24/7. Вы только утверждаете черновики.
             </p>
 
             <div className="mt-9 grid gap-3 sm:mt-10 sm:flex sm:flex-wrap">
@@ -94,14 +119,14 @@ export default function LandingPage() {
                 to="/login"
                 className="group rounded-full bg-white px-7 py-4 text-center font-mono text-xs uppercase tracking-[0.18em] text-[#070909] transition hover:bg-[#70ff35]"
               >
-                открыть кабинет
+                Начать работу
                 <span className="ml-3 inline-block transition group-hover:translate-x-1">→</span>
               </Link>
               <a
-                href="#system"
+                href="#audience"
                 className="rounded-full border border-white/14 px-7 py-4 text-center font-mono text-xs uppercase tracking-[0.18em] text-white/68 transition hover:border-white/40 hover:text-white"
               >
-                посмотреть систему
+                Кому это нужно
               </a>
             </div>
 
@@ -109,9 +134,10 @@ export default function LandingPage() {
               {stats.map((item) => (
                 <div key={item.label} className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur">
                   <p className="font-display text-4xl leading-none text-white">{item.value}</p>
-                  <p className="mt-3 font-mono text-[9px] uppercase leading-4 tracking-[0.18em] text-white/38">
+                  <p className="mt-3 font-mono text-[9px] uppercase leading-4 tracking-[0.18em] text-white/40">
                     {item.label}
                   </p>
+                  <p className="mt-2 text-xs leading-5 text-white/48">{item.description}</p>
                 </div>
               ))}
             </div>
@@ -121,31 +147,46 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <section id="audience" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
+        <div className="mb-10 max-w-4xl">
+          <h2 className="font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
+            Кому ThreadsGo сэкономит сотни часов?
+          </h2>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          {audienceCards.map((card) => (
+            <article
+              key={card.title}
+              className="landing-card min-h-72 rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white/[0.075]"
+            >
+              <h3 className="font-display text-4xl leading-none tracking-[-0.04em] text-white">{card.title}</h3>
+              <p className="mt-7 text-sm leading-7 text-white/58">{card.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section id="system" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <article className="landing-card rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur md:p-10">
             <h2 className="max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
-              Не генерируем в пустоту. Работаем от доказанного спроса.
+              Почему обычный ИИ не работает? Он пишет шаблонами.
             </h2>
             <p className="mt-7 max-w-2xl text-base leading-8 text-white/58">
-              Большинство AI-постинга делает одну ошибку: просит модель “придумать что-нибудь”.
-              ThreadsGo начинает раньше: смотрит, что уже цепляет людей, достает механику
-              и только потом адаптирует ее под проект.
+              Большинство сервисов просто просят нейросеть «придумать что-нибудь». ThreadsGo работает иначе. Мы
+              непрерывно сканируем ленту, находим посты, которые прямо сейчас собирают лайки и комментарии, понимаем,
+              почему они сработали, и пишем уникальный контент с такой же логикой для вас.
             </p>
           </article>
 
           <article className="landing-card overflow-hidden rounded-[2rem] border border-white/10 bg-[#eff6ed] p-7 text-[#08100d] md:p-8">
             <div className="space-y-3">
               {posts.map((post, index) => (
-                <div
-                  key={post}
-                  className="rounded-3xl border border-[#d7dfd4] bg-white/65 p-5 shadow-sm"
-                  style={{ ["--offset" as string]: `${index * 18}px` }}
-                  data-offset-card
-                >
+                <div key={post} className="rounded-3xl border border-[#d7dfd4] bg-white/65 p-5 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <span className="rounded-full bg-[#08100d] px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-white">
-                      trend {index + 1}
+                      сигнал {index + 1}
                     </span>
                     <span className="font-mono text-[10px] text-[#557162]">score {91 - index * 7}</span>
                   </div>
@@ -159,7 +200,7 @@ export default function LandingPage() {
         <div className="landing-card relative mt-4 overflow-hidden rounded-[2.4rem] border border-white/10 bg-white/[0.035]">
           <img
             src={landingImages.trendRadar}
-            alt="Карта тренд-сигналов"
+            alt="Карта трендов Threads"
             className="landing-pan-image h-[26rem] w-full object-cover opacity-88 sm:h-[34rem]"
             loading="lazy"
           />
@@ -169,8 +210,8 @@ export default function LandingPage() {
               Лента превращается в карту спроса.
             </h3>
             <p className="mt-5 text-sm leading-7 text-white/58">
-              Посты, реакции и паттерны становятся понятным сигналом: что зацепило,
-              почему сработало и как это адаптировать под ваш проект.
+              ThreadsGo видит, какие темы уже обсуждают люди, какие форматы получают реакции и какие механики можно
+              безопасно адаптировать под ваш проект.
             </p>
           </div>
         </div>
@@ -180,12 +221,11 @@ export default function LandingPage() {
         <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
             <h2 className="font-display text-5xl leading-none tracking-[-0.055em] text-white md:text-7xl">
-              От ленты до публикации.
+              От поиска идей до публикации — на автопилоте.
             </h2>
           </div>
           <p className="max-w-md text-sm leading-7 text-white/50">
-            Внутри не магия, а нормальный продуктовый контур: сбор, анализ, генерация,
-            редактура, публикация и диагностика сессий.
+            Внутри не магия, а понятный рабочий процесс.
           </p>
         </div>
 
@@ -215,8 +255,9 @@ export default function LandingPage() {
                 Автономия, которую можно держать за руку.
               </h2>
               <p className="mt-7 text-sm leading-7 text-white/58">
-                Пост можно остановить, переписать, перегенерировать или выпустить сразу.
-                Если cookies слетели, система покажет это в интерфейсе и не будет молча жечь очередь.
+                Вы не отдаете свой аккаунт слепому роботу. Платформа делает всю черновую работу по расписанию, но
+                финальное решение всегда остается за вами. Если профиль разлогинится — система встанет на паузу и
+                пришлет уведомление, а не будет молча жечь посты.
               </p>
 
               <div className="mt-8 grid gap-2">
@@ -235,7 +276,7 @@ export default function LandingPage() {
           <div className="landing-card relative mt-5 overflow-hidden rounded-[2rem] bg-[#050807]">
             <img
               src={landingImages.humanControl}
-              alt="Ручное управление публикацией"
+              alt="Ручной контроль публикаций"
               className="h-[24rem] w-full object-cover opacity-90 sm:h-[34rem]"
               loading="lazy"
             />
@@ -243,8 +284,7 @@ export default function LandingPage() {
             <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
               <div className="max-w-xl rounded-3xl border border-white/12 bg-[#07100e]/70 p-5 text-white backdrop-blur">
                 <p className="text-sm leading-7 text-white/62">
-                  Автоматизация не забирает контроль. Она готовит черновики, а человек
-                  решает, что выпускать в ленту.
+                  Автоматизация не забирает контроль. Она готовит черновики, а человек решает, что выпускать в ленту.
                 </p>
               </div>
             </div>
@@ -257,17 +297,17 @@ export default function LandingPage() {
           <div className="p-8 text-center md:p-14 lg:text-left">
             <img src="/threadsgo-logo.png" alt="" className="mx-auto h-20 w-20 object-contain lg:mx-0" />
             <h2 className="mt-7 max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
-              Соберите контент-оператора для своего проекта.
+              Ваш автономный редактор для Threads. Готов к работе.
             </h2>
             <p className="mt-6 max-w-xl text-sm leading-7 text-white/54">
-              Начните с Telegram-входа, добавьте проект, подключите Threads-профиль
-              и запустите первый сбор трендов.
+              Начните с авторизации через Telegram, добавьте свой первый проект, подключите профиль Threads и позвольте
+              алгоритмам сделать рутину за вас.
             </p>
             <Link
               to="/login"
               className="mt-9 inline-flex rounded-full bg-white px-8 py-4 font-mono text-xs uppercase tracking-[0.18em] text-[#070909] transition hover:bg-[#70ff35]"
             >
-              войти в кабинет
+              Войти в кабинет
             </Link>
           </div>
 
@@ -305,11 +345,9 @@ function HeroDashboard() {
 
         <div className="absolute inset-x-5 bottom-5 hidden rounded-3xl border border-white/12 bg-[#07100e]/80 p-4 text-white shadow-2xl backdrop-blur md:block">
           <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="max-w-lg text-sm leading-6 text-white/74">
-                Система поймала тренд, собрала черновик и поставила публикацию в очередь.
-              </p>
-            </div>
+            <p className="max-w-lg text-sm leading-6 text-white/74">
+              Система нашла тренд, подготовила черновик и поставила публикацию в очередь.
+            </p>
             <span className="landing-signal-pill rounded-full bg-[#70ff35] px-4 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#07100e]">
               ready
             </span>
@@ -333,8 +371,7 @@ function ControlMockup() {
           <span className="rounded-full bg-[#fff2d6] px-3 py-1 text-xs text-[#8a5b12]">ожидает проверки</span>
         </div>
         <p className="mt-5 text-sm leading-7 text-[#26372f]">
-          Вчера собрали маршрут и поняли простую вещь: людям нужен понятный повод
-          выйти, а не еще один план на потом.
+          Черновик готов. Его можно отредактировать, попросить ИИ переписать или отправить в очередь публикаций.
         </p>
         <div className="mt-5 grid grid-cols-3 gap-2">
           <button className="rounded-2xl border border-[#c9d4c6] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em]">
@@ -352,11 +389,11 @@ function ControlMockup() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-[2rem] border border-[#d7dfd4] bg-white/75 p-5">
           <p className="font-display text-3xl leading-none">healthy</p>
-          <p className="mt-3 text-xs leading-5 text-[#557162]">публикация доступна</p>
+          <p className="mt-3 text-xs leading-5 text-[#557162]">сессия активна</p>
         </div>
         <div className="rounded-[2rem] border border-[#d7dfd4] bg-white/75 p-5">
           <p className="font-display text-3xl leading-none">3/day</p>
-          <p className="mt-3 text-xs leading-5 text-[#557162]">окно 09:00–21:00</p>
+          <p className="mt-3 text-xs leading-5 text-[#557162]">публикации по расписанию</p>
         </div>
       </div>
     </div>

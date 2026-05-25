@@ -89,13 +89,18 @@ export default function GlobalSettingsPage() {
   return (
     <section className="space-y-7">
       <header className="relative overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-[#090d0c] p-7 text-white shadow-sm sm:p-8">
-        <div className="absolute right-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-[#70ff35]/16 blur-[110px]" />
-        <div className="absolute bottom-[-10rem] left-[20%] h-80 w-80 rounded-full bg-[#0076ff]/20 blur-[110px]" />
-        <img
-          src="/interface/prompt-style.webp"
-          alt=""
-          className="pointer-events-none absolute bottom-[-6rem] right-[-5rem] hidden w-[34rem] max-w-none opacity-55 mix-blend-screen lg:block"
-        />
+        <div className="absolute right-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-[#70ff35]/18 blur-[110px]" />
+        <div className="absolute bottom-[-10rem] left-[20%] h-80 w-80 rounded-full bg-[#0076ff]/22 blur-[110px]" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[52%] overflow-hidden lg:block">
+          <div className="absolute inset-0 bg-gradient-to-r from-[#090d0c] via-[#090d0c]/55 to-transparent" />
+          <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#090d0c] to-transparent" />
+          <img
+            src="/interface/prompt-style.webp"
+            alt=""
+            className="absolute inset-y-0 right-[-4rem] h-full w-[calc(100%+6rem)] object-cover opacity-48 mix-blend-screen"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#090d0c] via-transparent to-[#090d0c]/35" />
+        </div>
 
         <div className="relative max-w-3xl">
           <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.06]">

@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 
 import { FloatingDock, type FloatingDockItem } from "../components/FloatingDock";
+import { OnboardingTour } from "../components/OnboardingTour";
 import { ProfileMenu } from "../components/ProfileMenu";
 
 const navigation: FloatingDockItem[] = [
@@ -50,6 +51,7 @@ export default function GlobalLayout() {
       </main>
 
       <FloatingDock items={navigation} />
+      <OnboardingTour />
     </div>
   );
 }

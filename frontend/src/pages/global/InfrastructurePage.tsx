@@ -156,6 +156,31 @@ export default function InfrastructurePage() {
         </div>
       </header>
 
+      <section className="grid overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-[#07100e] text-white shadow-sm lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="p-6 sm:p-8">
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/8">
+              <img src="/threadsgo-logo.png" alt="" className="h-8 w-8 object-contain" />
+            </span>
+            <div>
+              <p className="text-sm font-medium">Пул профилей</p>
+              <p className="mt-1 text-xs text-white/45">cookies, прокси и здоровье сессий</p>
+            </div>
+          </div>
+          <h2 className="mt-8 max-w-xl font-display text-4xl leading-none tracking-[-0.04em] sm:text-5xl">
+            Перед запуском масштабирования проверьте инфраструктуру.
+          </h2>
+          <p className="mt-5 max-w-xl text-sm leading-7 text-white/58">
+            Каждый Threads-профиль живет отдельно: свой статус cookies, свой прокси и своя привязка к проекту.
+            Если сессия слетит, система остановит публикации и покажет проблему здесь.
+          </p>
+        </div>
+        <div className="relative min-h-64 overflow-hidden lg:min-h-full">
+          <img src="/interface/accounts-health.webp" alt="" className="h-full w-full object-cover opacity-88" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#07100e] via-[#07100e]/10 to-transparent lg:bg-gradient-to-l" />
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
           <div>

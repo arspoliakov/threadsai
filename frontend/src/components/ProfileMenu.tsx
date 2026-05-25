@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { getCurrentUser, type CurrentUser } from "../api/client";
 import { logout } from "../auth";
 import { AppIcon } from "./AppIcons";
+import { RESTART_ONBOARDING_EVENT } from "./OnboardingTour";
 
 export function ProfileMenu() {
   const navigate = useNavigate();
@@ -33,6 +34,11 @@ export function ProfileMenu() {
     navigate("/", { replace: true });
   }
 
+  function handleRestartOnboarding() {
+    setIsOpen(false);
+    window.dispatchEvent(new Event(RESTART_ONBOARDING_EVENT));
+  }
+
   const displayName = user?.first_name || user?.username || "Профиль";
   const handle = user?.username ? `@${user.username}` : user?.telegram_id ? `id ${user.telegram_id}` : "telegram";
 
@@ -50,20 +56,45 @@ export function ProfileMenu() {
 
       {isOpen ? (
         <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-[1.8rem] border border-[#dfe4dc] bg-[#fbfcf7] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
-          <div className="flex items-center gap-3 rounded-[1.35rem] bg-[#eef4ec] p-3">
-            <Avatar user={user} sizeClass="h-12 w-12" />
-            <div className="min-w-0">
-              <p className="truncate text-base font-medium text-[#111]">{displayName}</p>
-              <p className="truncate text-sm text-[#687168]">{handle}</p>
+          <div className="relative overflow-hidden rounded-[1.35rem] bg-[#07100e] p-3 text-white">
+            <img
+              src="/interface/profile-orb.webp"
+              alt=""
+              className="absolute -right-8 -top-10 h-32 w-32 object-cover opacity-45 mix-blend-screen"
+            />
+            <div className="relative flex items-center gap-3">
+              <Avatar user={user} sizeClass="h-12 w-12" />
+              <div className="min-w-0">
+                <p className="truncate text-base font-medium">{displayName}</p>
+                <p className="truncate text-sm text-white/55">{handle}</p>
+              </div>
             </div>
           </div>
 
-          <div className="mt-3 rounded-[1.35rem] border border-[#e2e7df] bg-white p-4">
-            <p className="text-xs uppercase tracking-[0.16em] text-[#8a9288]">профиль</p>
-            <p className="mt-2 text-sm leading-6 text-[#5d665d]">
-              Здесь позже появятся тариф, платежи и лимиты. Сейчас можно только выйти из кабинета.
-            </p>
+          <div className="mt-3 overflow-hidden rounded-[1.35rem] border border-[#e2e7df] bg-white">
+            <div className="relative h-28 overflow-hidden bg-[#07100e]">
+              <img src="/interface/billing-soon.webp" alt="" className="h-full w-full object-cover opacity-82" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#07100e]/90 via-[#07100e]/35 to-transparent" />
+              <div className="absolute bottom-3 left-4 right-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/48">billing</p>
+                <p className="mt-1 text-sm font-medium text-white">Тарифы скоро появятся</p>
+              </div>
+            </div>
+            <div className="p-4">
+              <p className="text-sm leading-6 text-[#5d665d]">
+                Пока доступ выдается вручную. Позже здесь будут тариф, лимиты и платежи.
+              </p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleRestartOnboarding}
+            className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#dfe4dc] bg-white px-5 text-sm text-[#07100e] transition hover:border-[#07100e] hover:bg-[#eef4ec]"
+          >
+            <AppIcon name="spark" className="h-4 w-4" />
+            Пройти обучение заново
+          </button>
 
           <button
             type="button"

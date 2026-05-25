@@ -4,6 +4,7 @@ import { Link, Outlet, useParams } from "react-router-dom";
 import { getProjectDashboard, type ProjectDashboard } from "../api/client";
 import { AppIcon } from "../components/AppIcons";
 import { FloatingDock, type FloatingDockItem } from "../components/FloatingDock";
+import { OnboardingTour } from "../components/OnboardingTour";
 import { ProfileMenu } from "../components/ProfileMenu";
 
 export default function ProjectLayout() {
@@ -102,6 +103,7 @@ export default function ProjectLayout() {
       </main>
 
       <FloatingDock items={navigation} />
+      <OnboardingTour />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 
 from app.core.config import settings
 
@@ -15,6 +15,31 @@ _bot: Bot | None = None
 @dp.message(Command("status"))
 async def status_handler(message: Message) -> None:
     await message.answer("Сервис активен. Управление доступно только через Web API.")
+
+
+@dp.message(Command("start"))
+async def start_handler(message: Message) -> None:
+    app_url = settings.public_app_url.rstrip("/")
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Открыть кабинет ThreadsGo",
+                    web_app=WebAppInfo(url=f"{app_url}/login"),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Открыть в браузере",
+                    url=f"{app_url}/login",
+                )
+            ],
+        ]
+    )
+    await message.answer(
+        "ThreadsGo готов. Нажмите кнопку ниже, чтобы войти в кабинет через Telegram.",
+        reply_markup=keyboard,
+    )
 
 
 def get_bot() -> Bot | None:

@@ -396,6 +396,41 @@ export async function loginWithTelegram(payload: TelegramAuthPayload): Promise<L
   }
 }
 
+export async function loginWithTelegramWebApp(initData: string): Promise<LoginResponse> {
+  try {
+    const response = await axios.post<LoginResponse>(
+      `${API_BASE_URL}/api/v1/auth/telegram-webapp`,
+      { init_data: initData },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        throw new LoginError("Telegram не подтвердил вход внутри приложения.");
+      }
+
+      if (error.response?.status === 403) {
+        throw new LoginError("Доступ пока не открыт. Напишите владельцу сервиса, чтобы он добавил ваш Telegram ID.");
+      }
+
+      if (error.response?.status === 429) {
+        throw new LoginError("Слишком много попыток входа. Подождите минуту и попробуйте снова.");
+      }
+
+      if (!error.response) {
+        throw new LoginError("API недоступен. Проверьте соединение и попробуйте еще раз.");
+      }
+    }
+
+    throw new LoginError("Не удалось выполнить вход через Telegram. Попробуйте еще раз.");
+  }
+}
+
 export async function getCurrentUser(): Promise<CurrentUser> {
   const response = await apiClient.get<CurrentUser>("/api/v1/auth/me");
   return response.data;

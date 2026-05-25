@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import logging
+from urllib.parse import parse_qsl
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -49,6 +50,10 @@ class CurrentUserResponse(BaseModel):
     username: str | None
     first_name: str
     photo_url: str | None
+
+
+class TelegramWebAppLoginRequest(BaseModel):
+    init_data: str = Field(min_length=1)
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
@@ -97,6 +102,48 @@ async def telegram_login(
         }
     )
     logger.info("Telegram login succeeded from %s for user_id=%s", client_host, user.id)
+    return LoginResponse(access_token=token)
+
+
+@router.post("/telegram-webapp", response_model=LoginResponse, status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
+async def telegram_webapp_login(
+    request: Request,
+    payload: TelegramWebAppLoginRequest,
+    db: AsyncSession = Depends(get_db),
+) -> LoginResponse:
+    client_host = request.client.host if request.client else "unknown"
+    telegram_user = _validate_telegram_webapp_auth(payload.init_data)
+    telegram_id = int(telegram_user["id"])
+    logger.info("Telegram WebApp login attempt from %s for telegram_id=%s", client_host, telegram_id)
+
+    if not settings.is_telegram_id_approved(telegram_id):
+        logger.warning("Telegram WebApp login denied for unapproved telegram_id=%s", telegram_id)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Telegram user is not approved yet",
+        )
+
+    user = await _get_or_create_telegram_user(
+        payload=TelegramAuthPayload(
+            id=telegram_id,
+            first_name=str(telegram_user.get("first_name") or "Telegram"),
+            username=telegram_user.get("username"),
+            photo_url=telegram_user.get("photo_url"),
+            auth_date=int(dict(parse_qsl(payload.init_data)).get("auth_date", 0)),
+            hash=dict(parse_qsl(payload.init_data)).get("hash", ""),
+        ),
+        db=db,
+    )
+    token = create_access_token(
+        {
+            "sub": str(user.id),
+            "telegram_id": user.telegram_id,
+            "username": user.username,
+            "type": "access",
+        }
+    )
+    logger.info("Telegram WebApp login succeeded from %s for user_id=%s", client_host, user.id)
     return LoginResponse(access_token=token)
 
 
@@ -152,6 +199,82 @@ def _validate_telegram_auth(payload: TelegramAuthPayload) -> None:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Telegram auth hash",
         )
+
+
+def _validate_telegram_webapp_auth(init_data: str) -> dict[str, Any]:
+    if not settings.telegram_bot_token:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Telegram bot token is not configured",
+        )
+
+    parsed = dict(parse_qsl(init_data, keep_blank_values=True))
+    received_hash = parsed.pop("hash", None)
+    if not received_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram WebApp auth hash is missing",
+        )
+
+    auth_date_raw = parsed.get("auth_date", "0")
+    try:
+        auth_date = int(auth_date_raw)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram WebApp auth_date is invalid",
+        ) from exc
+
+    auth_datetime = datetime.fromtimestamp(auth_date, tz=UTC)
+    auth_age_seconds = (datetime.now(UTC) - auth_datetime).total_seconds()
+    if auth_age_seconds < 0 or auth_age_seconds > settings.telegram_auth_max_age_seconds:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram WebApp auth payload is expired",
+        )
+
+    data_check_string = "\n".join(
+        f"{key}={value}" for key, value in sorted(parsed.items())
+    )
+    secret_key = hmac.new(
+        b"WebAppData",
+        settings.telegram_bot_token.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    expected_hash = hmac.new(
+        secret_key,
+        data_check_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected_hash, received_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Telegram WebApp auth hash",
+        )
+
+    user_raw = parsed.get("user")
+    if not user_raw:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram WebApp user payload is missing",
+        )
+
+    try:
+        user = json.loads(user_raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram WebApp user payload is invalid",
+        ) from exc
+
+    if not isinstance(user, dict) or "id" not in user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram WebApp user id is missing",
+        )
+
+    return user
 
 
 async def _get_or_create_telegram_user(payload: TelegramAuthPayload, db: AsyncSession) -> User:

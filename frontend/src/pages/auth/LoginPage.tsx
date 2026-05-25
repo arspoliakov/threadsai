@@ -6,6 +6,7 @@ import {
   LoginError,
   TelegramAuthPayload,
   loginWithTelegram,
+  loginWithTelegramWebApp,
   setStoredAuthToken,
 } from "../../api/client";
 import { isAuthenticated } from "../../auth";
@@ -17,6 +18,13 @@ type LocationState = {
 declare global {
   interface Window {
     onTelegramAuth?: (user: TelegramAuthPayload) => void;
+    Telegram?: {
+      WebApp?: {
+        initData?: string;
+        ready?: () => void;
+        expand?: () => void;
+      };
+    };
   }
 }
 
@@ -57,6 +65,43 @@ export default function LoginPage() {
     },
     [navigate, state?.from],
   );
+
+  useEffect(() => {
+    async function tryTelegramWebAppLogin() {
+      await loadTelegramWebAppScript();
+      const webApp = window.Telegram?.WebApp;
+      const initData = webApp?.initData;
+
+      if (!initData) {
+        return false;
+      }
+
+      setError(null);
+      setIsLoading(true);
+
+      try {
+        webApp?.ready?.();
+        webApp?.expand?.();
+        const response = await loginWithTelegramWebApp(initData);
+        setStoredAuthToken(response.access_token);
+        toast.success("Вход через Telegram выполнен");
+        navigate(state?.from || "/app", { replace: true });
+        return true;
+      } catch (telegramError) {
+        const message =
+          telegramError instanceof LoginError
+            ? telegramError.message
+            : "Не удалось выполнить вход через Telegram.";
+        setError(message);
+        toast.error(message);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void tryTelegramWebAppLogin();
+  }, [navigate, state?.from]);
 
   useEffect(() => {
     if (!widgetContainerRef.current || !TELEGRAM_BOT_USERNAME) {
@@ -111,7 +156,7 @@ export default function LoginPage() {
   }
 
   const botLink = TELEGRAM_BOT_USERNAME
-    ? `https://t.me/${TELEGRAM_BOT_USERNAME.replace(/^@/, "")}`
+    ? `https://t.me/${TELEGRAM_BOT_USERNAME.replace(/^@/, "")}?start=login`
     : "https://t.me/";
 
   return (
@@ -175,8 +220,8 @@ export default function LoginPage() {
               {widgetStatus === "failed" ? (
                 <div className="max-w-md text-center">
                   <p className="text-sm leading-6 text-white/62">
-                    Виджет Telegram не отрисовался. Обычно это значит, что браузер заблокировал
-                    внешний скрипт или frontend был собран без имени бота.
+                    Виджет Telegram не отрисовался. Чаще всего браузер или VPN блокирует внешний скрипт.
+                    Нажмите «Открыть бота»: он запустит кабинет внутри Telegram без iframe-виджета.
                   </p>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <button
@@ -192,7 +237,7 @@ export default function LoginPage() {
                       rel="noreferrer"
                       className="rounded-full border border-white/14 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white/68 transition hover:border-white/40 hover:text-white"
                     >
-                      открыть бота
+                      открыть через telegram
                     </a>
                   </div>
                 </div>
@@ -221,4 +266,29 @@ export default function LoginPage() {
 
 function Spinner() {
   return <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />;
+}
+
+function loadTelegramWebAppScript() {
+  if (window.Telegram?.WebApp) {
+    return Promise.resolve();
+  }
+
+  const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://telegram.org/js/telegram-web-app.js"]');
+  if (existingScript) {
+    return new Promise<void>((resolve) => {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => resolve(), { once: true });
+      window.setTimeout(resolve, 1200);
+    });
+  }
+
+  return new Promise<void>((resolve) => {
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = "https://telegram.org/js/telegram-web-app.js";
+    script.onload = () => resolve();
+    script.onerror = () => resolve();
+    document.head.appendChild(script);
+    window.setTimeout(resolve, 1600);
+  });
 }

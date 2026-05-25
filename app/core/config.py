@@ -55,6 +55,10 @@ class Settings(BaseSettings):
         default="641434769",
         validation_alias="APPROVED_TELEGRAM_IDS",
     )
+    public_app_url: str = Field(
+        default="https://threadsgo.ru",
+        validation_alias="PUBLIC_APP_URL",
+    )
 
     def approved_telegram_id_set(self) -> set[int]:
         raw_ids = self.approved_telegram_ids.replace(";", ",").replace(" ", ",")

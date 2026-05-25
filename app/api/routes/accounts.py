@@ -1,10 +1,10 @@
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db
-from app.db.models import Account, AccountStatus, Project
+from app.db.models import Account, AccountStatus, PostingTask, Project
 from app.db.repositories.accounts import AccountRepository
 from app.posting.adapters.threads import ThreadsAdapter
 from app.posting.exceptions import SessionExpiredException
@@ -222,6 +222,11 @@ async def delete_account(
     current_user_id: int = Depends(get_current_user_id),
 ) -> None:
     account = await _get_owned_account(account_id, current_user_id, db)
+    await db.execute(
+        update(PostingTask)
+        .where(PostingTask.account_id == account.id)
+        .values(account_id=None)
+    )
     await db.delete(account)
     await db.commit()
 

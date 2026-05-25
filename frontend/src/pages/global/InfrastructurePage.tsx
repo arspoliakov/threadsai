@@ -24,6 +24,7 @@ export default function InfrastructurePage() {
   const [newProxyUrl, setNewProxyUrl] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [checkingId, setCheckingId] = useState<number | null>(null);
   const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -137,13 +138,22 @@ export default function InfrastructurePage() {
             привязать к проекту, проверить cookies-сессию или удалить из системы.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsCreateOpen(true)}
-          className="h-11 self-end rounded-2xl border border-[#151515] bg-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515]"
-        >
-          Добавить аккаунт
-        </button>
+        <div className="grid gap-3 self-end sm:flex">
+          <button
+            type="button"
+            onClick={() => setIsBulkOpen(true)}
+            className="h-11 rounded-2xl border border-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] text-[#151515] transition hover:bg-[#151515] hover:text-white"
+          >
+            Массовый импорт
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsCreateOpen(true)}
+            className="h-11 rounded-2xl border border-[#151515] bg-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515]"
+          >
+            Добавить аккаунт
+          </button>
+        </div>
       </header>
 
       <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
@@ -248,6 +258,17 @@ export default function InfrastructurePage() {
           onClose={() => setIsCreateOpen(false)}
           onCreated={async () => {
             setIsCreateOpen(false);
+            await loadAccounts();
+          }}
+        />
+      ) : null}
+
+      {isBulkOpen ? (
+        <BulkImportPanel
+          proxyPool={proxyPool}
+          onClose={() => setIsBulkOpen(false)}
+          onImported={async () => {
+            setIsBulkOpen(false);
             await loadAccounts();
           }}
         />
@@ -462,6 +483,181 @@ function CreateAccountPanel({
   );
 }
 
+function BulkImportPanel({
+  proxyPool,
+  onClose,
+  onImported,
+}: {
+  proxyPool: string[];
+  onClose: () => void;
+  onImported: () => Promise<void>;
+}) {
+  const [rawInput, setRawInput] = useState("");
+  const [selectedProxyUrl, setSelectedProxyUrl] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleBulkImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    let items: BulkAccountDraft[];
+    try {
+      items = parseBulkAccounts(rawInput, selectedProxyUrl);
+    } catch (parseError) {
+      const message = parseError instanceof Error ? parseError.message : "Не удалось разобрать список аккаунтов.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (items.length === 0) {
+      toast.error("Вставьте хотя бы один аккаунт для импорта");
+      return;
+    }
+
+    setIsImporting(true);
+    setProgress({ done: 0, total: items.length });
+
+    let created = 0;
+    const failed: string[] = [];
+
+    for (const [index, item] of items.entries()) {
+      try {
+        await createAccount({
+          project_id: null,
+          platform: THREADS_PLATFORM,
+          username: SESSION_USERNAME_PLACEHOLDER,
+          proxy_url: item.proxyUrl || null,
+          session_data_encrypted: JSON.stringify({
+            auth_method: "cookies",
+            username_source: "session",
+            proxy: item.proxyUrl || undefined,
+          }),
+          cookies_encrypted: item.cookiesPayload,
+          status: "active",
+        });
+        created += 1;
+      } catch (importError) {
+        failed.push(`#${index + 1}: ${importError instanceof Error ? importError.message : "ошибка API"}`);
+      } finally {
+        setProgress({ done: index + 1, total: items.length });
+      }
+    }
+
+    setIsImporting(false);
+
+    if (failed.length > 0) {
+      setError(`Создано ${created} из ${items.length}. Ошибки: ${failed.slice(0, 3).join("; ")}`);
+      toast.error(`Импорт частично завершен: ${created}/${items.length}`);
+      await onImported();
+      return;
+    }
+
+    toast.success(`Импортировано аккаунтов: ${created}`);
+    await onImported();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/45">
+      <aside className="ml-auto flex h-full w-full max-w-2xl flex-col border-l border-black bg-[#f6f6f2]">
+        <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
+              Пакетная загрузка
+            </p>
+            <h2 className="mt-2 font-display text-3xl">Массовый импорт аккаунтов</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isImporting}
+            className="rounded-2xl border border-[#151515] px-3 py-2 font-mono text-xs uppercase transition hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Закрыть
+          </button>
+        </header>
+
+        <form onSubmit={handleBulkImport} className="flex flex-1 flex-col overflow-y-auto px-7 py-8">
+          <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
+            Безопасный формат для пачки: JSON-массив объектов вида
+            <code className="mx-1 rounded bg-[#f1f1eb] px-1">{"[{\"cookies\": [...], \"proxy_url\": \"http://...\"}]"}</code>.
+            Можно также вставлять несколько cookie-экспортов через строку-разделитель <code className="rounded bg-[#f1f1eb] px-1">---</code>.
+            Автопроверку cookies после импорта не запускаем, чтобы не открыть десятки браузеров сразу.
+          </div>
+
+          <label className="mt-6 grid gap-2">
+            <span className="field-label">Прокси по умолчанию</span>
+            <select
+              value={selectedProxyUrl}
+              onChange={(event) => setSelectedProxyUrl(event.target.value)}
+              disabled={isImporting}
+              className="field-control"
+            >
+              <option value="">Без общего прокси</option>
+              {proxyPool.map((proxyUrl) => (
+                <option key={proxyUrl} value={proxyUrl}>
+                  {proxyUrl}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="mt-6 grid gap-2">
+            <span className="field-label">Список cookies</span>
+            <textarea
+              value={rawInput}
+              onChange={(event) => setRawInput(event.target.value)}
+              disabled={isImporting}
+              rows={16}
+              placeholder={`[
+  {"cookies": [{"name": "sessionid", "value": "...", "domain": ".threads.net"}], "proxy_url": "http://user:pass@ip:port"},
+  {"cookies": [{"name": "sessionid", "value": "...", "domain": ".threads.net"}]}
+]`}
+              className="field-control resize-y font-mono text-xs leading-5"
+            />
+          </label>
+
+          {progress.total > 0 ? (
+            <div className="mt-5 rounded-2xl border border-[#e1e1dc] bg-white p-4">
+              <div className="flex items-center justify-between text-xs text-[#66645d]">
+                <span>Прогресс импорта</span>
+                <span>
+                  {progress.done}/{progress.total}
+                </span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e9e9e2]">
+                <div
+                  className="h-full rounded-full bg-[#151515] transition-all"
+                  style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="mt-5 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-sm leading-6 text-[#8a2d25]">
+              {error}
+            </div>
+          ) : null}
+
+          <div className="mt-auto border-t border-[#d4d4ce] pt-6">
+            <button
+              type="submit"
+              disabled={isImporting}
+              className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isImporting ? <Spinner /> : null}
+              {isImporting ? "Импортируем..." : "Импортировать аккаунты"}
+            </button>
+          </div>
+        </form>
+      </aside>
+    </div>
+  );
+}
+
 function AuthTab({ label, isActive, onClick }: { label: string; isActive: boolean; onClick: () => void }) {
   return (
     <button
@@ -589,6 +785,87 @@ function normalizeCookies(value: string) {
   } catch {
     return JSON.stringify(trimmedValue);
   }
+}
+
+type BulkAccountDraft = {
+  cookiesPayload: string;
+  proxyUrl: string;
+};
+
+function parseBulkAccounts(value: string, defaultProxyUrl: string): BulkAccountDraft[] {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(trimmedValue);
+
+    if (Array.isArray(parsed) && isCookieList(parsed)) {
+      return [{ cookiesPayload: JSON.stringify(parsed), proxyUrl: defaultProxyUrl }];
+    }
+
+    if (Array.isArray(parsed)) {
+      return parsed.map((item, index) => normalizeBulkItem(item, defaultProxyUrl, index));
+    }
+
+    return [normalizeBulkItem(parsed, defaultProxyUrl, 0)];
+  } catch {
+    return trimmedValue
+      .split(/\n\s*---\s*\n/g)
+      .map((block) => block.trim())
+      .filter(Boolean)
+      .map((block, index) => {
+        try {
+          const parsedBlock = JSON.parse(block);
+          return Array.isArray(parsedBlock) && isCookieList(parsedBlock)
+            ? { cookiesPayload: JSON.stringify(parsedBlock), proxyUrl: defaultProxyUrl }
+            : normalizeBulkItem(parsedBlock, defaultProxyUrl, index);
+        } catch {
+          return { cookiesPayload: JSON.stringify(block), proxyUrl: defaultProxyUrl };
+        }
+      });
+  }
+}
+
+function normalizeBulkItem(item: unknown, defaultProxyUrl: string, index: number): BulkAccountDraft {
+  if (typeof item === "string") {
+    return { cookiesPayload: normalizeCookies(item), proxyUrl: defaultProxyUrl };
+  }
+
+  if (!item || typeof item !== "object") {
+    throw new Error(`Аккаунт #${index + 1}: ожидается объект, JSON cookies или cookie-строка.`);
+  }
+
+  const record = item as Record<string, unknown>;
+  const cookies = record.cookies ?? record.cookies_encrypted ?? record.cookie;
+
+  if (typeof cookies === "string") {
+    return {
+      cookiesPayload: normalizeCookies(cookies),
+      proxyUrl: typeof record.proxy_url === "string" ? record.proxy_url : defaultProxyUrl,
+    };
+  }
+
+  if (Array.isArray(cookies)) {
+    return {
+      cookiesPayload: JSON.stringify(cookies),
+      proxyUrl: typeof record.proxy_url === "string" ? record.proxy_url : defaultProxyUrl,
+    };
+  }
+
+  throw new Error(`Аккаунт #${index + 1}: не найдено поле cookies.`);
+}
+
+function isCookieList(value: unknown[]): boolean {
+  return value.every(
+    (item) =>
+      item &&
+      typeof item === "object" &&
+      "name" in item &&
+      ("value" in item || "expirationDate" in item),
+  );
 }
 
 function formatUsername(username: string) {

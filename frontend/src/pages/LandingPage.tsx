@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 const landingImages = {
@@ -70,10 +71,40 @@ const capabilities = [
   "Над одним проектом могут работать несколько аккаунтов, набирая в разы больше аудитории.",
 ];
 
-const posts = [
-  "Пост набирает реакции не потому, что громче всех кричит. Он попадает в ситуацию, которую аудитория узнает за секунду.",
-  "Когда тема уже обсуждается в ленте, вам не нужно угадывать интерес. Нужно понять механику и сказать это своим голосом.",
-  "Хороший пост выглядит простым. За ним обычно стоит правильный хук, понятная структура и точное время публикации.",
+const trendCards = [
+  {
+    username: "@founderline",
+    badge: "Паттерн: высокая вовлеченность",
+    badgeClass: "bg-[#dfffca] text-[#244b13] border-[#a9f27b]",
+    avatarClass: "from-[#70ff35] via-[#00d8b7] to-[#0076ff]",
+    text: "Знаете, почему большинство стартапов проваливаются? Не из-за плохой идеи. Чаще всего — из-за неверного позиционирования. Разберу на примере: вот кейс, где команда с гениальной задумкой потеряла аудиторию за 3 месяца...",
+    likes: "4.2K",
+    replies: "510",
+    reposts: "240",
+    insight: "Пост с разбором ошибки вызывает активное обсуждение: люди делятся своим опытом.",
+  },
+  {
+    username: "@smmnotes",
+    badge: "Триггер: полезный тред",
+    badgeClass: "bg-[#fff2c6] text-[#7a5400] border-[#ffd86d]",
+    avatarClass: "from-[#ffe66d] via-[#00d8b7] to-[#2c6fff]",
+    text: "5 неочевидных инструментов для SMM, которые я использую каждый день: сервис X — для анализа конкурентов. Бот Y — собирает статистику по постам. Продолжение в реплаях...",
+    likes: "3.8K",
+    replies: "290",
+    reposts: "160",
+    insight: "Чек-лист с конкретными инструментами провоцирует сохранение и репосты.",
+  },
+  {
+    username: "@agencyburnout",
+    badge: "Формат: щитпост",
+    badgeClass: "bg-[#dcecff] text-[#0e3c70] border-[#9cc7ff]",
+    avatarClass: "from-[#0076ff] via-[#7c4dff] to-[#00d8b7]",
+    text: "Когда клиент просит «сделать креативно», а у тебя дедлайн через час... и ты уже открыл пустой файл с названием final_final_12.",
+    likes: "5.1K",
+    replies: "820",
+    reposts: "410",
+    insight: "Легкий юмор на больную тему дает взрывную вовлеченность в нише.",
+  },
 ];
 
 export default function LandingPage() {
@@ -180,21 +211,7 @@ export default function LandingPage() {
             </p>
           </article>
 
-          <article className="landing-card overflow-hidden rounded-[2rem] border border-white/10 bg-[#eff6ed] p-7 text-[#08100d] md:p-8">
-            <div className="space-y-3">
-              {posts.map((post, index) => (
-                <div key={post} className="rounded-3xl border border-[#d7dfd4] bg-white/65 p-5 shadow-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="rounded-full bg-[#08100d] px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-white">
-                      сигнал {index + 1}
-                    </span>
-                    <span className="font-mono text-[10px] text-[#557162]">score {91 - index * 7}</span>
-                  </div>
-                  <p className="mt-4 text-sm leading-6 text-[#26372f]">{post}</p>
-                </div>
-              ))}
-            </div>
-          </article>
+          <TrendPreviewPanel />
         </div>
 
         <div className="landing-card relative mt-4 overflow-hidden rounded-[2.4rem] border border-white/10 bg-white/[0.035]">
@@ -364,38 +381,139 @@ function HeroDashboard() {
 }
 
 function ControlMockup() {
+  const [queued, setQueued] = useState(false);
+
+  const handleQueueClick = () => {
+    setQueued(true);
+    window.setTimeout(() => setQueued(false), 1600);
+  };
+
   return (
     <div className="grid gap-4">
-      <div className="rounded-[2rem] border border-[#d7dfd4] bg-white/75 p-5">
-        <div className="flex items-center justify-between">
-          <span className="rounded-full bg-[#fff2d6] px-3 py-1 text-xs text-[#8a5b12]">ожидает проверки</span>
+      <div className="group rounded-[2rem] border border-[#d7dfd4] bg-white/80 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-display text-3xl leading-none tracking-[-0.04em] text-[#08100d]">
+              Черновик готов к публикации
+            </p>
+            <p className="mt-2 text-xs leading-5 text-[#557162]">Сгенерирован под стиль проекта и свежий тренд.</p>
+          </div>
+          <span className="rounded-full bg-[#fff2d6] px-3 py-1 text-xs text-[#8a5b12]">на проверке</span>
         </div>
         <p className="mt-5 text-sm leading-7 text-[#26372f]">
-          Черновик готов. Его можно отредактировать, попросить ИИ переписать или отправить в очередь публикаций.
+          Мы поймали тему, которая уже обсуждается в ленте, и собрали пост без рекламной витрины. Осталось быстро
+          проверить формулировки и поставить публикацию в расписание.
         </p>
         <div className="mt-5 grid grid-cols-3 gap-2">
-          <button className="rounded-2xl border border-[#c9d4c6] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em]">
-            edit
+          <button className="rounded-2xl border border-[#c9d4c6] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#08100d] hover:bg-white">
+            Редактировать
           </button>
-          <button className="rounded-2xl border border-[#c9d4c6] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em]">
-            regen
+          <button className="rounded-2xl border border-[#b8eee0] bg-[#e8fff8] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#075343] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#d6fff1]">
+            Переписать ИИ
           </button>
-          <button className="rounded-2xl bg-[#08100d] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-white">
-            now
+          <button
+            onClick={handleQueueClick}
+            className="relative overflow-hidden rounded-2xl bg-[#08100d] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-white transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:bg-[#70ff35] hover:text-[#07100e]"
+          >
+            <span className={`transition ${queued ? "opacity-0" : "opacity-100"}`}>В очередь</span>
+            <span
+              className={`absolute inset-0 grid place-items-center transition ${
+                queued ? "scale-100 opacity-100" : "scale-75 opacity-0"
+              }`}
+            >
+              ✓ готово
+            </span>
           </button>
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-[2rem] border border-[#d7dfd4] bg-white/75 p-5">
-          <p className="font-display text-3xl leading-none">healthy</p>
-          <p className="mt-3 text-xs leading-5 text-[#557162]">сессия активна</p>
+        <div
+          className="group relative rounded-[2rem] border border-[#d7dfd4] bg-white/80 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+          title="Аккаунт синхронизирован с Threads. Система готова к работе"
+        >
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#70ff35] opacity-60" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-[#70ff35]" />
+            </span>
+            <p className="text-sm font-semibold text-[#08100d]">Статус профиля: Подключен</p>
+          </div>
+          <p className="mt-5 text-xs leading-5 text-[#557162]">
+            Threads-сессия активна. Публикация доступна.
+          </p>
         </div>
-        <div className="rounded-[2rem] border border-[#d7dfd4] bg-white/75 p-5">
-          <p className="font-display text-3xl leading-none">3/day</p>
-          <p className="mt-3 text-xs leading-5 text-[#557162]">публикации по расписанию</p>
+        <div
+          className="group rounded-[2rem] border border-[#d7dfd4] bg-white/80 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+          title="Оптимальная частота для поддержания активности без спама"
+        >
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-[#edf6ec] text-lg">⏱</span>
+            <div>
+              <p className="text-sm font-semibold text-[#08100d]">Расписание: 3 поста в день</p>
+              <p className="mt-1 text-xs text-[#557162]">С 09:00 до 21:00</p>
+            </div>
+          </div>
+          <div className="mt-6">
+            <div className="relative h-1 rounded-full bg-[#d7dfd4]">
+              <span className="absolute left-[12%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-[#0076ff] shadow-[0_0_18px_rgba(0,118,255,0.55)]" />
+              <span className="absolute left-[50%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-[#00d8b7] shadow-[0_0_18px_rgba(0,216,183,0.55)]" />
+              <span className="absolute left-[86%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-[#70ff35] shadow-[0_0_18px_rgba(112,255,53,0.55)]" />
+            </div>
+            <div className="mt-3 flex justify-between font-mono text-[9px] text-[#557162]">
+              <span>09:00</span>
+              <span>15:00</span>
+              <span>21:00</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function TrendPreviewPanel() {
+  return (
+    <article className="landing-card overflow-hidden rounded-[2rem] border border-white/10 bg-[#eff6ed] p-4 text-[#08100d] md:p-5">
+      <div className="space-y-3">
+        {trendCards.map((trend, index) => (
+          <button
+            key={trend.username}
+            type="button"
+            className="group w-full rounded-3xl border border-[#d7dfd4] bg-white/72 p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-[#9ecab0] hover:bg-white hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#70ff35]"
+            style={{ ["--trend-delay" as string]: `${index * 120}ms` }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className={`h-10 w-10 shrink-0 rounded-full bg-gradient-to-br ${trend.avatarClass} shadow-[0_0_28px_rgba(0,216,183,0.22)]`}
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[#08100d]">{trend.username}</p>
+                  <p className="mt-0.5 text-[11px] text-[#6a7a72]">Threads · сейчас в ленте</p>
+                </div>
+              </div>
+              <span
+                className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-medium transition-transform duration-200 group-hover:scale-105 ${trend.badgeClass}`}
+              >
+                {trend.badge}
+              </span>
+            </div>
+
+            <p className="mt-4 line-clamp-3 text-sm leading-6 text-[#26372f]">{trend.text}</p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-[#42564c]">
+              <span>❤️ {trend.likes}</span>
+              <span>💬 {trend.replies}</span>
+              <span>🔁 {trend.reposts}</span>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-[#d7dfd4] bg-[#f6fbf3] p-3">
+              <p className="text-xs leading-5 text-[#40564b]">{trend.insight}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </article>
   );
 }

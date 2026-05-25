@@ -26,19 +26,29 @@ const audienceCards = [
 
 const stats = [
   {
-    value: "сотни",
+    value: "100+",
     label: "трендов в день",
     description: "Непрерывный анализ ленты Threads",
   },
   {
     value: "100%",
     label: "ручной контроль",
-    description: "ИИ предлагает, вы публикуете",
+    description: "Редактируйте, отменяйте или доверяйте автопостингу",
   },
   {
     value: "24/7",
     label: "на автопилоте",
     description: "Публикации выходят точно в срок",
+  },
+  {
+    value: "1 клик",
+    label: "переписать пост",
+    description: "Новый вариант без ручного промптинга",
+  },
+  {
+    value: "live",
+    label: "статус системы",
+    description: "Видно, что бот делает сейчас",
   },
 ];
 
@@ -65,9 +75,6 @@ const capabilities = [
   "Быстрый вход через Telegram.",
   "Полная изоляция каждого проекта.",
   "Умная защита от теневых банов.",
-  "Работа через ваши приватные прокси.",
-  "Переписывание любого поста в один клик.",
-  "Моментальные уведомления об ошибках.",
   "Над одним проектом могут работать несколько аккаунтов, набирая в разы больше аудитории.",
 ];
 
@@ -137,7 +144,10 @@ export default function LandingPage() {
         <div className="grid flex-1 items-center gap-10 py-14 sm:py-20 lg:grid-cols-[0.95fr_1.05fr] lg:py-10">
           <div className="landing-reveal max-w-3xl [animation-delay:120ms]">
             <h1 className="max-w-4xl font-display text-[clamp(3.15rem,13vw,8.5rem)] leading-[0.88] tracking-[-0.075em] text-white sm:leading-[0.82]">
-              Умный автопостинг для Threads. Пишет то, что хотят читать.
+              Умный автопостинг для Threads.
+              <span className="mt-3 block text-[0.58em] leading-[0.95] tracking-[-0.06em] text-white/86 sm:mt-5">
+                Пишет то, что хотят читать.
+              </span>
             </h1>
 
             <p className="mt-7 max-w-2xl text-base leading-7 text-white/62 sm:mt-8 sm:text-lg sm:leading-8">
@@ -161,7 +171,7 @@ export default function LandingPage() {
               </a>
             </div>
 
-            <div className="mt-10 grid max-w-2xl grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:mt-14">
+            <div className="mt-10 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:mt-14 lg:grid-cols-5">
               {stats.map((item) => (
                 <div key={item.label} className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur">
                   <p className="font-display text-4xl leading-none text-white">{item.value}</p>
@@ -247,15 +257,12 @@ export default function LandingPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {workflow.map((item, index) => (
+          {workflow.map((item) => (
             <article
               key={item.title}
               className="landing-card group min-h-56 rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 transition duration-300 hover:-translate-y-1 hover:bg-white/[0.075] sm:min-h-72"
             >
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <h3 className="mt-12 font-display text-4xl leading-none tracking-[-0.04em] text-white">
+              <h3 className="mt-14 font-display text-4xl leading-none tracking-[-0.04em] text-white">
                 {item.title}
               </h3>
               <p className="mt-6 text-sm leading-7 text-white/52">{item.text}</p>
@@ -310,12 +317,15 @@ export default function LandingPage() {
       </section>
 
       <section className="relative z-10 mx-auto max-w-7xl px-5 pb-10 pt-12 sm:px-8 sm:pt-16 lg:px-10">
-        <div className="landing-card grid overflow-hidden rounded-[2.4rem] border border-white/10 bg-white/[0.045] backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="landing-card grid overflow-hidden rounded-[2.4rem] border border-white/10 bg-[linear-gradient(115deg,rgba(255,255,255,0.05),rgba(255,255,255,0.035)_45%,rgba(0,216,183,0.08)_72%,rgba(112,255,53,0.08))] backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
           <div className="p-8 text-center md:p-14 lg:text-left">
             <img src="/threadsgo-logo.png" alt="" className="mx-auto h-20 w-20 object-contain lg:mx-0" />
             <h2 className="mt-7 max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
-              Ваш автономный редактор для Threads. Готов к работе.
+              Ваш автономный редактор для Threads.
             </h2>
+            <p className="mt-5 font-display text-4xl leading-none tracking-[-0.04em] text-white/70">
+              Готов к работе.
+            </p>
             <p className="mt-6 max-w-xl text-sm leading-7 text-white/54">
               Начните с авторизации через Telegram, добавьте свой первый проект, подключите профиль Threads и позвольте
               алгоритмам сделать рутину за вас.
@@ -329,13 +339,15 @@ export default function LandingPage() {
           </div>
 
           <div className="relative min-h-[28rem] overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_58%_48%,rgba(112,255,53,0.18),transparent_38%),linear-gradient(90deg,rgba(7,9,9,0.5),transparent_28%,rgba(7,9,9,0.14))]" />
             <img
               src={landingImages.mobilePreview}
               alt="Мобильная панель ThreadsGo"
-              className="landing-phone-image absolute left-1/2 top-6 h-[36rem] max-w-none -translate-x-1/2 object-contain lg:top-[-1rem] lg:h-[44rem]"
+              className="landing-phone-image absolute left-1/2 top-6 h-[36rem] max-w-none -translate-x-1/2 object-contain opacity-90 lg:top-[-1rem] lg:h-[44rem]"
               loading="lazy"
             />
-            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#070909] to-transparent" />
+            <div className="absolute inset-y-0 left-0 hidden w-40 bg-gradient-to-r from-[#111816] to-transparent lg:block" />
+            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#0b120f] to-transparent" />
           </div>
         </div>
       </section>
@@ -363,7 +375,7 @@ function HeroDashboard() {
       <img
         src={landingImages.heroOrb}
         alt=""
-        className="landing-orb pointer-events-none absolute right-3 top-0 z-10 w-40 opacity-80 blur-[0.1px] sm:right-10 sm:w-56 lg:right-20 lg:w-72"
+        className="landing-orb pointer-events-none absolute right-3 top-[-2.5rem] z-10 w-40 opacity-80 blur-[0.1px] sm:right-12 sm:top-[-4rem] sm:w-56 lg:right-28 lg:top-[-6rem] lg:w-72"
         loading="eager"
       />
       <div className="landing-dashboard-frame relative rounded-[2.2rem] border border-white/12 bg-[#101615]/80 p-2 shadow-[0_50px_160px_rgba(0,0,0,0.5)] backdrop-blur sm:p-3">
@@ -380,7 +392,7 @@ function HeroDashboard() {
               Система нашла тренд, подготовила черновик и поставила публикацию в очередь.
             </p>
             <span className="landing-signal-pill rounded-full bg-[#70ff35] px-4 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#07100e]">
-              ready
+              готово
             </span>
           </div>
         </div>
@@ -453,9 +465,6 @@ function ControlMockup() {
             </span>
             <p className="text-sm font-semibold text-[#08100d]">Статус профиля: Подключен</p>
           </div>
-          <p className="mt-5 text-xs leading-5 text-[#557162]">
-            Threads-сессия активна. Публикация доступна.
-          </p>
         </div>
         <div
           className="group rounded-[2rem] border border-[#d7dfd4] bg-white/80 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"

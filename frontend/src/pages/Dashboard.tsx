@@ -10,6 +10,7 @@ import {
   type DashboardProjectSummary,
   type DashboardSummary,
 } from "../api/client";
+import { BotStatusCard } from "../components/BotStatusCard";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -84,6 +85,7 @@ export default function Dashboard() {
     () => summary?.projects.reduce((sum, project) => sum + project.published_count, 0) ?? 0,
     [summary],
   );
+  const nextProject = useMemo(() => getNextProject(summary), [summary]);
 
   return (
     <section className="space-y-6 sm:space-y-7">
@@ -120,9 +122,10 @@ export default function Dashboard() {
       </header>
 
       <div className="grid gap-4 lg:grid-cols-4">
-        <SystemWidget
+        <BotStatusCard
           nextTrendCheck={summary?.next_trend_check ?? null}
-          isLoading={isLoading}
+          currentAction={getCurrentAction(summary, nextProject, isLoading)}
+          nextActionLabel={nextProject ? `ближайший пост: ${nextProject.name}` : "следующий сбор трендов"}
           className="lg:col-span-2"
         />
         <StatsWidget
@@ -164,6 +167,42 @@ export default function Dashboard() {
       ) : null}
     </section>
   );
+}
+
+function getNextProject(summary: DashboardSummary | null) {
+  if (!summary) {
+    return null;
+  }
+
+  return (
+    summary.projects
+      .filter((project) => Boolean(project.next_post_time))
+      .sort(
+        (first, second) =>
+          new Date(first.next_post_time || 0).getTime() -
+          new Date(second.next_post_time || 0).getTime(),
+      )[0] ?? null
+  );
+}
+
+function getCurrentAction(
+  summary: DashboardSummary | null,
+  nextProject: DashboardProjectSummary | null,
+  isLoading: boolean,
+) {
+  if (isLoading) {
+    return "Проверяем систему";
+  }
+
+  if (!summary || summary.projects.length === 0) {
+    return "Ждем первый проект";
+  }
+
+  if (nextProject) {
+    return "Очередь готова";
+  }
+
+  return "Контур активен";
 }
 
 function CreateProjectModal({

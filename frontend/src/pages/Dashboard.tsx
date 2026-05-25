@@ -463,22 +463,31 @@ function SkeletonProjects() {
 
 function EmptyProjects({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="rounded-[32px] border border-dashed border-[#c9d1c7] bg-white/70 p-8 text-center shadow-sm lg:col-span-2 2xl:col-span-3">
-      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#eef4ec]">
-        <FolderIcon />
+    <div className="overflow-hidden rounded-[32px] border border-dashed border-[#c9d1c7] bg-white/70 shadow-sm lg:col-span-2 2xl:col-span-3">
+      <div className="grid items-center gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_24rem]">
+        <div className="text-center lg:text-left">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#eef4ec] lg:mx-0">
+            <FolderIcon />
+          </div>
+          <p className="mt-5 font-display text-4xl text-[#111]">Проектов пока нет</p>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#667066] lg:mx-0">
+            Создайте первый проект, подключите Threads-профиль и запустите сбор трендов.
+          </p>
+          <button
+            type="button"
+            onClick={onCreate}
+            className="mt-6 inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
+          >
+            <PlusIcon />
+            Создать проект
+          </button>
+        </div>
+        <img
+          src="/interface/empty-projects.webp"
+          alt=""
+          className="mx-auto hidden w-full max-w-sm rounded-[2rem] object-cover opacity-95 lg:block"
+        />
       </div>
-      <p className="mt-5 font-display text-4xl text-[#111]">Проектов пока нет</p>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#667066]">
-        Создайте первый проект, подключите Threads-профиль и запустите сбор трендов.
-      </p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="mt-6 inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
-      >
-        <PlusIcon />
-        Создать проект
-      </button>
     </div>
   );
 }

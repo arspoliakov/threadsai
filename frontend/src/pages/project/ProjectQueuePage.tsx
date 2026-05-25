@@ -454,9 +454,14 @@ function TaskSkeleton() {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-3xl border border-dashed border-[#c9c9c3] bg-white/70 px-8 py-16 text-center shadow-sm">
-      <p className="font-display text-4xl leading-none text-[#151515]">{title}</p>
-      <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d]">{description}</p>
+    <div className="overflow-hidden rounded-3xl border border-dashed border-[#c9c9c3] bg-white/70 shadow-sm">
+      <div className="grid items-center gap-6 p-6 text-center sm:p-8 lg:grid-cols-[1fr_24rem] lg:text-left">
+        <div>
+          <p className="font-display text-4xl leading-none text-[#151515]">{title}</p>
+          <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d] lg:mx-0">{description}</p>
+        </div>
+        <img src="/interface/empty-queue.webp" alt="" className="hidden w-full rounded-[2rem] object-cover lg:block" />
+      </div>
     </div>
   );
 }

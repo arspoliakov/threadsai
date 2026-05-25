@@ -92,7 +92,7 @@ export default function GlobalSettingsPage() {
         <div className="absolute right-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-[#70ff35]/16 blur-[110px]" />
         <div className="absolute bottom-[-10rem] left-[20%] h-80 w-80 rounded-full bg-[#0076ff]/20 blur-[110px]" />
         <img
-          src="/interface/prompt-lab.webp"
+          src="/interface/prompt-style.webp"
           alt=""
           className="pointer-events-none absolute bottom-[-6rem] right-[-5rem] hidden w-[34rem] max-w-none opacity-55 mix-blend-screen lg:block"
         />

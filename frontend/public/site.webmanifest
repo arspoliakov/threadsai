@@ -1,0 +1,17 @@
+{
+  "name": "ThreadsGo",
+  "short_name": "ThreadsGo",
+  "description": "ИИ-автопостер для Threads*: тренды, генерация, очередь публикаций и ручной контроль.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070909",
+  "theme_color": "#070909",
+  "icons": [
+    {
+      "src": "/threadsgo-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { toast } from "sonner";
 
 export const AUTH_TOKEN_STORAGE_KEY = "threadsbot.admin_token";
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
@@ -41,6 +42,20 @@ apiClient.interceptors.response.use(
       if (window.location.pathname !== "/login") {
         window.location.assign("/login");
       }
+    }
+
+    if (error?.response?.status >= 500) {
+      const detail = error?.response?.data?.detail;
+      const errorId = error?.response?.data?.error_id;
+      const message =
+        typeof detail === "string"
+          ? detail
+          : "Произошла ошибка на сервере. Лог уже отправлен админу, мы разбираемся.";
+
+      toast.error(errorId ? `${message} Код: ${errorId}` : message, {
+        id: errorId ? `api-error-${errorId}` : "api-error-reported",
+        duration: 7000,
+      });
     }
 
     return Promise.reject(error);

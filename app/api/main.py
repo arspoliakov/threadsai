@@ -10,6 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from app.api import auth
 from app.api.auth import limiter
+from app.api.middleware.error_reporting import ErrorReportingMiddleware
 from app.api.routes import accounts, dashboard, health, projects, prompts, tasks, trends
 from app.posting.scheduler import scheduler, setup_posting_scheduler
 from app.telegram.bot import cancel_polling_task, start_bot_polling, stop_bot
@@ -37,6 +38,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(ErrorReportingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],

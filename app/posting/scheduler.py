@@ -65,6 +65,10 @@ async def analyze_daily_trends() -> None:
             ).all()
         )
 
+        if not project_ids:
+            logger.info("Daily trend analysis skipped: no active projects found.")
+            return
+
         for project_id in project_ids:
             try:
                 scrape_result = await scrape_trends(project_id=project_id, session=session)

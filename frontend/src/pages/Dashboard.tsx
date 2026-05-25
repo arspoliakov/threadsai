@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
+  createProject,
   deleteProject,
   getDashboardSummary,
   type DashboardProjectSummary,
@@ -13,6 +14,7 @@ import {
 export default function Dashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
 
   async function loadSummary({ silent = false }: { silent?: boolean } = {}) {
@@ -33,6 +35,27 @@ export default function Dashboard() {
   useEffect(() => {
     void loadSummary({ silent: true });
   }, []);
+
+  async function handleCreateProject(payload: { name: string; description: string }) {
+    const slug = createSlug(payload.name);
+
+    await toast.promise(
+      createProject({
+        name: payload.name,
+        slug,
+        description: payload.description || null,
+        is_active: true,
+      }),
+      {
+        loading: "Создаем проект...",
+        success: "Проект создан",
+        error: "Не удалось создать проект",
+      },
+    );
+
+    setIsCreateOpen(false);
+    await loadSummary({ silent: true });
+  }
 
   async function handleDeleteProject(project: DashboardProjectSummary) {
     const confirmed = window.confirm(
@@ -75,15 +98,25 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadSummary()}
-          disabled={isLoading}
-          className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] shadow-sm transition hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
-        >
-          {isLoading ? <Spinner /> : <RefreshIcon />}
-          Обновить
-        </button>
+        <div className="grid gap-3 sm:flex sm:items-center">
+          <button
+            type="button"
+            onClick={() => setIsCreateOpen(true)}
+            className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#141815] px-5 text-sm text-white shadow-sm transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
+          >
+            <PlusIcon />
+            Создать проект
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadSummary()}
+            disabled={isLoading}
+            className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] shadow-sm transition hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
+          >
+            {isLoading ? <Spinner /> : <RefreshIcon />}
+            Обновить
+          </button>
+        </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-4">
@@ -110,7 +143,7 @@ export default function Dashboard() {
         {isLoading ? (
           <SkeletonProjects />
         ) : !summary || summary.projects.length === 0 ? (
-          <EmptyProjects />
+          <EmptyProjects onCreate={() => setIsCreateOpen(true)} />
         ) : (
           summary.projects.map((project) => (
             <ProjectCard
@@ -122,7 +155,117 @@ export default function Dashboard() {
           ))
         )}
       </div>
+
+      {isCreateOpen ? (
+        <CreateProjectModal
+          onClose={() => setIsCreateOpen(false)}
+          onSubmit={handleCreateProject}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function CreateProjectModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (payload: { name: string; description: string }) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!name.trim()) {
+      toast.error("Введите название проекта");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onSubmit({ name: name.trim(), description: description.trim() });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-[#070909]/55 p-3 backdrop-blur-sm sm:place-items-center sm:p-5">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-xl overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] shadow-[0_30px_120px_rgba(0,0,0,0.30)]"
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-[#e3e7df] p-6">
+          <div>
+            <h2 className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]">
+              Новый проект
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-[#667066]">
+              Проект хранит свой стиль, аккаунты, очередь публикаций и тренды.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[#dfe4dc] bg-white text-[#141815] transition hover:bg-[#141815] hover:text-white"
+            aria-label="Закрыть"
+          >
+            <CloseIcon />
+          </button>
+        </header>
+
+        <div className="space-y-5 p-6">
+          <label className="block">
+            <span className="text-sm text-[#3f463f]">Название</span>
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Например: MosRiders"
+              className="mt-2 h-12 w-full rounded-2xl border border-[#dfe4dc] bg-white px-4 text-base outline-none transition focus:border-[#141815]"
+              disabled={isSaving}
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm text-[#3f463f]">Описание</span>
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Опишите суть проекта, аудиторию, продукт, боли ЦА и желаемый Tone of Voice."
+              rows={7}
+              className="mt-2 w-full resize-y rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6 outline-none transition focus:border-[#141815]"
+              disabled={isSaving}
+            />
+            <span className="mt-2 block text-xs leading-5 text-[#7a8179]">
+              Чем подробнее описание, тем лучше ИИ попадет в голос проекта и не будет писать абстрактный текст.
+            </span>
+          </label>
+        </div>
+
+        <footer className="grid gap-3 border-t border-[#e3e7df] p-6 sm:flex sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className="h-12 rounded-full border border-[#cfd5cc] px-5 text-sm text-[#323832] transition hover:border-[#141815] hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Отмена
+          </button>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSaving ? <Spinner /> : <PlusIcon />}
+            {isSaving ? "Создаем" : "Создать"}
+          </button>
+        </footer>
+      </form>
+    </div>
   );
 }
 
@@ -279,7 +422,7 @@ function SkeletonProjects() {
   );
 }
 
-function EmptyProjects() {
+function EmptyProjects({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="rounded-[32px] border border-dashed border-[#c9d1c7] bg-white/70 p-8 text-center shadow-sm lg:col-span-2 2xl:col-span-3">
       <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#eef4ec]">
@@ -289,8 +432,63 @@ function EmptyProjects() {
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#667066]">
         Создайте первый проект, подключите Threads-профиль и запустите сбор трендов.
       </p>
+      <button
+        type="button"
+        onClick={onCreate}
+        className="mt-6 inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
+      >
+        <PlusIcon />
+        Создать проект
+      </button>
     </div>
   );
+}
+
+function createSlug(name: string) {
+  const translitMap: Record<string, string> = {
+    а: "a",
+    б: "b",
+    в: "v",
+    г: "g",
+    д: "d",
+    е: "e",
+    ё: "e",
+    ж: "zh",
+    з: "z",
+    и: "i",
+    й: "y",
+    к: "k",
+    л: "l",
+    м: "m",
+    н: "n",
+    о: "o",
+    п: "p",
+    р: "r",
+    с: "s",
+    т: "t",
+    у: "u",
+    ф: "f",
+    х: "h",
+    ц: "c",
+    ч: "ch",
+    ш: "sh",
+    щ: "sch",
+    ы: "y",
+    э: "e",
+    ю: "yu",
+    я: "ya",
+  };
+
+  const base = name
+    .toLowerCase()
+    .split("")
+    .map((char) => translitMap[char] ?? char)
+    .join("")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+
+  return `${base || "project"}-${Date.now().toString(36)}`;
 }
 
 function Spinner() {
@@ -309,6 +507,22 @@ function RefreshIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M20 12a8 8 0 1 1-2.3-5.7M20 5v5h-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

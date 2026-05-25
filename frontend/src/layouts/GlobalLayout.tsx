@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { logout } from "../auth";
 import { AppIcon, type AppIconName } from "../components/AppIcons";
 import { MobileTabBar, type MobileTabItem } from "../components/MobileTabBar";
+import { ProfileMenu } from "../components/ProfileMenu";
 
 const navigation: Array<MobileTabItem & { hint: string }> = [
   {
@@ -105,14 +106,7 @@ export default function GlobalLayout() {
                 </h1>
               </div>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d6ddd2] bg-white text-[#4f584f] shadow-sm transition hover:border-[#141815] hover:bg-[#141815] hover:text-white lg:hidden"
-                aria-label="Выйти"
-              >
-                <AppIcon name="logout" className="h-5 w-5" />
-              </button>
+              <ProfileMenu />
             </div>
           </header>
 

@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.api.deps import get_db
+from app.api.deps import get_current_user_id, get_db
 from app.db.models import User
 
 
@@ -41,6 +41,14 @@ class TelegramAuthPayload(BaseModel):
     photo_url: str | None = None
     auth_date: int
     hash: str
+
+
+class CurrentUserResponse(BaseModel):
+    id: int
+    telegram_id: int
+    username: str | None
+    first_name: str
+    photo_url: str | None
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
@@ -90,6 +98,27 @@ async def telegram_login(
     )
     logger.info("Telegram login succeeded from %s for user_id=%s", client_host, user.id)
     return LoginResponse(access_token=token)
+
+
+@router.get("/me", response_model=CurrentUserResponse, status_code=status.HTTP_200_OK)
+async def get_current_user_profile(
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> CurrentUserResponse:
+    user = await db.get(User, current_user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    return CurrentUserResponse(
+        id=user.id,
+        telegram_id=user.telegram_id,
+        username=user.username,
+        first_name=user.first_name,
+        photo_url=user.photo_url,
+    )
 
 
 def _validate_telegram_auth(payload: TelegramAuthPayload) -> None:

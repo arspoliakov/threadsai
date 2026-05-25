@@ -10,7 +10,8 @@ export type AppIconName =
   | "send"
   | "folder"
   | "spark"
-  | "logout";
+  | "logout"
+  | "user";
 
 export function AppIcon({ name, className = "h-5 w-5" }: { name: AppIconName; className?: string }) {
   const commonProps = {
@@ -91,6 +92,12 @@ export function AppIcon({ name, className = "h-5 w-5" }: { name: AppIconName; cl
       return (
         <svg {...commonProps}>
           <path d="M10 6H6.8A2.8 2.8 0 0 0 4 8.8v6.4A2.8 2.8 0 0 0 6.8 18H10M15 8l4 4-4 4M19 12H9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case "user":
+      return (
+        <svg {...commonProps}>
+          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4.5 20c.9-4.2 3.4-6.3 7.5-6.3s6.6 2.1 7.5 6.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     default:

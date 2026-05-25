@@ -52,6 +52,14 @@ export type LoginResponse = {
   token_type: "bearer";
 };
 
+export type CurrentUser = {
+  id: number;
+  telegram_id: number;
+  username: string | null;
+  first_name: string;
+  photo_url: string | null;
+};
+
 export type TelegramAuthPayload = {
   id: number;
   first_name: string;
@@ -371,6 +379,11 @@ export async function loginWithTelegram(payload: TelegramAuthPayload): Promise<L
 
     throw new LoginError("Не удалось выполнить вход через Telegram. Попробуйте еще раз.");
   }
+}
+
+export async function getCurrentUser(): Promise<CurrentUser> {
+  const response = await apiClient.get<CurrentUser>("/api/v1/auth/me");
+  return response.data;
 }
 
 export async function getProjects(): Promise<Project[]> {

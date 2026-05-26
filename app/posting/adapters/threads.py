@@ -4,8 +4,8 @@ import asyncio
 import json
 import logging
 import os
+import threading
 import time
-import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any, Callable, TypeVar
@@ -34,6 +34,10 @@ from app.posting.exceptions import SessionExpiredException
 
 SCREENSHOTS_DIR = Path("./data/screenshots")
 PROXY_EXTENSIONS_DIR = Path("./data/proxy_extensions")
+CHROME_PROFILES_DIR = Path("./data/chrome_profiles")
+CHROME_PROFILE_CACHE_LIMIT_MB = int(os.getenv("CHROME_PROFILE_CACHE_LIMIT_MB", "150"))
+PROFILE_LOCKS: dict[int, Any] = {}
+PROFILE_LOCKS_GUARD = threading.Lock()
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
@@ -102,7 +106,7 @@ class ThreadsAdapter(BasePostingAdapter):
             if proxy_url:
                 proxy_extension_path = self._create_proxy_extension(proxy_url, account.id)
 
-            driver = self._create_driver(proxy_extension_path)
+            driver = self._create_driver(proxy_extension_path, account_id=account.id)
             self._apply_network_blocking(driver)
             self._authenticate_with_cookies(driver, account)
             detected_username = self._extract_authenticated_username(driver)
@@ -125,7 +129,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 if proxy_url:
                     proxy_extension_path = self._create_proxy_extension(proxy_url, task.id)
 
-                driver = self._create_driver(proxy_extension_path)
+                driver = self._create_driver(proxy_extension_path, account_id=account.id)
                 self._apply_network_blocking(driver)
                 self._authenticate_with_cookies(driver, account)
                 logger.info("Threads auth completed for task #%s", task.id)
@@ -151,9 +155,17 @@ class ThreadsAdapter(BasePostingAdapter):
 
         raise RuntimeError("Threads publishing failed after browser self-healing retry.")
 
-    def _create_driver(self, proxy_extension_path: Path | None) -> WebDriver:
+    def _create_driver(self, proxy_extension_path: Path | None, *, account_id: int | None = None) -> WebDriver:
         options = Options()
-        user_data_dir = Path(tempfile.mkdtemp(prefix="threadsai_chrome_"))
+        user_data_dir = self._get_user_data_dir(account_id)
+        profile_lock = _get_profile_lock(account_id)
+
+        if profile_lock is not None:
+            logger.info("Waiting for Chrome profile lock: account #%s", account_id)
+            profile_lock.acquire()
+            logger.info("Chrome profile lock acquired: account #%s", account_id)
+
+        user_data_dir.mkdir(parents=True, exist_ok=True)
 
         if _is_headless_browser_enabled():
             options.add_argument("--headless=new")
@@ -171,6 +183,8 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--window-size=1440,1200")
         options.add_argument(f"--user-data-dir={user_data_dir}")
+        options.add_argument("--disk-cache-size=52428800")
+        options.add_argument("--media-cache-size=1")
         options.add_argument("--blink-settings=imagesEnabled=false")
         options.add_argument("--disable-notifications")
         options.add_argument("--disable-popup-blocking")
@@ -209,12 +223,18 @@ class ThreadsAdapter(BasePostingAdapter):
             options.add_extension(str(proxy_extension_path))
 
         try:
+            self._trim_chrome_profile_cache(user_data_dir)
             driver = webdriver.Chrome(options=options)
             setattr(driver, "_threadsai_user_data_dir", user_data_dir)
+            setattr(driver, "_threadsai_persistent_profile", account_id is not None)
+            setattr(driver, "_threadsai_profile_lock", profile_lock)
             self._apply_stealth_scripts(driver)
             return driver
         except WebDriverException as exc:
-            self._remove_directory_safely(user_data_dir)
+            if profile_lock is not None:
+                profile_lock.release()
+            if account_id is None:
+                self._remove_directory_safely(user_data_dir)
             raise RuntimeError(
                 "Chrome не смог стартовать на сервере. Проверь установку google-chrome/chromium, "
                 "совместимость ChromeDriver и системные библиотеки. "
@@ -959,18 +979,60 @@ chrome.webRequest.onAuthRequired.addListener(
         except OSError:
             pass
 
+    def _get_user_data_dir(self, account_id: int | None) -> Path:
+        if account_id is None:
+            return CHROME_PROFILES_DIR / f"ephemeral_{os.getpid()}_{time.time_ns()}"
+
+        return CHROME_PROFILES_DIR / f"account_{account_id}"
+
+    def _trim_chrome_profile_cache(self, user_data_dir: Path) -> None:
+        max_bytes = CHROME_PROFILE_CACHE_LIMIT_MB * 1024 * 1024
+        profile_size = _get_directory_size(user_data_dir)
+
+        if profile_size <= max_bytes:
+            return
+
+        logger.info(
+            "Chrome profile cache cleanup started for %s: %.1f MB > %s MB",
+            user_data_dir,
+            profile_size / 1024 / 1024,
+            CHROME_PROFILE_CACHE_LIMIT_MB,
+        )
+        for relative_path in (
+            "Default/Cache",
+            "Default/Code Cache",
+            "Default/GPUCache",
+            "Default/Media Cache",
+            "Default/Service Worker/CacheStorage",
+            "Default/Service Worker/ScriptCache",
+            "Default/IndexedDB/https_www.threads.net_0.indexeddb.leveldb",
+            "ShaderCache",
+            "GrShaderCache",
+            "GraphiteDawnCache",
+        ):
+            self._remove_directory_safely(user_data_dir / relative_path)
+
+        logger.info("Chrome profile cache cleanup completed for %s", user_data_dir)
+
     def _quit_driver_safely(self, driver: WebDriver | None) -> None:
         if driver is None:
             return
         user_data_dir = getattr(driver, "_threadsai_user_data_dir", None)
+        is_persistent_profile = bool(getattr(driver, "_threadsai_persistent_profile", False))
+        profile_lock = getattr(driver, "_threadsai_profile_lock", None)
 
         try:
             driver.quit()
         except WebDriverException:
             pass
         finally:
-            if isinstance(user_data_dir, Path):
+            if isinstance(user_data_dir, Path) and not is_persistent_profile:
                 self._remove_directory_safely(user_data_dir)
+            if profile_lock is not None:
+                try:
+                    profile_lock.release()
+                except RuntimeError:
+                    pass
 
     def _remove_directory_safely(self, path: Path) -> None:
         try:
@@ -992,3 +1054,29 @@ def _is_headless_browser_enabled() -> bool:
         "no",
         "off",
     }
+
+
+def _get_profile_lock(account_id: int | None) -> threading.Lock | None:
+    if account_id is None:
+        return None
+
+    with PROFILE_LOCKS_GUARD:
+        if account_id not in PROFILE_LOCKS:
+            PROFILE_LOCKS[account_id] = threading.Lock()
+
+        return PROFILE_LOCKS[account_id]
+
+
+def _get_directory_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+
+    total_size = 0
+    for item in path.rglob("*"):
+        try:
+            if item.is_file():
+                total_size += item.stat().st_size
+        except OSError:
+            continue
+
+    return total_size

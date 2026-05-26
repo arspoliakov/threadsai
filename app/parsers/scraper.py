@@ -58,7 +58,7 @@ class ThreadsTrendScraper:
             if proxy_url:
                 proxy_extension_path = self.adapter._create_proxy_extension(proxy_url, account.id)
 
-            driver = self.adapter._create_driver(proxy_extension_path)
+            driver = self.adapter._create_driver(proxy_extension_path, account_id=account.id)
             self.adapter._apply_network_blocking(driver)
             self.adapter._authenticate_with_cookies(driver, account)
             driver.get(target_url)
@@ -68,8 +68,7 @@ class ThreadsTrendScraper:
             self._scroll_feed(driver)
             return self._extract_posts(driver, target_url)
         finally:
-            if driver is not None:
-                driver.quit()
+            self.adapter._quit_driver_safely(driver)
             if proxy_extension_path is not None:
                 self.adapter._remove_file_safely(proxy_extension_path)
 

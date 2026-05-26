@@ -25,6 +25,7 @@ TASK_CHECK_INTERVAL_SECONDS = 90
 MAX_TASKS_PER_TICK = 5
 MAX_GENERATIONS_PER_SCHEDULER_RUN = 50
 FIRST_POST_DELAY_MINUTES = 15
+TREND_ANALYSIS_INTERVAL_DAYS = 3
 
 scheduler = AsyncIOScheduler()
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ def setup_posting_scheduler() -> AsyncIOScheduler:
         scheduler.add_job(
             analyze_daily_trends,
             trigger="cron",
+            day=f"*/{TREND_ANALYSIS_INTERVAL_DAYS}",
             hour=3,
             minute=0,
             id="analyze_daily_trends",

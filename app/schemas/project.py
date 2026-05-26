@@ -7,6 +7,8 @@ class ProjectBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     slug: str = Field(min_length=1, max_length=120, pattern=r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
     description: str | None = None
+    global_context: str | None = None
+    target_actions: list[str] = Field(default_factory=list)
     niche: str | None = Field(default=None, max_length=255)
     target_audience: str | None = None
     tone_of_voice: str | None = None
@@ -32,6 +34,8 @@ class ProjectUpdate(BaseModel):
         pattern=r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
     )
     description: str | None = None
+    global_context: str | None = None
+    target_actions: list[str] | None = None
     niche: str | None = Field(default=None, max_length=255)
     target_audience: str | None = None
     tone_of_voice: str | None = None

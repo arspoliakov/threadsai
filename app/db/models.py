@@ -82,6 +82,8 @@ class Project(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(120), unique=True, index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    global_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_actions: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     niche: Mapped[str | None] = mapped_column(String(255), nullable=True)
     target_audience: Mapped[str | None] = mapped_column(Text, nullable=True)
     tone_of_voice: Mapped[str | None] = mapped_column(Text, nullable=True)

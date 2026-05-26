@@ -209,6 +209,7 @@ async def generate_post(
     trends = await _get_recent_successful_trends(project_id=project_id, session=session) if use_trends else []
     publication_memory = await _get_recent_generated_posts(project_id=project_id, session=session)
     project_stop_words = _normalize_project_stop_words(project)
+    target_actions = _normalize_target_actions(project)
 
     system_prompt = _build_generation_system_prompt(
         project_prompt=project_prompt,
@@ -216,6 +217,7 @@ async def generate_post(
         trends_context=_build_trends_context(trends),
         publication_memory=_build_publication_memory_context(publication_memory),
         project_stop_words=_build_project_stop_words_rule(project_stop_words),
+        target_actions_rule=_build_target_actions_rule(target_actions),
         topic=topic_or_context,
     )
     client = get_deepinfra_client()
@@ -239,6 +241,7 @@ async def generate_post(
         "primary_trend_id": trends[0].id if trends else None,
         "trends_used_count": len(trends),
         "publication_memory_used_count": len(publication_memory),
+        "target_actions_count": len(target_actions),
         "validation_attempts": parsed_response.get("_validation_attempts", "1"),
     }
     posting_task = PostingTask(
@@ -366,13 +369,19 @@ def _build_project_description(project: Project | None) -> str:
     if project is None:
         return "Описание проекта недоступно."
 
+    global_context = (project.global_context or "").strip()
+    legacy_context_parts = [
+        project.description,
+        project.target_audience,
+        project.tone_of_voice,
+        project.product_context,
+    ]
+    legacy_context = "\n".join(part.strip() for part in legacy_context_parts if part and part.strip())
+
     parts = [
         f"название проекта: {project.name}",
-        f"описание: {project.description or 'не указано'}",
+        f"global_context: {global_context or legacy_context or 'не указан'}",
         f"ниша: {project.niche or 'не указана'}",
-        f"целевая аудитория: {project.target_audience or 'не указана'}",
-        f"tone of voice: {project.tone_of_voice or 'не указан'}",
-        f"контекст продукта: {project.product_context or 'не указан'}",
     ]
     return "\n".join(parts)
 
@@ -380,6 +389,11 @@ def _build_project_description(project: Project | None) -> str:
 def _normalize_project_stop_words(project: Project | None) -> list[str]:
     raw_stop_words = project.stop_words if project else []
     return list(dict.fromkeys(word.strip() for word in raw_stop_words if word.strip()))
+
+
+def _normalize_target_actions(project: Project | None) -> list[str]:
+    raw_actions = project.target_actions if project else []
+    return list(dict.fromkeys(action.strip() for action in raw_actions if action and action.strip()))
 
 
 def _build_project_stop_words_rule(stop_words: list[str]) -> str:
@@ -395,6 +409,25 @@ def _build_project_stop_words_rule(stop_words: list[str]) -> str:
     )
 
 
+def _build_target_actions_rule(target_actions: list[str]) -> str:
+    if not target_actions:
+        return (
+            "## правило для финала поста\n\n"
+            "Для этого проекта список целевых действий не задан. Заверши пост естественно: мягким финалом, "
+            "понятным следующим шагом или спокойной открытой фразой, если CTA не нужен."
+        )
+
+    joined_actions = "\n".join(f"- {action}" for action in target_actions)
+    return (
+        "## правило для финала поста\n\n"
+        "У тебя есть список целевых действий:\n"
+        f"{joined_actions}\n\n"
+        "Выбери строго ОДНО действие, которое наиболее естественно и логично подходит к тональности "
+        "написанного тобой поста, и нативно интегрируй его в конец. Если тренд слишком личный или шуточный, "
+        "и любой призыв убьет нативность, можешь не использовать целевое действие вообще и завершить пост естественно."
+    )
+
+
 def _build_generation_system_prompt(
     *,
     project_prompt: str,
@@ -402,6 +435,7 @@ def _build_generation_system_prompt(
     trends_context: str,
     publication_memory: str,
     project_stop_words: str,
+    target_actions_rule: str,
     topic: str,
 ) -> str:
     return "\n\n".join(
@@ -417,6 +451,7 @@ def _build_generation_system_prompt(
             trends_context,
             THREADS_VIBE_RULES,
             project_stop_words,
+            target_actions_rule,
             STRUCTURED_OUTPUT_RULES,
         ]
     )

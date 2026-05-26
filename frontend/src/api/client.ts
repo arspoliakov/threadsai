@@ -97,6 +97,8 @@ export type Project = {
   name: string;
   slug: string;
   description: string | null;
+  global_context: string | null;
+  target_actions: string[];
   niche: string | null;
   target_audience: string | null;
   tone_of_voice: string | null;
@@ -115,6 +117,8 @@ export type ProjectCreatePayload = {
   name: string;
   slug: string;
   description?: string | null;
+  global_context?: string | null;
+  target_actions?: string[];
   stop_words?: string[];
   is_active?: boolean;
 };

@@ -497,12 +497,14 @@ async def _run_scraping_operation(operation_id: int) -> None:
 
 
 def _build_generation_topic(project: ProjectRead) -> str:
+    project_context = project.global_context or project.description
     context_parts = [
         project.name,
         project.niche,
-        project.description,
+        project_context,
         project.target_audience,
         project.product_context,
+        ". ".join(project.target_actions or []),
     ]
     topic = ". ".join(part for part in context_parts if part)
 

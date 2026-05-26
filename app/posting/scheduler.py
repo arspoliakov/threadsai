@@ -307,9 +307,12 @@ def _parse_project_time(value: str | None, *, fallback: time) -> time:
 
 
 def _build_account_topic(project: Project, account: Account, todays_count: int) -> str:
+    project_context = project.global_context or project.description or "не указан"
+    target_actions = ", ".join(project.target_actions or []) or "не заданы"
     parts = [
         f"Проект: {project.name}",
-        f"Описание проекта: {project.description or 'не указано'}",
+        f"Глобальный контекст проекта: {project_context}",
+        f"Целевые действия проекта: {target_actions}",
         f"Ниша: {project.niche or 'не указана'}",
         f"Аудитория: {project.target_audience or 'не указана'}",
         f"Tone of Voice: {project.tone_of_voice or 'не указан'}",

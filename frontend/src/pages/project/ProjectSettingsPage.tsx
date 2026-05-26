@@ -19,6 +19,8 @@ export default function ProjectSettingsPage() {
   const projectId = Number(id);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [project, setProject] = useState<Project | null>(null);
+  const [globalContext, setGlobalContext] = useState("");
+  const [targetActions, setTargetActions] = useState<string[]>([]);
   const [stopWords, setStopWords] = useState<string[]>([]);
   const [scheduleDraft, setScheduleDraft] = useState({
     posts_per_day: 3,
@@ -29,6 +31,7 @@ export default function ProjectSettingsPage() {
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isBinding, setIsBinding] = useState(false);
+  const [isSavingContext, setIsSavingContext] = useState(false);
   const [isSavingStopWords, setIsSavingStopWords] = useState(false);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
   const [savingCookiesId, setSavingCookiesId] = useState<number | null>(null);
@@ -45,6 +48,8 @@ export default function ProjectSettingsPage() {
       ]);
       setAccounts(accountsResult);
       setProject(dashboardResult.project);
+      setGlobalContext(dashboardResult.project.global_context || dashboardResult.project.description || "");
+      setTargetActions(normalizeTargetActions(dashboardResult.project.target_actions ?? []));
       setStopWords(dashboardResult.project.stop_words ?? []);
       setScheduleDraft({
         posts_per_day: dashboardResult.project.posts_per_day ?? 3,
@@ -95,6 +100,34 @@ export default function ProjectSettingsPage() {
       await loadSettings({ silent: true });
     } finally {
       setIsBinding(false);
+    }
+  }
+
+  async function saveProjectContext() {
+    if (!project) {
+      toast.error("Проект еще не загружен");
+      return;
+    }
+
+    setIsSavingContext(true);
+
+    try {
+      const normalizedActions = normalizeTargetActions(targetActions);
+      const savePromise = updateProject(project.id, {
+        global_context: globalContext.trim() || null,
+        target_actions: normalizedActions,
+      });
+      toast.promise(savePromise, {
+        loading: "Сохраняем контекст и CTA...",
+        success: "Контекст проекта сохранен",
+        error: "Не удалось сохранить контекст проекта",
+      });
+      const savedProject = await savePromise;
+      setProject(savedProject);
+      setGlobalContext(savedProject.global_context || "");
+      setTargetActions(normalizeTargetActions(savedProject.target_actions ?? []));
+    } finally {
+      setIsSavingContext(false);
     }
   }
 
@@ -241,6 +274,94 @@ export default function ProjectSettingsPage() {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm xl:col-span-2">
+          <div className="grid gap-6 lg:grid-cols-[1fr_520px]">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
+                Context & CTA
+              </p>
+              <h2 className="mt-2 font-display text-3xl">Контекст и целевые действия</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
+                Здесь задается локальная память проекта: кто вы, как говорите, что важно для аудитории
+                и какие мягкие действия можно предлагать в финале постов.
+              </p>
+            </div>
+
+            <div className="grid gap-4 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
+              <label className="grid gap-2">
+                <span className="field-label">Глобальный контекст проекта</span>
+                <textarea
+                  value={globalContext}
+                  onChange={(event) => setGlobalContext(event.target.value)}
+                  disabled={isLoading || isSavingContext}
+                  rows={8}
+                  placeholder="Опишите бренд, аудиторию, tone of voice, продукт, ограничения и факты, которые ИИ должен учитывать."
+                  className="resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-sm leading-6 text-[#24231f] outline-none transition focus:border-[#151515] disabled:opacity-50"
+                />
+              </label>
+
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="field-label">Целевые действия</span>
+                  <button
+                    type="button"
+                    onClick={() => setTargetActions((current) => [...current, ""])}
+                    disabled={isLoading || isSavingContext}
+                    className="rounded-full border border-[#151515] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    добавить
+                  </button>
+                </div>
+
+                <div className="mt-3 grid gap-2">
+                  {targetActions.length === 0 ? (
+                    <p className="rounded-2xl border border-dashed border-[#d8d8d2] bg-white px-4 py-4 text-sm leading-6 text-[#77766f]">
+                      CTA пока не заданы. Можно добавить разные варианты: написать в личку, оставить комментарий,
+                      перейти по ссылке, подписаться, забронировать место.
+                    </p>
+                  ) : (
+                    targetActions.map((action, index) => (
+                      <div key={index} className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                        <input
+                          value={action}
+                          onChange={(event) =>
+                            setTargetActions((current) =>
+                              current.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)),
+                            )
+                          }
+                          disabled={isLoading || isSavingContext}
+                          placeholder="например: написать в комментариях, чтобы получить детали"
+                          className="field-control disabled:opacity-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTargetActions((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                          }
+                          disabled={isLoading || isSavingContext}
+                          className="rounded-2xl border border-[#b42318] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#8a2d25] transition hover:bg-[#b42318] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          удалить
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void saveProjectContext()}
+                disabled={isLoading || isSavingContext || !project}
+                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isSavingContext ? <Spinner /> : null}
+                {isSavingContext ? "Сохранение..." : "Сохранить контекст"}
+              </button>
+            </div>
+          </div>
+        </section>
+
         <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm xl:col-span-2">
           <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
             <div>
@@ -701,6 +822,10 @@ function formatUsername(username: string) {
 
 function normalizeStopWords(words: string[]) {
   return Array.from(new Set(words.map((word) => word.trim().toLowerCase()).filter(Boolean)));
+}
+
+function normalizeTargetActions(actions: string[]) {
+  return Array.from(new Set(actions.map((action) => action.trim()).filter(Boolean)));
 }
 
 function clampPostsPerDay(value: number) {

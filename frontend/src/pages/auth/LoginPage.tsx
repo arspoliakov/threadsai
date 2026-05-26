@@ -306,6 +306,27 @@ export default function LoginPage() {
                 </div>
               ) : null}
             </div>
+
+            {canLogin ? (
+              <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-[#050807]/45 p-4 text-center">
+                <p className="mx-auto max-w-lg text-sm leading-6 text-white/58">
+                  Если кнопка Telegram выше не появилась или висит загрузка, используйте надежный вход через бота:
+                  откройте Telegram, нажмите <span className="text-white">Start</span> или отправьте{" "}
+                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 font-mono text-[11px] text-white/76">
+                    /start
+                  </span>
+                  , затем выберите «Открыть кабинет ThreadsGo».
+                </p>
+                <a
+                  href={botLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-flex rounded-full bg-white px-6 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35]"
+                >
+                  войти через бота
+                </a>
+              </div>
+            ) : null}
           </div>
 
           {isLoading ? (

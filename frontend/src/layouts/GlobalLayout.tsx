@@ -63,14 +63,22 @@ function FooterUtility() {
       <p>
         *Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.
       </p>
-      <a
-        href="https://t.me/cuartenlol"
-        target="_blank"
-        rel="noreferrer"
-        className="w-fit rounded-full border border-[#cfd6cc] bg-white px-4 py-2 text-[#07100e] transition hover:border-[#07100e] hover:bg-[#07100e] hover:text-white"
-      >
-        Связь с разработчиком
-      </a>
+      <div className="flex flex-wrap gap-2">
+        <NavLink
+          to="/terms"
+          className="w-fit rounded-full border border-[#cfd6cc] bg-white px-4 py-2 text-[#07100e] transition hover:border-[#07100e] hover:bg-[#07100e] hover:text-white"
+        >
+          Условия и политика
+        </NavLink>
+        <a
+          href="https://t.me/cuartenlol"
+          target="_blank"
+          rel="noreferrer"
+          className="w-fit rounded-full border border-[#cfd6cc] bg-white px-4 py-2 text-[#07100e] transition hover:border-[#07100e] hover:bg-[#07100e] hover:text-white"
+        >
+          Связь с разработчиком
+        </a>
+      </div>
     </footer>
   );
 }

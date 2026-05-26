@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -30,6 +30,8 @@ declare global {
 
 const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
 const WIDGET_TIMEOUT_MS = 4500;
+const TERMS_ACCEPTED_STORAGE_KEY = "threadsgo.terms.accepted";
+const META_NOTICE_ACCEPTED_STORAGE_KEY = "threadsgo.meta_notice.accepted";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -41,6 +43,13 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [widgetKey, setWidgetKey] = useState(0);
   const [widgetStatus, setWidgetStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const [termsAccepted, setTermsAccepted] = useState(
+    () => window.localStorage.getItem(TERMS_ACCEPTED_STORAGE_KEY) === "true",
+  );
+  const [metaNoticeAccepted, setMetaNoticeAccepted] = useState(
+    () => window.localStorage.getItem(META_NOTICE_ACCEPTED_STORAGE_KEY) === "true",
+  );
+  const canLogin = termsAccepted && metaNoticeAccepted;
 
   const handleTelegramAuth = useCallback(
     async (user: TelegramAuthPayload) => {
@@ -68,6 +77,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     async function tryTelegramWebAppLogin() {
+      if (!canLogin) {
+        return false;
+      }
+
       await loadTelegramWebAppScript();
       const webApp = window.Telegram?.WebApp;
       const initData = webApp?.initData;
@@ -101,9 +114,14 @@ export default function LoginPage() {
     }
 
     void tryTelegramWebAppLogin();
-  }, [navigate, state?.from]);
+  }, [canLogin, navigate, state?.from]);
 
   useEffect(() => {
+    if (!canLogin) {
+      setWidgetStatus("failed");
+      return;
+    }
+
     if (!widgetContainerRef.current || !TELEGRAM_BOT_USERNAME) {
       setWidgetStatus("failed");
       return;
@@ -149,7 +167,17 @@ export default function LoginPage() {
         widgetContainerRef.current.innerHTML = "";
       }
     };
-  }, [handleTelegramAuth, widgetKey]);
+  }, [canLogin, handleTelegramAuth, widgetKey]);
+
+  function updateTermsAccepted(value: boolean) {
+    setTermsAccepted(value);
+    window.localStorage.setItem(TERMS_ACCEPTED_STORAGE_KEY, String(value));
+  }
+
+  function updateMetaNoticeAccepted(value: boolean) {
+    setMetaNoticeAccepted(value);
+    window.localStorage.setItem(META_NOTICE_ACCEPTED_STORAGE_KEY, String(value));
+  }
 
   if (isAuthenticated()) {
     return <Navigate to={state?.from || "/app"} replace />;
@@ -202,9 +230,37 @@ export default function LoginPage() {
             Вход в кабинет.
           </h1>
 
+          <div className="mt-8 grid gap-3 rounded-[1.6rem] border border-white/10 bg-black/24 p-5">
+            <AgreementCheckbox
+              checked={termsAccepted}
+              onChange={updateTermsAccepted}
+            >
+              Я принимаю{" "}
+              <Link to="/terms#terms" className="text-white underline decoration-[#70ff35] underline-offset-4">
+                условия использования
+              </Link>{" "}
+              и{" "}
+              <Link to="/terms#privacy" className="text-white underline decoration-[#70ff35] underline-offset-4">
+                политику конфиденциальности
+              </Link>
+              .
+            </AgreementCheckbox>
+            <AgreementCheckbox
+              checked={metaNoticeAccepted}
+              onChange={updateMetaNoticeAccepted}
+            >
+              Я понимаю, что деятельность Meta Platforms Inc. и связанных соцсетей запрещена в РФ,
+              а ответственность за использование Threads, сетевой доступ и публикуемый контент лежит на мне.
+            </AgreementCheckbox>
+          </div>
+
           <div className="mt-8 rounded-[1.6rem] border border-white/10 bg-black/24 p-5">
             <div className="relative grid min-h-20 place-items-center rounded-[1.2rem] border border-white/8 bg-[#050807]/70 p-5">
-              {widgetStatus === "loading" ? (
+              {!canLogin ? (
+                <p className="max-w-md text-center text-sm leading-6 text-white/54">
+                  Чтобы войти, сначала подтвердите условия beta-доступа и юридическую оговорку выше.
+                </p>
+              ) : widgetStatus === "loading" ? (
                 <div className="absolute inset-0 grid place-items-center">
                   <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-white/42">
                     <Spinner />
@@ -213,11 +269,11 @@ export default function LoginPage() {
                 </div>
               ) : null}
 
-              {TELEGRAM_BOT_USERNAME ? (
+              {canLogin && TELEGRAM_BOT_USERNAME ? (
                 <div className={widgetStatus === "failed" ? "hidden" : "grid place-items-center"} ref={widgetContainerRef} />
               ) : null}
 
-              {widgetStatus === "failed" ? (
+              {canLogin && widgetStatus === "failed" ? (
                 <div className="max-w-md text-center">
                   <p className="text-sm leading-6 text-white/62">
                     Виджет Telegram не отрисовался. Чаще всего браузер или VPN блокирует внешний скрипт.
@@ -266,6 +322,28 @@ export default function LoginPage() {
 
 function Spinner() {
   return <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />;
+}
+
+function AgreementCheckbox({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/8 bg-[#050807]/48 p-4 text-sm leading-6 text-white/62 transition hover:border-white/18">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent accent-[#70ff35]"
+      />
+      <span>{children}</span>
+    </label>
+  );
 }
 
 function loadTelegramWebAppScript() {

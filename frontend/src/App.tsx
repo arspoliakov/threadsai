@@ -6,6 +6,7 @@ import ProjectLayout from "./layouts/ProjectLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import LandingPage from "./pages/LandingPage";
+import TermsPage from "./pages/TermsPage";
 import LoginPage from "./pages/auth/LoginPage";
 import InfrastructurePage from "./pages/global/InfrastructurePage";
 import GlobalSettingsPage from "./pages/global/GlobalSettingsPage";
@@ -28,6 +29,7 @@ export default function App() {
       <Routes>
         <Route index element={<LandingPage />} />
         <Route path="login" element={<LoginPage />} />
+        <Route path="terms" element={<TermsPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="app" element={<GlobalLayout />}>

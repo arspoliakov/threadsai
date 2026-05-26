@@ -356,14 +356,22 @@ export default function LandingPage() {
         <p>
           *Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.
         </p>
-        <a
-          href="https://t.me/cuartenlol"
-          target="_blank"
-          rel="noreferrer"
-          className="w-fit rounded-full border border-white/12 px-4 py-2 text-white/62 transition hover:border-white/38 hover:text-white"
-        >
-          Связь с разработчиком
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/terms"
+            className="w-fit rounded-full border border-white/12 px-4 py-2 text-white/62 transition hover:border-white/38 hover:text-white"
+          >
+            Условия и политика
+          </Link>
+          <a
+            href="https://t.me/cuartenlol"
+            target="_blank"
+            rel="noreferrer"
+            className="w-fit rounded-full border border-white/12 px-4 py-2 text-white/62 transition hover:border-white/38 hover:text-white"
+          >
+            Связь с разработчиком
+          </a>
+        </div>
       </footer>
     </main>
   );

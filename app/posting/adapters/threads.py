@@ -35,7 +35,7 @@ from app.posting.exceptions import SessionExpiredException
 SCREENSHOTS_DIR = Path("./data/screenshots")
 PROXY_EXTENSIONS_DIR = Path("./data/proxy_extensions")
 CHROME_PROFILES_DIR = Path("./data/chrome_profiles")
-CHROME_PROFILE_CACHE_LIMIT_MB = int(os.getenv("CHROME_PROFILE_CACHE_LIMIT_MB", "150"))
+CHROME_PROFILE_CACHE_LIMIT_MB = int(os.getenv("CHROME_PROFILE_CACHE_LIMIT_MB", "20"))
 PROFILE_LOCKS: dict[int, Any] = {}
 PROFILE_LOCKS_GUARD = threading.Lock()
 logger = logging.getLogger(__name__)

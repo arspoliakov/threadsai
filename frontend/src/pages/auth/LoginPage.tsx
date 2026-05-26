@@ -275,9 +275,16 @@ export default function LoginPage() {
 
               {canLogin && widgetStatus === "failed" ? (
                 <div className="max-w-md text-center">
-                  <p className="text-sm leading-6 text-white/62">
-                    Виджет Telegram не отрисовался. Чаще всего браузер или VPN блокирует внешний скрипт.
-                    Нажмите «Открыть бота»: он запустит кабинет внутри Telegram без iframe-виджета.
+                  <p className="text-sm leading-6 text-white/68">
+                    Telegram-виджет не загрузился. Так бывает, если браузер, VPN или провайдер режет внешний
+                    скрипт Telegram.
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-white/54">
+                    Альтернативный вход: нажмите «Войти через бота», откройте Telegram и отправьте боту команду
+                    <span className="mx-1 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 font-mono text-[11px] text-white/76">
+                      /start
+                    </span>
+                    . Бот покажет кнопку кабинета и авторизует вас внутри Telegram.
                   </p>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <button
@@ -293,7 +300,7 @@ export default function LoginPage() {
                       rel="noreferrer"
                       className="rounded-full border border-white/14 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white/68 transition hover:border-white/40 hover:text-white"
                     >
-                      открыть через telegram
+                      войти через бота
                     </a>
                   </div>
                 </div>

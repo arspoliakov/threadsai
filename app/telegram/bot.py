@@ -37,7 +37,9 @@ async def start_handler(message: Message) -> None:
         ]
     )
     await message.answer(
-        "ThreadsGo готов. Нажмите кнопку ниже, чтобы войти в кабинет через Telegram.",
+        "ThreadsGo готов.\n\n"
+        "Если Telegram-виджет на сайте не открылся, войдите отсюда: нажмите «Открыть кабинет ThreadsGo». "
+        "Telegram передаст безопасные данные входа, а сайт выдаст вам сессию без пароля.",
         reply_markup=keyboard,
     )
 

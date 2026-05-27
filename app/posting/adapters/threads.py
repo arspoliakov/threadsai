@@ -29,7 +29,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from app.db.models import Account, PostingTask
 from app.posting.adapters.base import BasePostingAdapter, PublishResult
-from app.posting.exceptions import SessionExpiredException
+from app.posting.exceptions import PostingDeadlineExceeded, ProxyNetworkException, SessionExpiredException
 
 
 SCREENSHOTS_DIR = Path("./data/screenshots")
@@ -90,8 +90,14 @@ class ThreadsAdapter(BasePostingAdapter):
     def __init__(self, timeout_seconds: int = 25) -> None:
         self.timeout_seconds = timeout_seconds
 
-    async def publish(self, account: Account, task: PostingTask) -> PublishResult:
-        return await asyncio.to_thread(self._publish_sync, account, task)
+    async def publish(
+        self,
+        account: Account,
+        task: PostingTask,
+        *,
+        deadline_at: float | None = None,
+    ) -> PublishResult:
+        return await asyncio.to_thread(self._publish_sync, account, task, deadline_at)
 
     async def check_session(self, account: Account) -> PublishResult:
         return await asyncio.to_thread(self._check_session_sync, account)
@@ -117,28 +123,50 @@ class ThreadsAdapter(BasePostingAdapter):
             if proxy_extension_path is not None:
                 self._remove_file_safely(proxy_extension_path)
 
-    def _publish_sync(self, account: Account, task: PostingTask) -> PublishResult:
+    def _publish_sync(
+        self,
+        account: Account,
+        task: PostingTask,
+        deadline_at: float | None = None,
+    ) -> PublishResult:
         session_payload = self._load_json(account.session_data_encrypted)
         proxy_url = session_payload.get("proxy") or account.proxy_url
 
         for attempt in range(2):
             proxy_extension_path: Path | None = None
             driver: WebDriver | None = None
+            deadline_watchdog: threading.Event | None = None
 
             try:
+                self._raise_if_deadline_exceeded(deadline_at)
                 if proxy_url:
                     proxy_extension_path = self._create_proxy_extension(proxy_url, task.id)
 
                 driver = self._create_driver(proxy_extension_path, account_id=account.id)
+                deadline_watchdog = self._start_deadline_watchdog(driver, deadline_at, task.id)
+                self._raise_if_deadline_exceeded(deadline_at)
                 self._apply_network_blocking(driver)
                 self._authenticate_with_cookies(driver, account)
+                self._raise_if_deadline_exceeded(deadline_at)
                 logger.info("Threads auth completed for task #%s", task.id)
                 detected_username = self._extract_authenticated_username(driver)
+                self._raise_if_deadline_exceeded(deadline_at)
                 self._share_thread(driver, task.content_text, task.media_url)
+                self._raise_if_deadline_exceeded(deadline_at)
                 logger.info("Threads publish flow completed for task #%s", task.id)
                 return PublishResult(success=True, detected_username=detected_username)
+            except (PostingDeadlineExceeded, ProxyNetworkException, SessionExpiredException):
+                raise
             except Exception as exc:
                 screenshot_path = self._save_error_screenshot(driver, task.id)
+                if self._is_deadline_exceeded(deadline_at):
+                    raise PostingDeadlineExceeded(
+                        f"Threads task #{task.id} exceeded the safe proxy window."
+                    ) from exc
+
+                if self._is_retryable_network_error(exc):
+                    raise ProxyNetworkException(f"Threads proxy/network transport failed: {exc}") from exc
+
                 if attempt == 0 and self._is_recoverable_browser_crash(exc):
                     logger.warning("Threads browser crashed for task #%s, retrying once: %s", task.id, exc)
                     self._quit_driver_safely(driver)
@@ -149,11 +177,42 @@ class ThreadsAdapter(BasePostingAdapter):
                 screenshot_note = f" Screenshot: {screenshot_path}" if screenshot_path else ""
                 raise RuntimeError(f"Threads publishing failed: {exc}.{screenshot_note}") from exc
             finally:
+                if deadline_watchdog is not None:
+                    deadline_watchdog.set()
                 self._quit_driver_safely(driver)
                 if proxy_extension_path is not None:
                     self._remove_file_safely(proxy_extension_path)
 
         raise RuntimeError("Threads publishing failed after browser self-healing retry.")
+
+    def _start_deadline_watchdog(
+        self,
+        driver: WebDriver,
+        deadline_at: float | None,
+        task_id: int,
+    ) -> threading.Event | None:
+        if deadline_at is None:
+            return None
+
+        stop_event = threading.Event()
+
+        def quit_on_deadline() -> None:
+            remaining_seconds = max(0.0, deadline_at - time.monotonic())
+            if stop_event.wait(remaining_seconds):
+                return
+
+            logger.warning("Threads task #%s reached Selenium deadline; forcing driver.quit().", task_id)
+            self._quit_driver_safely(driver)
+
+        threading.Thread(target=quit_on_deadline, daemon=True).start()
+        return stop_event
+
+    def _raise_if_deadline_exceeded(self, deadline_at: float | None) -> None:
+        if self._is_deadline_exceeded(deadline_at):
+            raise PostingDeadlineExceeded("Threads Selenium deadline exceeded before task completion.")
+
+    def _is_deadline_exceeded(self, deadline_at: float | None) -> bool:
+        return deadline_at is not None and time.monotonic() >= deadline_at
 
     def _create_driver(self, proxy_extension_path: Path | None, *, account_id: int | None = None) -> WebDriver:
         options = Options()
@@ -1045,6 +1104,24 @@ chrome.webRequest.onAuthRequired.addListener(
     def _is_recoverable_browser_crash(self, exc: Exception) -> bool:
         error_text = str(exc).casefold()
         return "invalid session id" in error_text or "disconnected" in error_text
+
+    def _is_retryable_network_error(self, exc: Exception) -> bool:
+        error_text = str(exc).casefold()
+        retryable_markers = (
+            "net::",
+            "err_proxy",
+            "err_tunnel",
+            "err_connection",
+            "err_internet",
+            "err_network",
+            "proxy",
+            "timed out receiving message",
+            "timeout receiving message",
+            "target window already closed",
+            "chrome not reachable",
+            "disconnected",
+        )
+        return isinstance(exc, WebDriverException) and any(marker in error_text for marker in retryable_markers)
 
 
 def _is_headless_browser_enabled() -> bool:

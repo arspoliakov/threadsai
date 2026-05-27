@@ -12,5 +12,11 @@ class PublishResult:
 
 class BasePostingAdapter(ABC):
     @abstractmethod
-    async def publish(self, account: Account, task: PostingTask) -> PublishResult:
+    async def publish(
+        self,
+        account: Account,
+        task: PostingTask,
+        *,
+        deadline_at: float | None = None,
+    ) -> PublishResult:
         """Publish a posting task using the provided social account."""

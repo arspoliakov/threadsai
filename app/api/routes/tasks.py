@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,8 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user_id, get_db
 from app.ai_engine.generators import generate_post
 from app.db.models import Platform, PostingTask, PostingTaskStatus, Project
-from app.db.session import AsyncSessionLocal
-from app.posting.service import execute_posting_task
 
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -202,7 +200,6 @@ async def cancel_task(
 )
 async def publish_task_now(
     task_id: int,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ) -> PublishNowRead:
@@ -226,13 +223,12 @@ async def publish_task_now(
             detail="Posting task has no assigned account.",
         )
 
-    background_tasks.add_task(_publish_task_now_background, task_id)
-    return PublishNowRead(task_id=task_id, status="started")
-
-
-async def _publish_task_now_background(task_id: int) -> None:
-    async with AsyncSessionLocal() as session:
-        await execute_posting_task(task_id=task_id, session=session)
+    task.scheduled_at = datetime.now(UTC)
+    task.started_at = None
+    task.finished_at = None
+    task.error_message = None
+    await db.commit()
+    return PublishNowRead(task_id=task_id, status="queued_for_proxy_window")
 
 
 async def _get_owned_task(task_id: int, owner_id: int, db: AsyncSession) -> PostingTask | None:

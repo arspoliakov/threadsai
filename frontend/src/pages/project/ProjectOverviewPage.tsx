@@ -259,7 +259,9 @@ function SystemStatusCard({
   const failedAccounts = dashboard.account_states.filter(
     (account) => account.status === "cookies_expired" || account.status === "blocked" || account.status === "error",
   ).length;
-  const runningOperation = operations.find((operation) => operation.status === "running") || latestScrapingOperation;
+  const runningOperation =
+    operations.find((operation) => operation.status === "running" || operation.status === "queued")
+    || latestScrapingOperation;
   const queuedCount = dashboard.posting_tasks_by_status.queued ?? 0;
   const status = getProjectSystemStatus({
     runningOperation,
@@ -432,14 +434,18 @@ function ActivityLog({
 
 function OperationBadge({ status }: { status: ProjectOperation["status"] }) {
   const className =
-    status === "running"
-      ? "bg-[#e8f1ff] text-[#124e91]"
-      : status === "success"
-        ? "bg-[#edf8e8] text-[#25551f]"
-        : "bg-[#fff1ee] text-[#8a2d25]";
+    status === "queued"
+      ? "bg-[#fff7dc] text-[#76520f]"
+      : status === "running"
+        ? "bg-[#e8f1ff] text-[#124e91]"
+        : status === "success"
+          ? "bg-[#edf8e8] text-[#25551f]"
+          : "bg-[#fff1ee] text-[#8a2d25]";
   const label = status === "running" ? "в процессе" : status === "success" ? "готово" : "ошибка";
 
-  return <span className={`w-fit rounded-full px-3 py-1 text-xs ${className}`}>{label}</span>;
+  const displayLabel = status === "queued" ? "в очереди" : label;
+
+  return <span className={`w-fit rounded-full px-3 py-1 text-xs ${className}`}>{displayLabel}</span>;
 }
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
@@ -690,6 +696,15 @@ function getProjectSystemStatus({
   queuedCount: number;
   recentErrorsCount: number;
 }) {
+  if (runningOperation?.status === "queued") {
+    return {
+      title: "ждет окно прокси",
+      description: "Браузерная задача стоит в очереди и стартует после следующей ротации IP.",
+      dotClass: "bg-[#ffcb45]",
+      pulse: true,
+    };
+  }
+
   if (runningOperation?.status === "running") {
     return {
       title: runningOperation.action_type === "scraping" ? "собирает тренды" : "генерирует пост",

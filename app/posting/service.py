@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project
 from app.posting.adapters.base import BasePostingAdapter
 from app.posting.adapters.threads import ThreadsAdapter
-from app.posting.exceptions import SessionExpiredException
+from app.posting.exceptions import RetryablePostingException, SessionExpiredException
 from app.telegram.notifications import send_user_notification
 
 
@@ -21,7 +21,12 @@ def get_adapter(platform: Platform) -> BasePostingAdapter:
     raise ValueError(f"Unsupported posting platform: {platform.value}")
 
 
-async def execute_posting_task(task_id: int, session: AsyncSession) -> PostingTask:
+async def execute_posting_task(
+    task_id: int,
+    session: AsyncSession,
+    *,
+    deadline_at: float | None = None,
+) -> PostingTask:
     stmt = (
         select(PostingTask)
         .options(
@@ -59,7 +64,7 @@ async def execute_posting_task(task_id: int, session: AsyncSession) -> PostingTa
         await session.refresh(task)
 
         adapter = get_adapter(account.platform)
-        publish_result = await adapter.publish(account=account, task=task)
+        publish_result = await adapter.publish(account=account, task=task, deadline_at=deadline_at)
 
         if publish_result.detected_username and _should_update_username(account.username):
             account.username = publish_result.detected_username
@@ -77,6 +82,10 @@ async def execute_posting_task(task_id: int, session: AsyncSession) -> PostingTa
         await _mark_session_expired(session, task, account, error_message)
         await _notify_account_owner_about_session(account)
         return task
+    except RetryablePostingException as exc:
+        error_message = str(exc)
+        await _mark_retryable(session, task, account, error_message)
+        return task
     except Exception as exc:
         error_message = str(exc)
         await _mark_failed(session, task, error_message)
@@ -91,6 +100,22 @@ async def _mark_failed(session: AsyncSession, task: PostingTask, error_message: 
     task.retry_count += 1
     if task.account is not None:
         task.account.last_error = error_message
+    await session.commit()
+    await session.refresh(task)
+
+
+async def _mark_retryable(
+    session: AsyncSession,
+    task: PostingTask,
+    account: Account,
+    error_message: str,
+) -> None:
+    task.status = PostingTaskStatus.QUEUED
+    task.started_at = None
+    task.finished_at = None
+    task.error_message = error_message
+    task.retry_count += 1
+    account.last_error = error_message
     await session.commit()
     await session.refresh(task)
 

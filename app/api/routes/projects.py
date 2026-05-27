@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,9 +23,6 @@ from app.db.models import (
     SavedTrend,
 )
 from app.db.repositories.projects import ProjectRepository
-from app.db.session import AsyncSessionLocal
-from app.parsers.scraper import scrape_trends
-from app.parsers.trend_analyzer import analyze_and_save_trends
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
 
 
@@ -237,7 +234,6 @@ async def get_project_dashboard(
 )
 async def trigger_project_scraping(
     project_id: int,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ) -> TriggerScrapingRead:
@@ -249,7 +245,7 @@ async def trigger_project_scraping(
             ProjectOperation.project_id == project.id,
             ProjectOperation.owner_id == current_user_id,
             ProjectOperation.action_type == ProjectOperationType.SCRAPING,
-            ProjectOperation.status == ProjectOperationStatus.RUNNING,
+            ProjectOperation.status.in_([ProjectOperationStatus.QUEUED, ProjectOperationStatus.RUNNING]),
         )
         .order_by(ProjectOperation.started_at.desc())
         .limit(1)
@@ -267,14 +263,12 @@ async def trigger_project_scraping(
         project_id=project.id,
         owner_id=current_user_id,
         action_type=ProjectOperationType.SCRAPING,
-        status=ProjectOperationStatus.RUNNING,
-        message="Анализ трендов запущен. Можно уйти со страницы, процесс продолжится в фоне.",
+        status=ProjectOperationStatus.QUEUED,
+        message="Trend scraping queued and will start in the next safe proxy window.",
     )
     db.add(operation)
     await db.commit()
     await db.refresh(operation)
-
-    background_tasks.add_task(_run_scraping_operation, operation.id)
 
     return TriggerScrapingRead(
         project_id=project.id,
@@ -452,48 +446,6 @@ async def _get_owned_project(project_id: int, owner_id: int, db: AsyncSession) -
         )
 
     return project
-
-
-async def _run_scraping_operation(operation_id: int) -> None:
-    async with AsyncSessionLocal() as session:
-        operation = await session.get(ProjectOperation, operation_id)
-
-        if operation is None:
-            logger.warning("Project scraping operation %s not found.", operation_id)
-            return
-
-        try:
-            logger.info("Project scraping operation %s started for project %s.", operation.id, operation.project_id)
-            scrape_result = await scrape_trends(project_id=operation.project_id, session=session)
-            saved_trends = await analyze_and_save_trends(
-                project_id=operation.project_id,
-                raw_posts=scrape_result.raw_posts,
-                session=session,
-            )
-            operation.status = ProjectOperationStatus.SUCCESS
-            operation.message = (
-                f"Анализ трендов завершен: собрано {len(scrape_result.raw_posts)}, "
-                f"сохранено {len(saved_trends)}."
-            )
-            operation.result_json = {
-                "collected_posts_count": len(scrape_result.raw_posts),
-                "saved_trends_count": len(saved_trends),
-            }
-            operation.finished_at = datetime.now(UTC)
-            await session.commit()
-            logger.info("Project scraping operation %s completed.", operation.id)
-        except Exception as exc:
-            await session.rollback()
-            failed_operation = await session.get(ProjectOperation, operation_id)
-
-            if failed_operation is not None:
-                failed_operation.status = ProjectOperationStatus.FAILED
-                failed_operation.message = f"Анализ трендов завершился ошибкой: {exc}"
-                failed_operation.result_json = {"error": str(exc)}
-                failed_operation.finished_at = datetime.now(UTC)
-                await session.commit()
-
-            logger.exception("Project scraping operation %s failed.", operation_id)
 
 
 def _build_generation_topic(project: ProjectRead) -> str:

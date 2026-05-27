@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import random
 from datetime import UTC, datetime, time, timedelta
@@ -11,24 +10,32 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai_engine.generators import generate_post
-from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project
+from app.core.config import settings
+from app.db.models import (
+    Account,
+    AccountStatus,
+    Platform,
+    PostingTask,
+    PostingTaskStatus,
+    Project,
+    ProjectOperation,
+    ProjectOperationStatus,
+    ProjectOperationType,
+)
 from app.db.session import AsyncSessionLocal
-from app.parsers.scraper import scrape_trends
-from app.parsers.trend_analyzer import analyze_and_save_trends
-from app.posting.service import execute_posting_task
+from app.services.admin_notifier import send_admin_alert
 from app.telegram.notifications import send_admin_notification
 
 
-JITTER_MIN_SECONDS = 60
-JITTER_MAX_SECONDS = 600
 TASK_CHECK_INTERVAL_SECONDS = 90
-MAX_TASKS_PER_TICK = 5
+QUEUE_HEALTH_CHECK_INTERVAL_SECONDS = 15 * 60
 MAX_GENERATIONS_PER_SCHEDULER_RUN = 50
 FIRST_POST_DELAY_MINUTES = 15
 TREND_ANALYSIS_INTERVAL_DAYS = 3
 
 scheduler = AsyncIOScheduler()
 logger = logging.getLogger(__name__)
+last_queue_alert_sent_at: datetime | None = None
 
 
 def setup_posting_scheduler() -> AsyncIOScheduler:
@@ -54,51 +61,114 @@ def setup_posting_scheduler() -> AsyncIOScheduler:
             coalesce=True,
         )
 
+    if not scheduler.get_job("check_queue_health"):
+        scheduler.add_job(
+            check_queue_health,
+            trigger="interval",
+            seconds=QUEUE_HEALTH_CHECK_INTERVAL_SECONDS,
+            id="check_queue_health",
+            max_instances=1,
+            coalesce=True,
+        )
+
     return scheduler
+
+
+async def check_queue_health() -> None:
+    global last_queue_alert_sent_at
+
+    now = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        oldest_task = await session.scalar(
+            select(PostingTask)
+            .where(
+                PostingTask.status == PostingTaskStatus.QUEUED,
+                PostingTask.scheduled_at.is_not(None),
+                PostingTask.scheduled_at <= now,
+            )
+            .order_by(PostingTask.scheduled_at.asc(), PostingTask.id.asc())
+            .limit(1)
+        )
+
+    if oldest_task is None or oldest_task.scheduled_at is None:
+        return
+
+    scheduled_at = oldest_task.scheduled_at
+    if scheduled_at.tzinfo is None:
+        scheduled_at = scheduled_at.replace(tzinfo=UTC)
+
+    delay_minutes = int((now - scheduled_at).total_seconds() / 60)
+    if delay_minutes < settings.queue_alert_delay_minutes:
+        return
+
+    if last_queue_alert_sent_at is not None:
+        cooldown_until = last_queue_alert_sent_at + timedelta(minutes=settings.alert_cooldown_minutes)
+        if now < cooldown_until:
+            return
+
+    text = (
+        "⚠️ Внимание: Очередь прокси перегружена! "
+        f"Самый старый пост задерживается на {delay_minutes} минут. "
+        "Пора добавить новые порты."
+    )
+    await send_admin_alert(text)
+    last_queue_alert_sent_at = now
 
 
 async def analyze_daily_trends() -> None:
     async with AsyncSessionLocal() as session:
-        project_ids = list(
+        projects = list(
             (
-                await session.scalars(
-                    select(Project.id).where(Project.is_active.is_(True)).order_by(Project.id.asc())
-                )
+                await session.scalars(select(Project).where(Project.is_active.is_(True)).order_by(Project.id.asc()))
             ).all()
         )
 
-        if not project_ids:
+        if not projects:
             logger.info("Daily trend analysis skipped: no active projects found.")
             return
 
-        for project_id in project_ids:
+        for project in projects:
+            if project.owner_id is None:
+                logger.info("Daily trend analysis skipped for project #%s: no owner.", project.id)
+                continue
+
             try:
-                scrape_result = await scrape_trends(project_id=project_id, session=session)
-                saved_trends = await analyze_and_save_trends(
-                    project_id=project_id,
-                    raw_posts=scrape_result.raw_posts,
-                    session=session,
+                existing_operation_id = await session.scalar(
+                    select(ProjectOperation.id)
+                    .where(
+                        ProjectOperation.project_id == project.id,
+                        ProjectOperation.action_type == ProjectOperationType.SCRAPING,
+                        ProjectOperation.status.in_(
+                            [ProjectOperationStatus.QUEUED, ProjectOperationStatus.RUNNING]
+                        ),
+                    )
+                    .limit(1)
                 )
-                logger.info(
-                    "Daily trend analysis completed for project #%s. Scraped=%s raw=%s analyzed=%s",
-                    project_id,
-                    len(scrape_result.raw_posts),
-                    scrape_result.saved_raw_count,
-                    len(saved_trends),
+
+                if existing_operation_id is not None:
+                    logger.info("Daily trend analysis already queued/running for project #%s.", project.id)
+                    continue
+
+                session.add(
+                    ProjectOperation(
+                        project_id=project.id,
+                        owner_id=project.owner_id,
+                        action_type=ProjectOperationType.SCRAPING,
+                        status=ProjectOperationStatus.QUEUED,
+                        message="Scheduled trend scraping queued for the next safe proxy window.",
+                    )
                 )
+                await session.commit()
+                logger.info("Daily trend analysis queued for project #%s.", project.id)
             except Exception as exc:
                 await session.rollback()
                 await send_admin_notification(
-                    f"Daily trend analysis failed for project #{project_id}.\n\nError: {exc}"
+                    f"Daily trend analysis queueing failed for project #{project.id}.\n\nError: {exc}"
                 )
 
 
 async def check_and_run_tasks() -> None:
     await ensure_account_based_queue()
-    task_ids = await _claim_due_tasks()
-
-    for task_id in task_ids:
-        asyncio.create_task(_run_task_with_jitter(task_id))
 
 
 async def ensure_account_based_queue() -> None:
@@ -326,77 +396,3 @@ def _build_account_topic(project: Project, account: Account, todays_count: int) 
         ),
     ]
     return "\n".join(parts)
-
-
-async def _claim_due_tasks() -> list[int]:
-    now = datetime.now(UTC)
-
-    async with AsyncSessionLocal() as session:
-        candidate_stmt = (
-            select(PostingTask)
-            .join(Account, PostingTask.account_id == Account.id)
-            .join(Project, PostingTask.project_id == Project.id)
-            .where(
-                PostingTask.status == PostingTaskStatus.QUEUED,
-                PostingTask.account_id.is_not(None),
-                PostingTask.scheduled_at.is_not(None),
-                PostingTask.scheduled_at <= now,
-                Account.status == AccountStatus.ACTIVE,
-                Project.is_active.is_(True),
-            )
-            .order_by(PostingTask.scheduled_at.asc(), PostingTask.id.asc())
-            .limit(MAX_TASKS_PER_TICK * 3)
-        )
-        candidate_tasks = list((await session.scalars(candidate_stmt)).all())
-        tasks: list[PostingTask] = []
-
-        for task in candidate_tasks:
-            project = await session.get(Project, task.project_id)
-            if project is None:
-                continue
-
-            if not _is_project_in_active_window(project, now):
-                task.scheduled_at = _next_project_active_start(project, now)
-                continue
-
-            if await _count_project_success_today(project, session) >= _project_posts_per_day(project):
-                task.scheduled_at = _next_project_active_start(project, now + timedelta(days=1))
-                continue
-
-            task.status = PostingTaskStatus.RUNNING
-            task.started_at = now
-            task.error_message = None
-            tasks.append(task)
-
-            if len(tasks) >= MAX_TASKS_PER_TICK:
-                break
-
-        await session.commit()
-        return [task.id for task in tasks]
-
-
-async def _run_task_with_jitter(task_id: int) -> None:
-    delay_seconds = random.randint(JITTER_MIN_SECONDS, JITTER_MAX_SECONDS)
-    await asyncio.sleep(delay_seconds)
-
-    try:
-        async with AsyncSessionLocal() as session:
-            await execute_posting_task(task_id=task_id, session=session)
-    except Exception as exc:
-        await _mark_scheduler_task_failed(task_id=task_id, error_message=str(exc))
-        await send_admin_notification(
-            f"Фоновая публикация #{task_id} упала до запуска Selenium.\n\nОшибка: {exc}"
-        )
-
-
-async def _mark_scheduler_task_failed(task_id: int, error_message: str) -> None:
-    async with AsyncSessionLocal() as session:
-        task = await session.get(PostingTask, task_id)
-        if task is None:
-            return
-
-        task.status = PostingTaskStatus.FAILED
-        task.finished_at = datetime.now(UTC)
-        task.error_message = error_message
-        task.retry_count += 1
-        await session.commit()

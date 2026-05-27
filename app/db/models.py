@@ -47,6 +47,7 @@ class ProjectOperationType(StrEnum):
 
 
 class ProjectOperationStatus(StrEnum):
+    QUEUED = "queued"
     RUNNING = "running"
     SUCCESS = "success"
     FAILED = "failed"
@@ -284,7 +285,7 @@ class ProjectOperation(Base, TimestampMixin):
     )
     status: Mapped[ProjectOperationStatus] = mapped_column(
         SAEnum(ProjectOperationStatus, values_callable=enum_values),
-        default=ProjectOperationStatus.RUNNING,
+        default=ProjectOperationStatus.QUEUED,
         nullable=False,
     )
     message: Mapped[str | None] = mapped_column(Text, nullable=True)

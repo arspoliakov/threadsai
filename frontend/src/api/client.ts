@@ -283,7 +283,7 @@ export type TriggerScrapingResult = {
 };
 
 export type ProjectOperationType = "scraping" | "generation";
-export type ProjectOperationStatus = "running" | "success" | "failed";
+export type ProjectOperationStatus = "queued" | "running" | "success" | "failed";
 
 export type ProjectOperation = {
   id: number;

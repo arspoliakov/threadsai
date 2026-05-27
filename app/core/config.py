@@ -31,6 +31,22 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="ADMIN_CHAT_ID",
     )
+    admin_bot_token: str = Field(
+        default="",
+        validation_alias="ADMIN_BOT_TOKEN",
+    )
+    admin_tg_id: int | None = Field(
+        default=None,
+        validation_alias="ADMIN_TG_ID",
+    )
+    queue_alert_delay_minutes: int = Field(
+        default=30,
+        validation_alias="QUEUE_ALERT_DELAY_MINUTES",
+    )
+    alert_cooldown_minutes: int = Field(
+        default=180,
+        validation_alias="ALERT_COOLDOWN_MINUTES",
+    )
     web_admin_token: str = Field(
         default="dev-admin-token",
         validation_alias="WEB_ADMIN_TOKEN",

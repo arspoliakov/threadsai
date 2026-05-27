@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Account, AccountStatus, Platform, SavedTrend
 from app.posting.adapters.threads import ThreadsAdapter
+from app.posting.exceptions import PostingDeadlineExceeded, ProxyNetworkException
 
 
 logging.basicConfig(level=logging.INFO)
@@ -48,37 +49,63 @@ class ThreadsTrendScraper:
     def __init__(self, timeout_seconds: int = 25) -> None:
         self.adapter = ThreadsAdapter(timeout_seconds=timeout_seconds)
 
-    def scrape(self, account: Account, target_url: str = DEFAULT_THREADS_FEED_URL) -> list[dict[str, Any]]:
+    def scrape(
+        self,
+        account: Account,
+        target_url: str = DEFAULT_THREADS_FEED_URL,
+        *,
+        deadline_at: float | None = None,
+    ) -> list[dict[str, Any]]:
         session_payload = self.adapter._load_json(account.session_data_encrypted)
         proxy_url = session_payload.get("proxy") or account.proxy_url
         proxy_extension_path: Path | None = None
         driver: WebDriver | None = None
+        deadline_watchdog = None
 
         try:
+            self.adapter._raise_if_deadline_exceeded(deadline_at)
             if proxy_url:
                 proxy_extension_path = self.adapter._create_proxy_extension(proxy_url, account.id)
 
             driver = self.adapter._create_driver(proxy_extension_path, account_id=account.id)
+            deadline_watchdog = self.adapter._start_deadline_watchdog(driver, deadline_at, account.id)
+            self.adapter._raise_if_deadline_exceeded(deadline_at)
             self.adapter._apply_network_blocking(driver)
             self.adapter._authenticate_with_cookies(driver, account)
+            self.adapter._raise_if_deadline_exceeded(deadline_at)
             driver.get(target_url)
             self.adapter._wait_for_dom(driver)
-            time.sleep(INITIAL_FEED_PAUSE_SECONDS)
-            self._wait_for_feed_content(driver)
-            self._scroll_feed(driver)
+            _sleep_with_deadline(INITIAL_FEED_PAUSE_SECONDS, deadline_at, self.adapter)
+            self._wait_for_feed_content(driver, deadline_at)
+            self._scroll_feed(driver, deadline_at)
+            self.adapter._raise_if_deadline_exceeded(deadline_at)
             return self._extract_posts(driver, target_url)
+        except PostingDeadlineExceeded:
+            raise
+        except WebDriverException as exc:
+            if self.adapter._is_deadline_exceeded(deadline_at):
+                raise PostingDeadlineExceeded("Threads scraping exceeded the safe proxy window.") from exc
+
+            if self.adapter._is_retryable_network_error(exc):
+                raise ProxyNetworkException(f"Threads scraping proxy/network transport failed: {exc}") from exc
+
+            raise
         finally:
+            if deadline_watchdog is not None:
+                deadline_watchdog.set()
             self.adapter._quit_driver_safely(driver)
             if proxy_extension_path is not None:
                 self.adapter._remove_file_safely(proxy_extension_path)
 
-    def _scroll_feed(self, driver: WebDriver) -> None:
+    def _scroll_feed(self, driver: WebDriver, deadline_at: float | None = None) -> None:
         for _ in range(SCROLL_TIMES):
+            self.adapter._raise_if_deadline_exceeded(deadline_at)
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(SCROLL_PAUSE_SECONDS)
+            _sleep_with_deadline(SCROLL_PAUSE_SECONDS, deadline_at, self.adapter)
 
-    def _wait_for_feed_content(self, driver: WebDriver) -> None:
+    def _wait_for_feed_content(self, driver: WebDriver, deadline_at: float | None = None) -> None:
         for attempt in range(MAX_EMPTY_FEED_REFRESHES + 1):
+            self.adapter._raise_if_deadline_exceeded(deadline_at)
             if self._has_feed_content(driver):
                 logger.info("Лента Threads прогружена, попытка: %s", attempt + 1)
                 return
@@ -90,7 +117,7 @@ class ThreadsTrendScraper:
             logger.info("Лента Threads пустая, делаю принудительный refresh: %s/%s", attempt + 1, MAX_EMPTY_FEED_REFRESHES)
             driver.refresh()
             self.adapter._wait_for_dom(driver)
-            time.sleep(EMPTY_FEED_REFRESH_PAUSE_SECONDS)
+            _sleep_with_deadline(EMPTY_FEED_REFRESH_PAUSE_SECONDS, deadline_at, self.adapter)
 
     def _has_feed_content(self, driver: WebDriver) -> bool:
         try:
@@ -353,13 +380,20 @@ async def scrape_trends(
     project_id: int,
     session: AsyncSession,
     target_url: str = DEFAULT_THREADS_FEED_URL,
+    deadline_at: float | None = None,
+    account_id: int | None = None,
 ) -> ScrapeTrendsResult:
-    account = await _get_scraping_account(project_id=project_id, session=session)
+    account = await _get_scraping_account(project_id=project_id, session=session, account_id=account_id)
 
     if account is None:
         raise ValueError("Project has no active Threads account with cookies for scraping.")
 
-    raw_posts = await asyncio.to_thread(ThreadsTrendScraper().scrape, account, target_url)
+    raw_posts = await asyncio.to_thread(
+        ThreadsTrendScraper().scrape,
+        account,
+        target_url,
+        deadline_at=deadline_at,
+    )
     raw_posts = sorted(raw_posts, key=lambda post: post.get("likes", 0), reverse=True)
     saved_raw_count = await save_scraped_posts(project_id=project_id, raw_posts=raw_posts, session=session)
     return ScrapeTrendsResult(raw_posts=raw_posts, saved_raw_count=saved_raw_count)
@@ -438,7 +472,11 @@ async def scrape_daily_trend_feed() -> list[dict[str, Any]]:
     return []
 
 
-async def _get_scraping_account(project_id: int, session: AsyncSession) -> Account | None:
+async def _get_scraping_account(
+    project_id: int,
+    session: AsyncSession,
+    account_id: int | None = None,
+) -> Account | None:
     stmt = (
         select(Account)
         .where(
@@ -450,6 +488,9 @@ async def _get_scraping_account(project_id: int, session: AsyncSession) -> Accou
         .order_by(Account.last_used_at.asc().nulls_first(), Account.created_at.asc())
         .limit(1)
     )
+    if account_id is not None:
+        stmt = stmt.where(Account.id == account_id)
+
     return await session.scalar(stmt)
 
 
@@ -527,3 +568,12 @@ def _parse_localized_number(value: str) -> float:
         clean_value = clean_value.replace(".", "")
 
     return float(clean_value)
+
+
+def _sleep_with_deadline(seconds: float, deadline_at: float | None, adapter: ThreadsAdapter) -> None:
+    end_at = time.monotonic() + seconds
+    while time.monotonic() < end_at:
+        adapter._raise_if_deadline_exceeded(deadline_at)
+        time.sleep(min(0.5, end_at - time.monotonic()))
+
+    adapter._raise_if_deadline_exceeded(deadline_at)

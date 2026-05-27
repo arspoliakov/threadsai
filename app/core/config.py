@@ -51,6 +51,14 @@ class Settings(BaseSettings):
         default="",
         validation_alias="THREADS_PROXY_POOL",
     )
+    proxy_rotation_seconds: int = Field(
+        default=300,
+        validation_alias="PROXY_ROTATION_SECONDS",
+    )
+    selenium_deadline_seconds: int = Field(
+        default=250,
+        validation_alias="SELENIUM_DEADLINE_SECONDS",
+    )
     web_admin_token: str = Field(
         default="dev-admin-token",
         validation_alias="WEB_ADMIN_TOKEN",

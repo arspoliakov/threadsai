@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.db.models import (
     Account,
     AccountStatus,
@@ -39,8 +40,8 @@ IP_CHECK_URL = "https://api.ipify.org"
 PROXY_POLL_MIN_SECONDS = 5
 PROXY_POLL_MAX_SECONDS = 10
 PROXY_DISCOVERY_INTERVAL_SECONDS = 60
-PROXY_ROTATION_SECONDS = 300
-SELENIUM_DEADLINE_SECONDS = 250
+PROXY_ROTATION_SECONDS = settings.proxy_rotation_seconds
+SELENIUM_DEADLINE_SECONDS = settings.selenium_deadline_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,8 @@ class ProxyManager:
 
 
 async def discover_active_proxy_urls() -> set[str]:
+    proxy_urls: set[str] = set(settings.threads_proxy_pool_urls())
+
     async with AsyncSessionLocal() as session:
         accounts = list(
             (
@@ -125,7 +128,6 @@ async def discover_active_proxy_urls() -> set[str]:
             ).all()
         )
 
-    proxy_urls: set[str] = set()
     for account in accounts:
         proxy_url = _account_proxy_url(account)
         if proxy_url:

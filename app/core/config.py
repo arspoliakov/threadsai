@@ -47,6 +47,10 @@ class Settings(BaseSettings):
         default=180,
         validation_alias="ALERT_COOLDOWN_MINUTES",
     )
+    threads_proxy_pool: str = Field(
+        default="",
+        validation_alias="THREADS_PROXY_POOL",
+    )
     web_admin_token: str = Field(
         default="dev-admin-token",
         validation_alias="WEB_ADMIN_TOKEN",
@@ -97,6 +101,17 @@ class Settings(BaseSettings):
             return False
 
         return telegram_id in self.approved_telegram_id_set()
+
+    def threads_proxy_pool_urls(self) -> list[str]:
+        raw_values = self.threads_proxy_pool.replace("\n", ",").replace(";", ",")
+        urls: list[str] = []
+
+        for raw_url in raw_values.split(","):
+            url = raw_url.strip()
+            if url and url not in urls:
+                urls.append(url)
+
+        return urls
 
 
 @lru_cache

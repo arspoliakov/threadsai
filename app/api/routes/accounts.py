@@ -9,6 +9,7 @@ from app.db.repositories.accounts import AccountRepository
 from app.posting.adapters.threads import ThreadsAdapter
 from app.posting.exceptions import SessionExpiredException
 from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
+from app.services.proxy_pool import prepare_account_create, prepare_account_update
 
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -41,8 +42,9 @@ async def create_account(
                 detail="Project not found",
             )
 
+    prepared_payload = await prepare_account_create(payload, db)
     account_repository = AccountRepository(db)
-    account = await account_repository.create_account(payload)
+    account = await account_repository.create_account(prepared_payload)
     account.owner_id = current_user_id
     await db.commit()
     await db.refresh(account)
@@ -133,7 +135,9 @@ async def update_account(
                 detail="Project not found",
             )
 
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    prepared_payload = prepare_account_update(payload)
+
+    for key, value in prepared_payload.model_dump(exclude_unset=True).items():
         setattr(account, key, value)
 
     await db.commit()

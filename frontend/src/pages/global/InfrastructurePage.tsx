@@ -13,15 +13,12 @@ import {
 } from "../../api/client";
 
 const THREADS_PLATFORM: Platform = "threads";
-const PROXY_POOL_STORAGE_KEY = "threadsbot.proxyPool";
 const SESSION_USERNAME_PLACEHOLDER = "pending_from_session";
 
 type AuthMode = "password" | "cookies";
 
 export default function InfrastructurePage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [proxyPool, setProxyPool] = useState<string[]>(() => loadProxyPool());
-  const [newProxyUrl, setNewProxyUrl] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
@@ -44,34 +41,6 @@ export default function InfrastructurePage() {
   useEffect(() => {
     void loadAccounts();
   }, []);
-
-  function handleAddProxy(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const normalizedProxy = newProxyUrl.trim();
-    if (!normalizedProxy) {
-      return;
-    }
-
-    if (proxyPool.includes(normalizedProxy)) {
-      toast.error("Такой прокси уже есть в пуле");
-      setNewProxyUrl("");
-      return;
-    }
-
-    const nextProxyPool = [...proxyPool, normalizedProxy];
-    setProxyPool(nextProxyPool);
-    saveProxyPool(nextProxyPool);
-    setNewProxyUrl("");
-    toast.success("Прокси добавлен");
-  }
-
-  function removeProxy(proxyUrl: string) {
-    const nextProxyPool = proxyPool.filter((item) => item !== proxyUrl);
-    setProxyPool(nextProxyPool);
-    saveProxyPool(nextProxyPool);
-    toast.success("Прокси удален из локального пула");
-  }
 
   async function handleCheckSession(accountId: number) {
     setCheckingId(accountId);
@@ -130,7 +99,7 @@ export default function InfrastructurePage() {
       <header className="grid gap-6 border-b border-[#c9c9c3] pb-8 md:grid-cols-[1fr_auto]">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-            Аккаунты и прокси
+            Аккаунты
           </p>
           <h1 className="mt-4 font-display text-5xl leading-none">Аккаунты</h1>
           <p className="mt-5 max-w-2xl text-sm leading-6 text-[#66645d]">
@@ -164,14 +133,14 @@ export default function InfrastructurePage() {
             </span>
             <div>
               <p className="text-sm font-medium">Пул профилей</p>
-              <p className="mt-1 text-xs text-white/45">cookies, прокси и здоровье сессий</p>
+              <p className="mt-1 text-xs text-white/45">cookies и здоровье сессий</p>
             </div>
           </div>
           <h2 className="mt-8 max-w-xl font-display text-4xl leading-none tracking-[-0.04em] sm:text-5xl">
             Перед запуском масштабирования проверьте инфраструктуру.
           </h2>
           <p className="mt-5 max-w-xl text-sm leading-7 text-white/58">
-            Каждый Threads-профиль живет отдельно: свой статус cookies, свой прокси и своя привязка к проекту.
+            Каждый Threads-профиль живет отдельно: свой статус cookies и своя привязка к проекту.
             Если сессия слетит, система остановит публикации и покажет проблему здесь.
           </p>
         </div>
@@ -225,71 +194,8 @@ export default function InfrastructurePage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
-        <div className="border-b border-[#e7e5de] pb-5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-            Proxy pool
-          </p>
-          <h2 className="mt-2 font-display text-3xl">Прокси</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Это локальный список для формы добавления аккаунта. Сам прокси сохраняется внутри аккаунта.
-          </p>
-          <div className="mt-5 rounded-3xl border border-[#dfe4dc] bg-[#f6fbf3] p-5">
-            <p className="text-sm font-medium text-[#07100e]">Зачем нужны прокси</p>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5d685d]">
-              Для теста можно запустить профиль без прокси, но для масштабирования лучше правило:
-              один Threads-профиль — один отдельный прокси. Если много аккаунтов работают с одного серверного IP,
-              Meta быстрее отправляет их на проверки или блокировки. Оптимальный вариант для боевого режима —
-              динамический мобильный прокси: он имитирует обычную сетевую среду живого пользователя и снижает риск
-              массового бана.
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleAddProxy} className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
-          <input
-            value={newProxyUrl}
-            onChange={(event) => setNewProxyUrl(event.target.value)}
-            placeholder="http://user:pass@ip:port"
-            className="rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] px-4 py-3 text-sm outline-none transition focus:border-[#151515]"
-          />
-          <button
-            type="submit"
-            className="rounded-2xl border border-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] transition hover:bg-[#151515] hover:text-white"
-          >
-            Добавить
-          </button>
-        </form>
-
-        <div className="mt-5 grid gap-2">
-          {proxyPool.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-[#d8d8d2] px-4 py-8 text-center text-sm text-[#77766f]">
-              Прокси пока не добавлены
-            </p>
-          ) : (
-            proxyPool.map((proxyUrl, index) => (
-              <div
-                key={proxyUrl}
-                className="grid gap-3 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] px-4 py-3 text-sm md:grid-cols-[80px_1fr_auto]"
-              >
-                <span className="font-mono text-xs uppercase text-[#77766f]">#{index + 1}</span>
-                <span className="truncate font-mono text-xs text-[#252525]">{proxyUrl}</span>
-                <button
-                  type="button"
-                  onClick={() => removeProxy(proxyUrl)}
-                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#8a2d25] transition hover:text-[#b42318]"
-                >
-                  удалить
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
       {isCreateOpen ? (
         <CreateAccountPanel
-          proxyPool={proxyPool}
           onClose={() => setIsCreateOpen(false)}
           onCreated={async () => {
             setIsCreateOpen(false);
@@ -300,7 +206,6 @@ export default function InfrastructurePage() {
 
       {isBulkOpen ? (
         <BulkImportPanel
-          proxyPool={proxyPool}
           onClose={() => setIsBulkOpen(false)}
           onImported={async () => {
             setIsBulkOpen(false);
@@ -370,17 +275,8 @@ function AccountCard({
   );
 }
 
-function CreateAccountPanel({
-  proxyPool,
-  onClose,
-  onCreated,
-}: {
-  proxyPool: string[];
-  onClose: () => void;
-  onCreated: () => Promise<void>;
-}) {
+function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCreated: () => Promise<void> }) {
   const [password, setPassword] = useState("");
-  const [selectedProxyUrl, setSelectedProxyUrl] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode>("cookies");
   const [cookiesInput, setCookiesInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -398,12 +294,10 @@ function CreateAccountPanel({
         project_id: null,
         platform: THREADS_PLATFORM,
         username: SESSION_USERNAME_PLACEHOLDER,
-        proxy_url: selectedProxyUrl || null,
         session_data_encrypted: JSON.stringify({
           auth_method: authMode,
           username_source: "session",
           password: authMode === "password" ? password : undefined,
-          proxy: selectedProxyUrl || undefined,
         }),
         cookies_encrypted: cookiesPayload,
         status: "active",
@@ -481,22 +375,6 @@ function CreateAccountPanel({
             </label>
           )}
 
-          <label className="mt-8 grid gap-2">
-            <span className="field-label">Прокси</span>
-            <select
-              value={selectedProxyUrl}
-              onChange={(event) => setSelectedProxyUrl(event.target.value)}
-              className="field-control"
-            >
-              <option value="">Без прокси / динамический IP</option>
-              {proxyPool.map((proxyUrl) => (
-                <option key={proxyUrl} value={proxyUrl}>
-                  {proxyUrl}
-                </option>
-              ))}
-            </select>
-          </label>
-
           {error ? (
             <div className="mt-6 border-l-2 border-[#b42318] px-4 py-3 text-sm text-[#61140e]">
               {error}
@@ -518,17 +396,8 @@ function CreateAccountPanel({
   );
 }
 
-function BulkImportPanel({
-  proxyPool,
-  onClose,
-  onImported,
-}: {
-  proxyPool: string[];
-  onClose: () => void;
-  onImported: () => Promise<void>;
-}) {
+function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImported: () => Promise<void> }) {
   const [rawInput, setRawInput] = useState("");
-  const [selectedProxyUrl, setSelectedProxyUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
@@ -539,7 +408,7 @@ function BulkImportPanel({
 
     let items: BulkAccountDraft[];
     try {
-      items = parseBulkAccounts(rawInput, selectedProxyUrl);
+      items = parseBulkAccounts(rawInput);
     } catch (parseError) {
       const message = parseError instanceof Error ? parseError.message : "Не удалось разобрать список аккаунтов.";
       setError(message);
@@ -564,11 +433,9 @@ function BulkImportPanel({
           project_id: null,
           platform: THREADS_PLATFORM,
           username: SESSION_USERNAME_PLACEHOLDER,
-          proxy_url: item.proxyUrl || null,
           session_data_encrypted: JSON.stringify({
             auth_method: "cookies",
             username_source: "session",
-            proxy: item.proxyUrl || undefined,
           }),
           cookies_encrypted: item.cookiesPayload,
           status: "active",
@@ -617,27 +484,10 @@ function BulkImportPanel({
         <form onSubmit={handleBulkImport} className="flex flex-1 flex-col overflow-y-auto px-7 py-8">
           <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
             Безопасный формат для пачки: JSON-массив объектов вида
-            <code className="mx-1 rounded bg-[#f1f1eb] px-1">{"[{\"cookies\": [...], \"proxy_url\": \"http://...\"}]"}</code>.
+            <code className="mx-1 rounded bg-[#f1f1eb] px-1">{"[{\"cookies\": [...]}]"}</code>.
             Можно также вставлять несколько cookie-экспортов через строку-разделитель <code className="rounded bg-[#f1f1eb] px-1">---</code>.
             Автопроверку cookies после импорта не запускаем, чтобы не открыть десятки браузеров сразу.
           </div>
-
-          <label className="mt-6 grid gap-2">
-            <span className="field-label">Прокси по умолчанию</span>
-            <select
-              value={selectedProxyUrl}
-              onChange={(event) => setSelectedProxyUrl(event.target.value)}
-              disabled={isImporting}
-              className="field-control"
-            >
-              <option value="">Без общего прокси</option>
-              {proxyPool.map((proxyUrl) => (
-                <option key={proxyUrl} value={proxyUrl}>
-                  {proxyUrl}
-                </option>
-              ))}
-            </select>
-          </label>
 
           <label className="mt-6 grid gap-2">
             <span className="field-label">Список cookies</span>
@@ -647,7 +497,7 @@ function BulkImportPanel({
               disabled={isImporting}
               rows={16}
               placeholder={`[
-  {"cookies": [{"name": "sessionid", "value": "...", "domain": ".threads.net"}], "proxy_url": "http://user:pass@ip:port"},
+  {"cookies": [{"name": "sessionid", "value": "...", "domain": ".threads.net"}]},
   {"cookies": [{"name": "sessionid", "value": "...", "domain": ".threads.net"}]}
 ]`}
               className="field-control resize-y font-mono text-xs leading-5"
@@ -824,10 +674,9 @@ function normalizeCookies(value: string) {
 
 type BulkAccountDraft = {
   cookiesPayload: string;
-  proxyUrl: string;
 };
 
-function parseBulkAccounts(value: string, defaultProxyUrl: string): BulkAccountDraft[] {
+function parseBulkAccounts(value: string): BulkAccountDraft[] {
   const trimmedValue = value.trim();
 
   if (!trimmedValue) {
@@ -838,14 +687,14 @@ function parseBulkAccounts(value: string, defaultProxyUrl: string): BulkAccountD
     const parsed = JSON.parse(trimmedValue);
 
     if (Array.isArray(parsed) && isCookieList(parsed)) {
-      return [{ cookiesPayload: JSON.stringify(parsed), proxyUrl: defaultProxyUrl }];
+      return [{ cookiesPayload: JSON.stringify(parsed) }];
     }
 
     if (Array.isArray(parsed)) {
-      return parsed.map((item, index) => normalizeBulkItem(item, defaultProxyUrl, index));
+      return parsed.map((item, index) => normalizeBulkItem(item, index));
     }
 
-    return [normalizeBulkItem(parsed, defaultProxyUrl, 0)];
+    return [normalizeBulkItem(parsed, 0)];
   } catch {
     return trimmedValue
       .split(/\n\s*---\s*\n/g)
@@ -855,18 +704,18 @@ function parseBulkAccounts(value: string, defaultProxyUrl: string): BulkAccountD
         try {
           const parsedBlock = JSON.parse(block);
           return Array.isArray(parsedBlock) && isCookieList(parsedBlock)
-            ? { cookiesPayload: JSON.stringify(parsedBlock), proxyUrl: defaultProxyUrl }
-            : normalizeBulkItem(parsedBlock, defaultProxyUrl, index);
+            ? { cookiesPayload: JSON.stringify(parsedBlock) }
+            : normalizeBulkItem(parsedBlock, index);
         } catch {
-          return { cookiesPayload: JSON.stringify(block), proxyUrl: defaultProxyUrl };
+          return { cookiesPayload: JSON.stringify(block) };
         }
       });
   }
 }
 
-function normalizeBulkItem(item: unknown, defaultProxyUrl: string, index: number): BulkAccountDraft {
+function normalizeBulkItem(item: unknown, index: number): BulkAccountDraft {
   if (typeof item === "string") {
-    return { cookiesPayload: normalizeCookies(item), proxyUrl: defaultProxyUrl };
+    return { cookiesPayload: normalizeCookies(item) };
   }
 
   if (!item || typeof item !== "object") {
@@ -879,14 +728,12 @@ function normalizeBulkItem(item: unknown, defaultProxyUrl: string, index: number
   if (typeof cookies === "string") {
     return {
       cookiesPayload: normalizeCookies(cookies),
-      proxyUrl: typeof record.proxy_url === "string" ? record.proxy_url : defaultProxyUrl,
     };
   }
 
   if (Array.isArray(cookies)) {
     return {
       cookiesPayload: JSON.stringify(cookies),
-      proxyUrl: typeof record.proxy_url === "string" ? record.proxy_url : defaultProxyUrl,
     };
   }
 
@@ -905,20 +752,4 @@ function isCookieList(value: unknown[]): boolean {
 
 function formatUsername(username: string) {
   return username === SESSION_USERNAME_PLACEHOLDER ? "Из сессии" : `@${username.replace(/^@/, "")}`;
-}
-
-function loadProxyPool() {
-  try {
-    const rawValue = window.localStorage.getItem(PROXY_POOL_STORAGE_KEY);
-    const parsedValue = rawValue ? JSON.parse(rawValue) : [];
-    return Array.isArray(parsedValue)
-      ? parsedValue.filter((item): item is string => typeof item === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveProxyPool(proxyPool: string[]) {
-  window.localStorage.setItem(PROXY_POOL_STORAGE_KEY, JSON.stringify(proxyPool));
 }

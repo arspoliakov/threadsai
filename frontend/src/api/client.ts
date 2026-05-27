@@ -183,9 +183,6 @@ export type Account = {
   platform: Platform;
   username: string;
   display_name: string | null;
-  proxy_url: string | null;
-  session_data_encrypted: string | null;
-  cookies_encrypted: string | null;
   status: AccountStatus;
   last_used_at: string | null;
   last_error: string | null;
@@ -198,7 +195,6 @@ export type AccountCreatePayload = {
   platform: Platform;
   username: string;
   display_name?: string | null;
-  proxy_url?: string | null;
   session_data_encrypted?: string | null;
   cookies_encrypted?: string | null;
   status?: AccountStatus;

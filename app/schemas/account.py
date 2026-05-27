@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.db.models import AccountStatus, Platform
 
 
-class AccountBase(BaseModel):
+class AccountCreate(BaseModel):
     project_id: int | None = None
     platform: Platform
     username: str = Field(min_length=1, max_length=255)
@@ -14,10 +14,6 @@ class AccountBase(BaseModel):
     session_data_encrypted: str | None = None
     cookies_encrypted: str | None = None
     status: AccountStatus = AccountStatus.ACTIVE
-
-
-class AccountCreate(AccountBase):
-    pass
 
 
 class AccountUpdate(BaseModel):
@@ -32,11 +28,16 @@ class AccountUpdate(BaseModel):
     last_error: str | None = None
 
 
-class AccountRead(AccountBase):
+class AccountRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     owner_id: int | None
+    project_id: int | None
+    platform: Platform
+    username: str
+    display_name: str | None
+    status: AccountStatus
     last_used_at: datetime | None
     last_error: str | None
     created_at: datetime

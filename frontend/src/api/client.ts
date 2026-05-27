@@ -103,6 +103,8 @@ export type Project = {
   target_audience: string | null;
   tone_of_voice: string | null;
   product_context: string | null;
+  conversion_mode: ConversionMode;
+  conversion_target: string | null;
   stop_words: string[];
   posts_per_day: number;
   active_hours_start: string;
@@ -113,12 +115,16 @@ export type Project = {
   updated_at: string;
 };
 
+export type ConversionMode = "bio_link" | "pinned_post" | "none";
+
 export type ProjectCreatePayload = {
   name: string;
   slug: string;
   description?: string | null;
   global_context?: string | null;
   target_actions?: string[];
+  conversion_mode?: ConversionMode;
+  conversion_target?: string | null;
   stop_words?: string[];
   is_active?: boolean;
 };

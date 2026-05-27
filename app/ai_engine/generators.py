@@ -210,6 +210,7 @@ async def generate_post(
     publication_memory = await _get_recent_generated_posts(project_id=project_id, session=session)
     project_stop_words = _normalize_project_stop_words(project)
     target_actions = _normalize_target_actions(project)
+    conversion_mode = _normalize_conversion_mode(project)
 
     system_prompt = _build_generation_system_prompt(
         project_prompt=project_prompt,
@@ -218,6 +219,10 @@ async def generate_post(
         publication_memory=_build_publication_memory_context(publication_memory),
         project_stop_words=_build_project_stop_words_rule(project_stop_words),
         target_actions_rule=_build_target_actions_rule(target_actions),
+        conversion_rule=_build_conversion_rule(
+            conversion_mode=conversion_mode,
+            conversion_target=(project.conversion_target if project else None),
+        ),
         topic=topic_or_context,
     )
     client = get_deepinfra_client()
@@ -242,6 +247,7 @@ async def generate_post(
         "trends_used_count": len(trends),
         "publication_memory_used_count": len(publication_memory),
         "target_actions_count": len(target_actions),
+        "conversion_mode": conversion_mode,
         "validation_attempts": parsed_response.get("_validation_attempts", "1"),
     }
     posting_task = PostingTask(
@@ -382,6 +388,8 @@ def _build_project_description(project: Project | None) -> str:
         f"название проекта: {project.name}",
         f"global_context: {global_context or legacy_context or 'не указан'}",
         f"ниша: {project.niche or 'не указана'}",
+        f"conversion_mode: {_normalize_conversion_mode(project)}",
+        f"conversion_target: {(project.conversion_target or '').strip() or 'not specified'}",
     ]
     return "\n".join(parts)
 
@@ -394,6 +402,11 @@ def _normalize_project_stop_words(project: Project | None) -> list[str]:
 def _normalize_target_actions(project: Project | None) -> list[str]:
     raw_actions = project.target_actions if project else []
     return list(dict.fromkeys(action.strip() for action in raw_actions if action and action.strip()))
+
+
+def _normalize_conversion_mode(project: Project | None) -> str:
+    mode = (project.conversion_mode if project else "bio_link") or "bio_link"
+    return mode if mode in {"bio_link", "pinned_post", "none"} else "bio_link"
 
 
 def _build_project_stop_words_rule(stop_words: list[str]) -> str:
@@ -422,9 +435,47 @@ def _build_target_actions_rule(target_actions: list[str]) -> str:
         "## правило для финала поста\n\n"
         "У тебя есть список целевых действий:\n"
         f"{joined_actions}\n\n"
-        "Выбери строго ОДНО действие, которое наиболее естественно и логично подходит к тональности "
-        "написанного тобой поста, и нативно интегрируй его в конец. Если тренд слишком личный или шуточный, "
-        "и любой призыв убьет нативность, можешь не использовать целевое действие вообще и завершить пост естественно."
+        "Treat these as optional business outcomes, not mandatory endings. "
+        "Use at most one target action only when it feels native to the post and does not reduce trust. "
+        "If the post is stronger without a CTA, skip the target action and finish naturally."
+    )
+
+
+def _build_conversion_rule(*, conversion_mode: str, conversion_target: str | None) -> str:
+    target = (conversion_target or "").strip()
+    target_line = f"Known conversion asset: {target}" if target else "Known conversion asset: not specified."
+
+    if conversion_mode == "none":
+        return (
+            "## conversion strategy\n\n"
+            "The project does not use an explicit redirect destination for this post. "
+            "Do not mention links, bio, profile links, pinned posts, funnels, lead magnets, or 'go to my profile'. "
+            "End naturally with a useful thought, a sharp open loop, or a discussion question."
+        )
+
+    if conversion_mode == "pinned_post":
+        destination_rule = (
+            "If a conversion hint genuinely fits the post, point curiosity toward the profile or pinned post, "
+            "not toward a bio link. Never write a hard CTA like 'click now' or 'buy now'."
+        )
+    else:
+        destination_rule = (
+            "If a conversion hint genuinely fits the post, point curiosity toward the profile or bio link. "
+            "Never write a hard CTA like 'click now' or 'buy now'."
+        )
+
+    return (
+        "## conversion strategy\n\n"
+        "Traffic strategy: value first, curiosity second, conversion third. "
+        "The post must be useful by itself and should not feel like an ad. "
+        "Use a soft conversion hint only when it is native to the idea; many posts should have no conversion hint at all. "
+        "At most one soft hint is allowed in a post.\n"
+        f"{target_line}\n"
+        f"{destination_rule} "
+        "Good patterns: 'I left the fuller breakdown in the profile', "
+        "'the detailed version is pinned in the profile', "
+        "'I keep the working notes there'. "
+        "Bad patterns: spammy CTAs, repeated sales language, direct promises, and forcing the same ending every time."
     )
 
 
@@ -436,6 +487,7 @@ def _build_generation_system_prompt(
     publication_memory: str,
     project_stop_words: str,
     target_actions_rule: str,
+    conversion_rule: str,
     topic: str,
 ) -> str:
     return "\n\n".join(
@@ -451,6 +503,7 @@ def _build_generation_system_prompt(
             trends_context,
             THREADS_VIBE_RULES,
             project_stop_words,
+            conversion_rule,
             target_actions_rule,
             STRUCTURED_OUTPUT_RULES,
         ]

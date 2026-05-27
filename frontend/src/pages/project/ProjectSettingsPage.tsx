@@ -11,6 +11,7 @@ import {
   updateProject,
   type Account,
   type AccountStatus,
+  type ConversionMode,
   type Project,
 } from "../../api/client";
 
@@ -21,6 +22,8 @@ export default function ProjectSettingsPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [globalContext, setGlobalContext] = useState("");
   const [targetActions, setTargetActions] = useState<string[]>([]);
+  const [conversionMode, setConversionMode] = useState<ConversionMode>("bio_link");
+  const [conversionTarget, setConversionTarget] = useState("");
   const [stopWords, setStopWords] = useState<string[]>([]);
   const [scheduleDraft, setScheduleDraft] = useState({
     posts_per_day: 3,
@@ -50,6 +53,8 @@ export default function ProjectSettingsPage() {
       setProject(dashboardResult.project);
       setGlobalContext(dashboardResult.project.global_context || dashboardResult.project.description || "");
       setTargetActions(normalizeTargetActions(dashboardResult.project.target_actions ?? []));
+      setConversionMode(dashboardResult.project.conversion_mode ?? "bio_link");
+      setConversionTarget(dashboardResult.project.conversion_target ?? "");
       setStopWords(dashboardResult.project.stop_words ?? []);
       setScheduleDraft({
         posts_per_day: dashboardResult.project.posts_per_day ?? 3,
@@ -116,6 +121,8 @@ export default function ProjectSettingsPage() {
       const savePromise = updateProject(project.id, {
         global_context: globalContext.trim() || null,
         target_actions: normalizedActions,
+        conversion_mode: conversionMode,
+        conversion_target: conversionTarget.trim() || null,
       });
       toast.promise(savePromise, {
         loading: "Сохраняем контекст и CTA...",
@@ -126,6 +133,8 @@ export default function ProjectSettingsPage() {
       setProject(savedProject);
       setGlobalContext(savedProject.global_context || "");
       setTargetActions(normalizeTargetActions(savedProject.target_actions ?? []));
+      setConversionMode(savedProject.conversion_mode ?? "bio_link");
+      setConversionTarget(savedProject.conversion_target ?? "");
     } finally {
       setIsSavingContext(false);
     }
@@ -347,6 +356,48 @@ export default function ProjectSettingsPage() {
                     ))
                   )}
                 </div>
+              </div>
+
+              <div className="grid gap-4 rounded-2xl border border-[#e1e1dc] bg-white p-4">
+                <div>
+                  <span className="field-label">Куда вести интерес</span>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <ConversionModeButton
+                      label="Ссылка в био"
+                      isActive={conversionMode === "bio_link"}
+                      onClick={() => setConversionMode("bio_link")}
+                      disabled={isLoading || isSavingContext}
+                    />
+                    <ConversionModeButton
+                      label="Закрепленный пост"
+                      isActive={conversionMode === "pinned_post"}
+                      onClick={() => setConversionMode("pinned_post")}
+                      disabled={isLoading || isSavingContext}
+                    />
+                    <ConversionModeButton
+                      label="Без увода"
+                      isActive={conversionMode === "none"}
+                      onClick={() => setConversionMode("none")}
+                      disabled={isLoading || isSavingContext}
+                    />
+                  </div>
+                </div>
+
+                {conversionMode !== "none" ? (
+                  <label className="grid gap-2">
+                    <span className="field-label">
+                      {conversionMode === "bio_link" ? "Что находится по ссылке в био" : "Что находится в закрепленном посте"}
+                    </span>
+                    <textarea
+                      value={conversionTarget}
+                      onChange={(event) => setConversionTarget(event.target.value)}
+                      disabled={isLoading || isSavingContext}
+                      rows={4}
+                      placeholder="Например: бесплатный разбор, форма заявки, подробная инструкция, кейс, каталог услуг."
+                      className="field-control resize-y leading-6 disabled:opacity-50"
+                    />
+                  </label>
+                ) : null}
               </div>
 
               <button
@@ -699,6 +750,33 @@ function ActionButton({
       }
     >
       {children}
+    </button>
+  );
+}
+
+function ConversionModeButton({
+  label,
+  isActive,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        isActive
+          ? "rounded-2xl border border-[#151515] bg-[#151515] px-3 py-3 text-left text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+          : "rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] px-3 py-3 text-left text-xs font-semibold text-[#24231f] transition hover:border-[#151515] disabled:cursor-not-allowed disabled:opacity-50"
+      }
+    >
+      {label}
     </button>
   );
 }

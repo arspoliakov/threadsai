@@ -89,6 +89,8 @@ class Project(Base, TimestampMixin):
     target_audience: Mapped[str | None] = mapped_column(Text, nullable=True)
     tone_of_voice: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    conversion_mode: Mapped[str] = mapped_column(String(32), default="bio_link", nullable=False)
+    conversion_target: Mapped[str | None] = mapped_column(Text, nullable=True)
     stop_words: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     posts_per_day: Mapped[int] = mapped_column(Integer, default=3, nullable=False)

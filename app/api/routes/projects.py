@@ -457,6 +457,8 @@ def _build_generation_topic(project: ProjectRead) -> str:
         project.target_audience,
         project.product_context,
         ". ".join(project.target_actions or []),
+        f"conversion mode: {project.conversion_mode}",
+        f"conversion asset: {project.conversion_target}" if project.conversion_target else None,
     ]
     topic = ". ".join(part for part in context_parts if part)
 

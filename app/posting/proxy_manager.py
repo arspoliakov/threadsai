@@ -189,7 +189,13 @@ async def _run_one_task_for_rotation(state: ProxyWorkerState, rotation_started_a
     try:
         if task.kind == "posting":
             async with AsyncSessionLocal() as session:
-                await execute_posting_task(task_id=task.task_id, session=session, deadline_at=deadline_at)
+                await execute_posting_task(
+                    task_id=task.task_id,
+                    session=session,
+                    deadline_at=deadline_at,
+                    ip_guard_proxy_url=state.proxy_url,
+                    expected_proxy_ip=state.last_ip,
+                )
             return
 
         if task.kind == "scraping":
@@ -197,6 +203,8 @@ async def _run_one_task_for_rotation(state: ProxyWorkerState, rotation_started_a
                 operation_id=task.task_id,
                 deadline_at=deadline_at,
                 account_id=task.account_id,
+                ip_guard_proxy_url=state.proxy_url,
+                expected_proxy_ip=state.last_ip,
             )
     finally:
         state.active_task_id = None
@@ -302,6 +310,8 @@ async def execute_scraping_operation(
     operation_id: int,
     deadline_at: float | None = None,
     account_id: int | None = None,
+    ip_guard_proxy_url: str | None = None,
+    expected_proxy_ip: str | None = None,
 ) -> None:
     async with AsyncSessionLocal() as session:
         operation = await session.get(ProjectOperation, operation_id)
@@ -317,6 +327,8 @@ async def execute_scraping_operation(
                 session=session,
                 deadline_at=deadline_at,
                 account_id=account_id,
+                ip_guard_proxy_url=ip_guard_proxy_url,
+                expected_proxy_ip=expected_proxy_ip,
             )
             saved_trends = await analyze_and_save_trends(
                 project_id=operation.project_id,

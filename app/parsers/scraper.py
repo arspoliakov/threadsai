@@ -55,12 +55,15 @@ class ThreadsTrendScraper:
         target_url: str = DEFAULT_THREADS_FEED_URL,
         *,
         deadline_at: float | None = None,
+        ip_guard_proxy_url: str | None = None,
+        expected_proxy_ip: str | None = None,
     ) -> list[dict[str, Any]]:
         session_payload = self.adapter._load_json(account.session_data_encrypted)
         proxy_url = session_payload.get("proxy") or account.proxy_url
         proxy_extension_path: Path | None = None
         driver: WebDriver | None = None
         deadline_watchdog = None
+        ip_watchdog = None
 
         try:
             self.adapter._raise_if_deadline_exceeded(deadline_at)
@@ -69,20 +72,33 @@ class ThreadsTrendScraper:
 
             driver = self.adapter._create_driver(proxy_extension_path, account_id=account.id)
             deadline_watchdog = self.adapter._start_deadline_watchdog(driver, deadline_at, account.id)
+            ip_watchdog = self.adapter._start_proxy_ip_watchdog(
+                driver=driver,
+                proxy_url=ip_guard_proxy_url,
+                expected_ip=expected_proxy_ip,
+                task_label=f"scraping account #{account.id}",
+            )
             self.adapter._raise_if_deadline_exceeded(deadline_at)
+            self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
             self.adapter._apply_network_blocking(driver)
             self.adapter._authenticate_with_cookies(driver, account)
             self.adapter._raise_if_deadline_exceeded(deadline_at)
+            self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
             driver.get(target_url)
             self.adapter._wait_for_dom(driver)
+            self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
             _sleep_with_deadline(INITIAL_FEED_PAUSE_SECONDS, deadline_at, self.adapter)
+            self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
             self._wait_for_feed_content(driver, deadline_at)
+            self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
             self._scroll_feed(driver, deadline_at)
             self.adapter._raise_if_deadline_exceeded(deadline_at)
+            self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
             return self._extract_posts(driver, target_url)
         except PostingDeadlineExceeded:
             raise
         except WebDriverException as exc:
+            self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
             if self.adapter._is_deadline_exceeded(deadline_at):
                 raise PostingDeadlineExceeded("Threads scraping exceeded the safe proxy window.") from exc
 
@@ -93,6 +109,8 @@ class ThreadsTrendScraper:
         finally:
             if deadline_watchdog is not None:
                 deadline_watchdog.set()
+            if ip_watchdog is not None:
+                ip_watchdog.stop_event.set()
             self.adapter._quit_driver_safely(driver)
             if proxy_extension_path is not None:
                 self.adapter._remove_file_safely(proxy_extension_path)
@@ -382,6 +400,8 @@ async def scrape_trends(
     target_url: str = DEFAULT_THREADS_FEED_URL,
     deadline_at: float | None = None,
     account_id: int | None = None,
+    ip_guard_proxy_url: str | None = None,
+    expected_proxy_ip: str | None = None,
 ) -> ScrapeTrendsResult:
     account = await _get_scraping_account(project_id=project_id, session=session, account_id=account_id)
 
@@ -393,6 +413,8 @@ async def scrape_trends(
         account,
         target_url,
         deadline_at=deadline_at,
+        ip_guard_proxy_url=ip_guard_proxy_url,
+        expected_proxy_ip=expected_proxy_ip,
     )
     raw_posts = sorted(raw_posts, key=lambda post: post.get("likes", 0), reverse=True)
     saved_raw_count = await save_scraped_posts(project_id=project_id, raw_posts=raw_posts, session=session)

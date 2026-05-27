@@ -26,6 +26,8 @@ async def execute_posting_task(
     session: AsyncSession,
     *,
     deadline_at: float | None = None,
+    ip_guard_proxy_url: str | None = None,
+    expected_proxy_ip: str | None = None,
 ) -> PostingTask:
     stmt = (
         select(PostingTask)
@@ -64,7 +66,13 @@ async def execute_posting_task(
         await session.refresh(task)
 
         adapter = get_adapter(account.platform)
-        publish_result = await adapter.publish(account=account, task=task, deadline_at=deadline_at)
+        publish_result = await adapter.publish(
+            account=account,
+            task=task,
+            deadline_at=deadline_at,
+            ip_guard_proxy_url=ip_guard_proxy_url,
+            expected_proxy_ip=expected_proxy_ip,
+        )
 
         if publish_result.detected_username and _should_update_username(account.username):
             account.username = publish_result.detected_username

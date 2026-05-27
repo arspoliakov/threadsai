@@ -7,10 +7,12 @@ import os
 import threading
 import time
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 from urllib.parse import unquote, urlparse
 
+import httpx
 from selenium import webdriver
 from selenium.common.exceptions import (
     ElementClickInterceptedException,
@@ -40,6 +42,14 @@ PROFILE_LOCKS: dict[int, Any] = {}
 PROFILE_LOCKS_GUARD = threading.Lock()
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
+
+
+@dataclass(slots=True)
+class ProxyIpWatchdog:
+    stop_event: threading.Event
+    changed_event: threading.Event
+    expected_ip: str
+    current_ip: str | None = None
 
 
 class ThreadsAdapter(BasePostingAdapter):
@@ -96,8 +106,17 @@ class ThreadsAdapter(BasePostingAdapter):
         task: PostingTask,
         *,
         deadline_at: float | None = None,
+        ip_guard_proxy_url: str | None = None,
+        expected_proxy_ip: str | None = None,
     ) -> PublishResult:
-        return await asyncio.to_thread(self._publish_sync, account, task, deadline_at)
+        return await asyncio.to_thread(
+            self._publish_sync,
+            account,
+            task,
+            deadline_at,
+            ip_guard_proxy_url,
+            expected_proxy_ip,
+        )
 
     async def check_session(self, account: Account) -> PublishResult:
         return await asyncio.to_thread(self._check_session_sync, account)
@@ -128,6 +147,8 @@ class ThreadsAdapter(BasePostingAdapter):
         account: Account,
         task: PostingTask,
         deadline_at: float | None = None,
+        ip_guard_proxy_url: str | None = None,
+        expected_proxy_ip: str | None = None,
     ) -> PublishResult:
         session_payload = self._load_json(account.session_data_encrypted)
         proxy_url = session_payload.get("proxy") or account.proxy_url
@@ -136,6 +157,7 @@ class ThreadsAdapter(BasePostingAdapter):
             proxy_extension_path: Path | None = None
             driver: WebDriver | None = None
             deadline_watchdog: threading.Event | None = None
+            ip_watchdog: ProxyIpWatchdog | None = None
 
             try:
                 self._raise_if_deadline_exceeded(deadline_at)
@@ -144,21 +166,32 @@ class ThreadsAdapter(BasePostingAdapter):
 
                 driver = self._create_driver(proxy_extension_path, account_id=account.id)
                 deadline_watchdog = self._start_deadline_watchdog(driver, deadline_at, task.id)
+                ip_watchdog = self._start_proxy_ip_watchdog(
+                    driver=driver,
+                    proxy_url=ip_guard_proxy_url,
+                    expected_ip=expected_proxy_ip,
+                    task_label=f"posting task #{task.id}",
+                )
                 self._raise_if_deadline_exceeded(deadline_at)
+                self._raise_if_proxy_ip_changed(ip_watchdog)
                 self._apply_network_blocking(driver)
                 self._authenticate_with_cookies(driver, account)
                 self._raise_if_deadline_exceeded(deadline_at)
+                self._raise_if_proxy_ip_changed(ip_watchdog)
                 logger.info("Threads auth completed for task #%s", task.id)
                 detected_username = self._extract_authenticated_username(driver)
                 self._raise_if_deadline_exceeded(deadline_at)
+                self._raise_if_proxy_ip_changed(ip_watchdog)
                 self._share_thread(driver, task.content_text, task.media_url)
                 self._raise_if_deadline_exceeded(deadline_at)
+                self._raise_if_proxy_ip_changed(ip_watchdog)
                 logger.info("Threads publish flow completed for task #%s", task.id)
                 return PublishResult(success=True, detected_username=detected_username)
             except (PostingDeadlineExceeded, ProxyNetworkException, SessionExpiredException):
                 raise
             except Exception as exc:
                 screenshot_path = self._save_error_screenshot(driver, task.id)
+                self._raise_if_proxy_ip_changed(ip_watchdog)
                 if self._is_deadline_exceeded(deadline_at):
                     raise PostingDeadlineExceeded(
                         f"Threads task #{task.id} exceeded the safe proxy window."
@@ -179,6 +212,8 @@ class ThreadsAdapter(BasePostingAdapter):
             finally:
                 if deadline_watchdog is not None:
                     deadline_watchdog.set()
+                if ip_watchdog is not None:
+                    ip_watchdog.stop_event.set()
                 self._quit_driver_safely(driver)
                 if proxy_extension_path is not None:
                     self._remove_file_safely(proxy_extension_path)
@@ -206,6 +241,64 @@ class ThreadsAdapter(BasePostingAdapter):
 
         threading.Thread(target=quit_on_deadline, daemon=True).start()
         return stop_event
+
+    def _start_proxy_ip_watchdog(
+        self,
+        *,
+        driver: WebDriver,
+        proxy_url: str | None,
+        expected_ip: str | None,
+        task_label: str,
+    ) -> ProxyIpWatchdog | None:
+        if not proxy_url or not expected_ip:
+            return None
+
+        watchdog = ProxyIpWatchdog(
+            stop_event=threading.Event(),
+            changed_event=threading.Event(),
+            expected_ip=expected_ip,
+        )
+
+        def quit_on_ip_change() -> None:
+            while not watchdog.stop_event.wait(5.0):
+                try:
+                    current_ip = self._get_proxy_ip_sync(proxy_url)
+                except Exception as exc:
+                    logger.warning("Proxy IP watchdog polling failed for %s: %s", task_label, exc)
+                    continue
+
+                watchdog.current_ip = current_ip
+                if current_ip != expected_ip:
+                    logger.warning(
+                        "Proxy IP changed during %s: %s -> %s. Forcing driver.quit().",
+                        task_label,
+                        expected_ip,
+                        current_ip,
+                    )
+                    watchdog.changed_event.set()
+                    self._quit_driver_safely(driver)
+                    return
+
+        threading.Thread(target=quit_on_ip_change, daemon=True).start()
+        return watchdog
+
+    def _raise_if_proxy_ip_changed(self, watchdog: ProxyIpWatchdog | None) -> None:
+        if watchdog is not None and watchdog.changed_event.is_set():
+            current_ip = watchdog.current_ip or "unknown"
+            raise ProxyNetworkException(
+                f"Proxy IP changed during Selenium session: {watchdog.expected_ip} -> {current_ip}."
+            )
+
+    def _get_proxy_ip_sync(self, proxy_url: str) -> str:
+        with httpx.Client(proxy=proxy_url, timeout=10.0) as client:
+            response = client.get("https://api.ipify.org")
+            response.raise_for_status()
+            current_ip = response.text.strip()
+
+        if not current_ip:
+            raise ProxyNetworkException("Proxy IP watchdog received an empty ipify response.")
+
+        return current_ip
 
     def _raise_if_deadline_exceeded(self, deadline_at: float | None) -> None:
         if self._is_deadline_exceeded(deadline_at):

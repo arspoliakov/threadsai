@@ -14,7 +14,7 @@ import {
   type ProjectAccountState,
 } from "../../api/client";
 
-const terminalStatuses: PostingTaskStatus[] = ["success", "failed", "cancelled"];
+const terminalStatuses: PostingTaskStatus[] = ["success", "partial_success", "failed", "cancelled"];
 
 export default function ProjectQueuePage() {
   const { id } = useParams();
@@ -429,6 +429,8 @@ function StatusDot({ status }: { status: PostingTaskStatus }) {
       ? "bg-[#b42318]"
       : status === "success"
         ? "bg-[#6f7564]"
+        : status === "partial_success"
+          ? "bg-[#d88a35]"
         : status === "running"
           ? "bg-[#151515]"
           : status === "cancelled"
@@ -481,6 +483,10 @@ function truncate(value: string, maxLength: number) {
 function formatStatus(status: PostingTaskStatus) {
   if (status === "success") {
     return "completed";
+  }
+
+  if (status === "partial_success") {
+    return "partial";
   }
 
   return status;

@@ -12,3 +12,11 @@ class PostingDeadlineExceeded(RetryablePostingException):
 
 class ProxyNetworkException(RetryablePostingException):
     """Raised when proxy/network transport fails during a browser task."""
+
+
+class ThreadChainPartialSuccess(RuntimeError):
+    """Raised when a thread chain published at least one item but failed later."""
+
+    def __init__(self, message: str, *, published_count: int) -> None:
+        super().__init__(message)
+        self.published_count = published_count

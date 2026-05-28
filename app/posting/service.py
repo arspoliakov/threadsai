@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project
 from app.posting.adapters.base import BasePostingAdapter
 from app.posting.adapters.threads import ThreadsAdapter
-from app.posting.exceptions import RetryablePostingException, SessionExpiredException
+from app.posting.exceptions import RetryablePostingException, SessionExpiredException, ThreadChainPartialSuccess
 from app.telegram.notifications import send_user_notification
 
 
@@ -90,6 +90,10 @@ async def execute_posting_task(
         await _mark_session_expired(session, task, account, error_message)
         await _notify_account_owner_about_session(account)
         return task
+    except ThreadChainPartialSuccess as exc:
+        error_message = str(exc)
+        await _mark_partial_success(session, task, account, error_message, exc.published_count)
+        return task
     except RetryablePostingException as exc:
         error_message = str(exc)
         await _mark_retryable(session, task, account, error_message)
@@ -123,6 +127,26 @@ async def _mark_retryable(
     task.finished_at = None
     task.error_message = error_message
     task.retry_count += 1
+    account.last_error = error_message
+    await session.commit()
+    await session.refresh(task)
+
+
+async def _mark_partial_success(
+    session: AsyncSession,
+    task: PostingTask,
+    account: Account,
+    error_message: str,
+    published_count: int,
+) -> None:
+    task.status = PostingTaskStatus.PARTIAL_SUCCESS
+    task.finished_at = datetime.now(UTC)
+    task.error_message = error_message
+    metadata = task.generation_metadata if isinstance(task.generation_metadata, dict) else {}
+    metadata["partial_success"] = True
+    metadata["published_chain_items"] = published_count
+    task.generation_metadata = metadata
+    account.last_used_at = task.finished_at
     account.last_error = error_message
     await session.commit()
     await session.refresh(task)

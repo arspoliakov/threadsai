@@ -75,6 +75,7 @@ class TriggerGenerationRead(BaseModel):
     status: PostingTaskStatus
     scheduled_at: datetime | None
     content_text: str
+    posts_chain: list[str]
 
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -400,6 +401,7 @@ async def trigger_project_generation(
         status=posting_task.status,
         scheduled_at=posting_task.scheduled_at,
         content_text=posting_task.content_text,
+        posts_chain=posting_task.posts_chain,
     )
 
 

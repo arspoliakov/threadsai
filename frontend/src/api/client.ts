@@ -222,6 +222,7 @@ export type PostingTaskStatus =
   | "queued"
   | "running"
   | "success"
+  | "partial_success"
   | "failed"
   | "cancelled";
 
@@ -232,6 +233,7 @@ export type PostingTask = {
   source_trend_id: number | null;
   platform: Platform;
   content_text: string;
+  posts_chain: string[];
   media_url: string | null;
   status: PostingTaskStatus;
   scheduled_at: string | null;
@@ -304,6 +306,7 @@ export type TriggerGenerationResult = {
   status: PostingTaskStatus;
   scheduled_at: string | null;
   content_text: string;
+  posts_chain: string[];
 };
 
 export type PromptType =

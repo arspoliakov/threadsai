@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -272,6 +273,8 @@ async def claim_oldest_due_task_for_proxy(proxy_url: str) -> int | None:
 
 
 async def claim_oldest_scraping_operation_for_proxy(proxy_url: str) -> tuple[int, int] | None:
+    now = datetime.now(UTC)
+
     async with AsyncSessionLocal() as session:
         candidate_rows = list(
             (
@@ -287,19 +290,45 @@ async def claim_oldest_scraping_operation_for_proxy(proxy_url: str) -> tuple[int
                         Account.cookies_encrypted.is_not(None),
                         Project.is_active.is_(True),
                     )
-                    .order_by(ProjectOperation.started_at.asc(), ProjectOperation.id.asc())
-                    .limit(50)
+                    .order_by(
+                        ProjectOperation.started_at.asc(),
+                        ProjectOperation.id.asc(),
+                        Account.last_used_at.asc().nullsfirst(),
+                        Account.id.asc(),
+                    )
+                    .limit(100)
                 )
             ).all()
+        )
+
+        random.shuffle(candidate_rows)
+        candidate_rows.sort(
+            key=lambda row: (
+                row[0].started_at or datetime.min.replace(tzinfo=UTC),
+                row[0].id,
+                row[1].last_used_at or datetime.min.replace(tzinfo=UTC),
+            )
         )
 
         for operation, account, _project in candidate_rows:
             if _account_proxy_url(account) != proxy_url:
                 continue
 
+            has_running_task = await session.scalar(
+                select(PostingTask.id)
+                .where(
+                    PostingTask.account_id == account.id,
+                    PostingTask.status == PostingTaskStatus.RUNNING,
+                )
+                .limit(1)
+            )
+            if has_running_task is not None:
+                continue
+
             operation.status = ProjectOperationStatus.RUNNING
             operation.message = "Trend scraping is running in a safe proxy window."
             operation.finished_at = None
+            account.last_used_at = now
             await session.commit()
             return operation.id, account.id
 

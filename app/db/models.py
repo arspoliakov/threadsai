@@ -37,6 +37,7 @@ class PostingTaskStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     SUCCESS = "success"
+    PARTIAL_SUCCESS = "partial_success"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
@@ -182,6 +183,7 @@ class PostingTask(Base, TimestampMixin):
         nullable=False,
     )
     content_text: Mapped[str] = mapped_column(Text, nullable=False)
+    posts_chain: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     media_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     status: Mapped[PostingTaskStatus] = mapped_column(
         SAEnum(PostingTaskStatus, values_callable=enum_values),

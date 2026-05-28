@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import re
 import time
 from dataclasses import dataclass
@@ -206,6 +207,8 @@ class ThreadsTrendScraper:
             if likes is None:
                 logger.warning("Лайки не найдены, сохранен по дефолту: %s", preview)
 
+            self._maybe_like_post(container)
+
             posts.append(
                 {
                     "text": text,
@@ -226,6 +229,47 @@ class ThreadsTrendScraper:
                 break
 
         return sorted(posts, key=lambda post: post["likes"], reverse=True)[:MAX_SCRAPED_POSTS]
+
+    def _maybe_like_post(self, element) -> None:
+        if random.random() >= 0.33:
+            return
+
+        like_selectors = [
+            '[aria-label="Like"]',
+            '[aria-label*="Like"]',
+            '[aria-label*="like"]',
+            '[aria-label*="Нрав"]',
+            '[aria-label*="нрав"]',
+            '[aria-label*="Лайк"]',
+            '[aria-label*="лайк"]',
+            'svg[aria-label*="Like"]',
+            'svg[aria-label*="like"]',
+            'svg[aria-label*="Нрав"]',
+            'svg[aria-label*="Лайк"]',
+        ]
+
+        for selector in like_selectors:
+            try:
+                candidates = element.find_elements(By.CSS_SELECTOR, selector)
+            except WebDriverException:
+                continue
+
+            for candidate in candidates[:3]:
+                try:
+                    if not candidate.is_displayed():
+                        continue
+
+                    clickable = candidate
+                    try:
+                        clickable = candidate.find_element(By.XPATH, './ancestor::*[@role="button"][1]')
+                    except WebDriverException:
+                        pass
+
+                    clickable.click()
+                    logger.info("Piggyback engagement: liked a collected Threads post.")
+                    return
+                except (StaleElementReferenceException, WebDriverException):
+                    continue
 
     def _find_post_containers(self, driver: WebDriver):
         selectors = [

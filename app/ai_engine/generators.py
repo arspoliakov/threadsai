@@ -255,6 +255,7 @@ async def generate_post(
         account_id=account_id,
         platform=platform,
         content_text=generated_text,
+        posts_chain=[generated_text],
         media_url=media_url,
         status=PostingTaskStatus.QUEUED,
         scheduled_at=scheduled_at,

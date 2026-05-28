@@ -266,7 +266,7 @@ async def _count_project_success_today(project: Project, session: AsyncSession) 
     count = await session.scalar(
         select(func.count(PostingTask.id)).where(
             PostingTask.project_id == project.id,
-            PostingTask.status == PostingTaskStatus.SUCCESS,
+            PostingTask.status.in_([PostingTaskStatus.SUCCESS, PostingTaskStatus.PARTIAL_SUCCESS]),
             PostingTask.finished_at >= start_at,
             PostingTask.finished_at < end_at,
         )

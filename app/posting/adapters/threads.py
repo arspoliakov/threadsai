@@ -31,7 +31,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from app.db.models import Account, PostingTask
 from app.posting.adapters.base import BasePostingAdapter, PublishResult
-from app.posting.exceptions import PostingDeadlineExceeded, ProxyNetworkException, SessionExpiredException
+from app.posting.exceptions import (
+    PostingDeadlineExceeded,
+    ProxyNetworkException,
+    SessionExpiredException,
+    ThreadChainPartialSuccess,
+)
 
 
 SCREENSHOTS_DIR = Path("./data/screenshots")
@@ -182,12 +187,11 @@ class ThreadsAdapter(BasePostingAdapter):
                 detected_username = self._extract_authenticated_username(driver)
                 self._raise_if_deadline_exceeded(deadline_at)
                 self._raise_if_proxy_ip_changed(ip_watchdog)
-                self._share_thread(driver, task.content_text, task.media_url)
+                self._share_posts_chain(driver, _normalize_posts_chain(task), task.media_url)
                 self._raise_if_deadline_exceeded(deadline_at)
-                self._raise_if_proxy_ip_changed(ip_watchdog)
                 logger.info("Threads publish flow completed for task #%s", task.id)
                 return PublishResult(success=True, detected_username=detected_username)
-            except (PostingDeadlineExceeded, ProxyNetworkException, SessionExpiredException):
+            except (PostingDeadlineExceeded, ProxyNetworkException, SessionExpiredException, ThreadChainPartialSuccess):
                 raise
             except Exception as exc:
                 screenshot_path = self._save_error_screenshot(driver, task.id)
@@ -551,6 +555,27 @@ class ThreadsAdapter(BasePostingAdapter):
 
         return False
 
+    def _share_posts_chain(self, driver: WebDriver, posts_chain: list[str], media_url: str | None) -> None:
+        if not posts_chain:
+            raise ValueError("Threads posting task has an empty posts_chain.")
+
+        published_count = 0
+
+        for index, text in enumerate(posts_chain):
+            try:
+                if index == 0:
+                    self._share_thread(driver, text, media_url)
+                else:
+                    self._reply_to_latest_visible_thread(driver, text)
+                published_count += 1
+            except Exception as exc:
+                if published_count > 0:
+                    raise ThreadChainPartialSuccess(
+                        f"Threads chain failed after {published_count}/{len(posts_chain)} posts: {exc}",
+                        published_count=published_count,
+                    ) from exc
+                raise
+
     def _share_thread(self, driver: WebDriver, text: str, media_url: str | None) -> None:
         driver.get(self.BASE_URL)
         self._wait_for_dom(driver)
@@ -564,6 +589,39 @@ class ThreadsAdapter(BasePostingAdapter):
             logger.info("Threads media path attached")
 
         self._submit_thread_with_hotkey(driver)
+
+    def _reply_to_latest_visible_thread(self, driver: WebDriver, text: str) -> None:
+        self._open_reply_composer(driver)
+        self._type_thread_text(driver, text)
+        self._submit_thread_with_hotkey(driver)
+
+    def _open_reply_composer(self, driver: WebDriver) -> None:
+        reply_locators = [
+            (By.CSS_SELECTOR, '[aria-label="Reply"]'),
+            (By.CSS_SELECTOR, '[aria-label*="Reply"]'),
+            (By.CSS_SELECTOR, '[aria-label*="reply"]'),
+            (By.CSS_SELECTOR, '[aria-label*="Ответ"]'),
+            (By.CSS_SELECTOR, '[aria-label*="ответ"]'),
+            (By.XPATH, '//*[@aria-label="Reply" or contains(@aria-label, "Reply") or contains(@aria-label, "Ответ")]/ancestor::*[@role="button"][1]'),
+            (By.XPATH, '//*[contains(text(), "Reply") or contains(text(), "Ответить")]/ancestor::*[@role="button"][1]'),
+        ]
+        last_error: Exception | None = None
+
+        for by, selector in reply_locators:
+            try:
+                self._js_click_first_match(driver, by, selector)
+                logger.info("Threads reply trigger clicked: %s", selector)
+
+                if self._wait_for_composer_editor(driver, timeout_seconds=8) is not None:
+                    logger.info("Threads reply editor is ready")
+                    return
+            except (TimeoutException, WebDriverException, StaleElementReferenceException) as exc:
+                last_error = exc
+
+        if last_error is not None:
+            raise TimeoutException(f"Could not open Threads reply composer: {last_error}") from last_error
+
+        raise TimeoutException("Could not open Threads reply composer.")
 
     def _open_thread_composer(self, driver: WebDriver) -> None:
         last_error: Exception | None = None
@@ -1224,6 +1282,13 @@ def _is_headless_browser_enabled() -> bool:
         "no",
         "off",
     }
+
+
+def _normalize_posts_chain(task: PostingTask) -> list[str]:
+    raw_chain = task.posts_chain if isinstance(task.posts_chain, list) else []
+    posts_chain = [str(item).strip() for item in raw_chain if str(item).strip()]
+    fallback = (task.content_text or "").strip()
+    return posts_chain or ([fallback] if fallback else [])
 
 
 def _get_profile_lock(account_id: int | None) -> threading.Lock | None:

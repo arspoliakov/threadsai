@@ -23,6 +23,7 @@ class PostingTaskRead(BaseModel):
     source_trend_id: int | None
     platform: Platform
     content_text: str
+    posts_chain: list[str]
     media_url: str | None
     status: PostingTaskStatus
     scheduled_at: datetime | None
@@ -44,10 +45,15 @@ class PublishNowRead(BaseModel):
 class PostingTaskUpdate(BaseModel):
     content_text: str | None = None
     content: str | None = None
+    posts_chain: list[str] | None = None
 
     @property
-    def resolved_content(self) -> str:
-        return (self.content_text or self.content or "").strip()
+    def resolved_posts_chain(self) -> list[str]:
+        if self.posts_chain is not None:
+            return [str(item).strip() for item in self.posts_chain if str(item).strip()]
+
+        content = (self.content_text or self.content or "").strip()
+        return [content] if content else []
 
 
 @router.get("/", response_model=list[PostingTaskRead], status_code=status.HTTP_200_OK)
@@ -92,20 +98,21 @@ async def update_task(
             detail="Posting task not found",
         )
 
-    if task.status in {PostingTaskStatus.RUNNING, PostingTaskStatus.SUCCESS}:
+    if task.status in {PostingTaskStatus.RUNNING, PostingTaskStatus.SUCCESS, PostingTaskStatus.PARTIAL_SUCCESS}:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Task cannot be edited in status: {task.status.value}",
         )
 
-    content = payload.resolved_content
-    if not content:
+    posts_chain = payload.resolved_posts_chain
+    if not posts_chain:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="content_text is required",
         )
 
-    task.content_text = content
+    task.posts_chain = posts_chain
+    task.content_text = posts_chain[0]
     task.status = PostingTaskStatus.QUEUED
     task.error_message = None
     await db.commit()
@@ -149,6 +156,7 @@ async def regenerate_task(
     )
 
     task.content_text = regenerated_task.content_text
+    task.posts_chain = regenerated_task.posts_chain
     task.generation_metadata = regenerated_task.generation_metadata
     task.source_trend_id = regenerated_task.source_trend_id
     task.status = PostingTaskStatus.QUEUED
@@ -180,7 +188,12 @@ async def cancel_task(
             detail="Posting task not found",
         )
 
-    if task.status in {PostingTaskStatus.SUCCESS, PostingTaskStatus.FAILED, PostingTaskStatus.CANCELLED}:
+    if task.status in {
+        PostingTaskStatus.SUCCESS,
+        PostingTaskStatus.PARTIAL_SUCCESS,
+        PostingTaskStatus.FAILED,
+        PostingTaskStatus.CANCELLED,
+    }:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Task is already terminal: {task.status.value}",

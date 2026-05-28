@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import threading
 import time
 import zipfile
@@ -13,14 +14,13 @@ from typing import Any, Callable, TypeVar
 from urllib.parse import unquote, urlparse
 
 import httpx
-from selenium import webdriver
+import undetected_chromedriver as uc
 from selenium.common.exceptions import (
     ElementClickInterceptedException,
     StaleElementReferenceException,
     TimeoutException,
     WebDriverException,
 )
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -312,7 +312,7 @@ class ThreadsAdapter(BasePostingAdapter):
         return deadline_at is not None and time.monotonic() >= deadline_at
 
     def _create_driver(self, proxy_extension_path: Path | None, *, account_id: int | None = None) -> WebDriver:
-        options = Options()
+        options = uc.ChromeOptions()
         user_data_dir = self._get_user_data_dir(account_id)
         profile_lock = _get_profile_lock(account_id)
 
@@ -335,8 +335,9 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_argument("--disable-in-process-stack-traces")
         options.add_argument("--disable-logging")
         options.add_argument("--no-zygote")
-        options.add_argument("--remote-debugging-pipe")
         options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
+        options.add_argument("--webrtc-ip-handling-policy=disable_non_proxied_udp")
         options.add_argument("--window-size=1440,1200")
         options.add_argument(f"--user-data-dir={user_data_dir}")
         options.add_argument("--disk-cache-size=52428800")
@@ -380,7 +381,7 @@ class ThreadsAdapter(BasePostingAdapter):
 
         try:
             self._trim_chrome_profile_cache(user_data_dir)
-            driver = webdriver.Chrome(options=options)
+            driver = uc.Chrome(options=options, use_subprocess=True)
             setattr(driver, "_threadsai_user_data_dir", user_data_dir)
             setattr(driver, "_threadsai_persistent_profile", account_id is not None)
             setattr(driver, "_threadsai_profile_lock", profile_lock)
@@ -412,6 +413,40 @@ class ThreadsAdapter(BasePostingAdapter):
                   get: () => ['ru-RU', 'ru', 'en-US', 'en']
                 });
                 window.chrome = window.chrome || { runtime: {} };
+
+                try {
+                  const canvasNoise = Math.floor(Math.random() * 3) + 1;
+                  const canvasX = Math.floor(Math.random() * 7);
+                  const canvasY = Math.floor(Math.random() * 7);
+                  const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+                  CanvasRenderingContext2D.prototype.getImageData = function(...args) {
+                    const imageData = originalGetImageData.apply(this, args);
+                    for (let i = 0; i < imageData.data.length; i += 64) {
+                      imageData.data[i] = imageData.data[i] ^ canvasNoise;
+                    }
+                    return imageData;
+                  };
+                  const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+                  HTMLCanvasElement.prototype.toDataURL = function(...args) {
+                    const context = this.getContext('2d');
+                    if (context) {
+                      context.fillStyle = 'rgba(1,1,1,0.01)';
+                      context.fillRect(canvasX % Math.max(1, this.width), canvasY % Math.max(1, this.height), 1, 1);
+                    }
+                    return originalToDataURL.apply(this, args);
+                  };
+                } catch (_) {}
+
+                try {
+                  Object.defineProperty(window, 'RTCPeerConnection', {
+                    configurable: true,
+                    value: undefined
+                  });
+                  Object.defineProperty(window, 'webkitRTCPeerConnection', {
+                    configurable: true,
+                    value: undefined
+                  });
+                } catch (_) {}
 
                 const stopMedia = (node) => {
                   if (!node) return;
@@ -835,22 +870,29 @@ class ThreadsAdapter(BasePostingAdapter):
                 self._scroll_to_element(driver, element)
                 driver.execute_script("arguments[0].click();", element)
                 self._wait_until_editor_has_focus(driver, element)
-                ActionChains(driver).send_keys(value).perform()
+                self._human_type_text(driver, value)
                 self._wait_until_editor_contains_text(driver, value)
                 return
             except (StaleElementReferenceException, ElementClickInterceptedException, WebDriverException) as exc:
                 last_error = exc
-                fresh_element = self._find_optional_element(driver, by, selector)
-                if fresh_element is not None and self._inject_text_with_javascript(driver, fresh_element, value):
-                    logger.info("Threads text inserted with JavaScript fallback")
-                    return
-
                 time.sleep(retry_delay_seconds)
 
         if last_error is not None:
             raise last_error
 
         raise TimeoutException(f"Editor is not ready for ActionChains input: {selector}")
+
+    def _human_type_text(self, driver: WebDriver, value: str) -> None:
+        for index, character in enumerate(value):
+            if character == "\n":
+                ActionChains(driver).send_keys(Keys.ENTER).perform()
+            else:
+                ActionChains(driver).send_keys(character).perform()
+
+            delay = random.uniform(0.05, 0.25)
+            if index > 0 and index % random.randint(35, 70) == 0:
+                delay += random.uniform(0.25, 0.9)
+            time.sleep(delay)
 
     def _retry_on_stale(
         self,

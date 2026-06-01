@@ -506,5 +506,5 @@ function isTaskAccountSessionDead(task: PostingTask, accountStates: ProjectAccou
   }
 
   const account = accountStates.find((item) => item.id === task.account_id);
-  return account?.status === "cookies_expired" || account?.status === "blocked";
+  return account?.status === "cookies_expired" || account?.status === "blocked" || account?.status === "proxy_error";
 }

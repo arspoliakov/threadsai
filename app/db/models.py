@@ -30,6 +30,7 @@ class AccountStatus(StrEnum):
     WARMING_UP = "warming_up"
     COOKIES_EXPIRED = "cookies_expired"
     BLOCKED = "blocked"
+    PROXY_ERROR = "proxy_error"
 
 
 class PostingTaskStatus(StrEnum):
@@ -140,6 +141,7 @@ class Account(Base, TimestampMixin):
     __tablename__ = "accounts"
     __table_args__ = (
         Index("ix_accounts_project_platform", "project_id", "platform"),
+        Index("ix_accounts_assigned_port_unique", "assigned_port", unique=True),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -152,6 +154,7 @@ class Account(Base, TimestampMixin):
     username: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     proxy_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    assigned_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
     session_data_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     cookies_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[AccountStatus] = mapped_column(
@@ -161,6 +164,7 @@ class Account(Base, TimestampMixin):
     )
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    proxy_error_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     project: Mapped[Project | None] = relationship(back_populates="accounts")
     owner: Mapped[User | None] = relationship(back_populates="accounts")

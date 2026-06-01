@@ -257,7 +257,7 @@ function SystemStatusCard({
 }) {
   const activeAccounts = dashboard.account_states.filter((account) => account.status === "active").length;
   const failedAccounts = dashboard.account_states.filter(
-    (account) => account.status === "cookies_expired" || account.status === "blocked" || account.status === "error",
+    (account) => account.status === "cookies_expired" || account.status === "blocked" || account.status === "error" || account.status === "proxy_error",
   ).length;
   const runningOperation =
     operations.find((operation) => operation.status === "running" || operation.status === "queued")

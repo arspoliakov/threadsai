@@ -10,10 +10,13 @@ class AccountCreate(BaseModel):
     platform: Platform
     username: str = Field(min_length=1, max_length=255)
     display_name: str | None = Field(default=None, max_length=255)
-    proxy_url: str | None = Field(default=None, max_length=1024)
     session_data_encrypted: str | None = None
     cookies_encrypted: str | None = None
     status: AccountStatus = AccountStatus.ACTIVE
+
+
+class AccountCreatePrepared(AccountCreate):
+    assigned_port: int | None = None
 
 
 class AccountUpdate(BaseModel):
@@ -21,7 +24,6 @@ class AccountUpdate(BaseModel):
     platform: Platform | None = None
     username: str | None = Field(default=None, min_length=1, max_length=255)
     display_name: str | None = Field(default=None, max_length=255)
-    proxy_url: str | None = Field(default=None, max_length=1024)
     session_data_encrypted: str | None = None
     cookies_encrypted: str | None = None
     status: AccountStatus | None = None

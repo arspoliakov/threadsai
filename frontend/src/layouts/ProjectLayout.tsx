@@ -26,7 +26,7 @@ export default function ProjectLayout() {
   const projectTitle = dashboard?.project.name || `Проект #${id}`;
   const hasDeadSession =
     dashboard?.account_states.some(
-      (account) => account.status === "cookies_expired" || account.status === "blocked",
+      (account) => account.status === "cookies_expired" || account.status === "blocked" || account.status === "proxy_error",
     ) ?? false;
 
   const navigation: FloatingDockItem[] = [

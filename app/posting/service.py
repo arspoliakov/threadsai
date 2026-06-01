@@ -8,6 +8,7 @@ from app.db.models import Account, AccountStatus, Platform, PostingTask, Posting
 from app.posting.adapters.base import BasePostingAdapter
 from app.posting.adapters.threads import ThreadsAdapter
 from app.posting.exceptions import RetryablePostingException, SessionExpiredException, ThreadChainPartialSuccess
+from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.telegram.notifications import send_user_notification
 
 
@@ -54,6 +55,15 @@ async def execute_posting_task(
         task.started_at = None
         task.finished_at = None
         task.error_message = f"Аккаунт недоступен для публикации: {account.status.value}"
+        await session.commit()
+        await session.refresh(task)
+        return task
+
+    if not _account_proxy_url(account):
+        task.status = PostingTaskStatus.QUEUED
+        task.started_at = None
+        task.finished_at = None
+        task.error_message = "Threads account has no assigned proxy port."
         await session.commit()
         await session.refresh(task)
         return task
@@ -204,3 +214,7 @@ async def _notify_account_owner_about_posting_error(
 def _should_update_username(username: str | None) -> bool:
     normalized_username = (username or "").strip()
     return normalized_username in SESSION_USERNAME_PLACEHOLDERS
+
+
+def _account_proxy_url(account: Account) -> str | None:
+    return build_threads_proxy_url_for_account(account)

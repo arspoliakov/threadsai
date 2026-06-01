@@ -265,7 +265,7 @@ async def trigger_project_scraping(
         owner_id=current_user_id,
         action_type=ProjectOperationType.SCRAPING,
         status=ProjectOperationStatus.QUEUED,
-        message="Trend scraping queued and will start in the next safe proxy window.",
+        message="Trend scraping queued and will start in the next safe browser window.",
     )
     db.add(operation)
     await db.commit()

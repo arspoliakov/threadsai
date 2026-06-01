@@ -615,7 +615,7 @@ function ActionButton({
 
 function StatusBadge({ status }: { status: AccountStatus }) {
   const label = statusLabels[status] ?? status;
-  const tone = status === "active" ? "bg-[#edf8e8] text-[#25551f]" : status === "cookies_expired" || status === "blocked" ? "bg-[#fff4df] text-[#8a4b00]" : "bg-[#f7e8e5] text-[#8a2d25]";
+  const tone = status === "active" ? "bg-[#edf8e8] text-[#25551f]" : status === "cookies_expired" || status === "blocked" || status === "proxy_error" ? "bg-[#fff4df] text-[#8a4b00]" : "bg-[#f7e8e5] text-[#8a2d25]";
   return (
     <span className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs ${tone}`}>
       {label}
@@ -630,6 +630,7 @@ const statusLabels: Record<AccountStatus, string> = {
   warming_up: "прогрев",
   cookies_expired: "cookies истекли",
   blocked: "заблокирован",
+  proxy_error: "техническая пауза",
 };
 
 function EmptyState({ title, description }: { title: string; description: string }) {

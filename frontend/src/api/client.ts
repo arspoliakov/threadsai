@@ -180,7 +180,8 @@ export type AccountStatus =
   | "error"
   | "warming_up"
   | "cookies_expired"
-  | "blocked";
+  | "blocked"
+  | "proxy_error";
 
 export type Account = {
   id: number;

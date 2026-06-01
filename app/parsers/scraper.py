@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Account, AccountStatus, Platform, SavedTrend
 from app.posting.adapters.threads import ThreadsAdapter
 from app.posting.exceptions import PostingDeadlineExceeded, ProxyNetworkException
+from app.services.proxy_pool import build_threads_proxy_url_for_account
 
 
 logging.basicConfig(level=logging.INFO)
@@ -59,8 +60,7 @@ class ThreadsTrendScraper:
         ip_guard_proxy_url: str | None = None,
         expected_proxy_ip: str | None = None,
     ) -> list[dict[str, Any]]:
-        session_payload = self.adapter._load_json(account.session_data_encrypted)
-        proxy_url = session_payload.get("proxy") or account.proxy_url
+        proxy_url = build_threads_proxy_url_for_account(account)
         proxy_extension_path: Path | None = None
         driver: WebDriver | None = None
         deadline_watchdog = None

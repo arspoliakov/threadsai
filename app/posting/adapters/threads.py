@@ -7,7 +7,6 @@ import os
 import random
 import threading
 import time
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, TypeVar
@@ -37,6 +36,7 @@ from app.posting.exceptions import (
     SessionExpiredException,
     ThreadChainPartialSuccess,
 )
+from app.services.proxy_pool import build_threads_proxy_url_for_account
 
 
 SCREENSHOTS_DIR = Path("./data/screenshots")
@@ -127,8 +127,7 @@ class ThreadsAdapter(BasePostingAdapter):
         return await asyncio.to_thread(self._check_session_sync, account)
 
     def _check_session_sync(self, account: Account) -> PublishResult:
-        session_payload = self._load_json(account.session_data_encrypted)
-        proxy_url = session_payload.get("proxy") or account.proxy_url
+        proxy_url = build_threads_proxy_url_for_account(account)
         proxy_extension_path: Path | None = None
         driver: WebDriver | None = None
 
@@ -145,7 +144,7 @@ class ThreadsAdapter(BasePostingAdapter):
         finally:
             self._quit_driver_safely(driver)
             if proxy_extension_path is not None:
-                self._remove_file_safely(proxy_extension_path)
+                self._remove_path_safely(proxy_extension_path)
 
     def _publish_sync(
         self,
@@ -155,8 +154,7 @@ class ThreadsAdapter(BasePostingAdapter):
         ip_guard_proxy_url: str | None = None,
         expected_proxy_ip: str | None = None,
     ) -> PublishResult:
-        session_payload = self._load_json(account.session_data_encrypted)
-        proxy_url = session_payload.get("proxy") or account.proxy_url
+        proxy_url = build_threads_proxy_url_for_account(account)
 
         for attempt in range(2):
             proxy_extension_path: Path | None = None
@@ -220,7 +218,7 @@ class ThreadsAdapter(BasePostingAdapter):
                     ip_watchdog.stop_event.set()
                 self._quit_driver_safely(driver)
                 if proxy_extension_path is not None:
-                    self._remove_file_safely(proxy_extension_path)
+                    self._remove_path_safely(proxy_extension_path)
 
         raise RuntimeError("Threads publishing failed after browser self-healing retry.")
 
@@ -377,7 +375,7 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_experimental_option("useAutomationExtension", False)
 
         if proxy_extension_path is not None:
-            options.add_extension(str(proxy_extension_path))
+            options.add_argument(f"--load-extension={proxy_extension_path}")
 
         try:
             self._trim_chrome_profile_cache(user_data_dir)
@@ -392,6 +390,8 @@ class ThreadsAdapter(BasePostingAdapter):
                 profile_lock.release()
             if account_id is None:
                 self._remove_directory_safely(user_data_dir)
+            if proxy_extension_path is not None:
+                raise ProxyNetworkException(f"Chrome/proxy driver startup failed: {exc}") from exc
             raise RuntimeError(
                 "Chrome не смог стартовать на сервере. Проверь установку google-chrome/chromium, "
                 "совместимость ChromeDriver и системные библиотеки. "
@@ -1081,7 +1081,8 @@ class ThreadsAdapter(BasePostingAdapter):
             raise ValueError("Proxy URL must include host and port.")
 
         PROXY_EXTENSIONS_DIR.mkdir(parents=True, exist_ok=True)
-        extension_path = PROXY_EXTENSIONS_DIR / f"{task_id}_proxy_auth.zip"
+        extension_path = PROXY_EXTENSIONS_DIR / f"{task_id}_{int(time.time() * 1000)}_proxy_auth"
+        extension_path.mkdir(parents=True, exist_ok=True)
         username = unquote(parsed_proxy.username or "")
         password = unquote(parsed_proxy.password or "")
         scheme = json.dumps(parsed_proxy.scheme)
@@ -1133,9 +1134,8 @@ chrome.webRequest.onAuthRequired.addListener(
 );
 """
 
-        with zipfile.ZipFile(extension_path, "w") as archive:
-            archive.writestr("manifest.json", json.dumps(manifest))
-            archive.writestr("background.js", background_js)
+        (extension_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (extension_path / "background.js").write_text(background_js, encoding="utf-8")
 
         return extension_path
 
@@ -1230,6 +1230,12 @@ chrome.webRequest.onAuthRequired.addListener(
             path.unlink(missing_ok=True)
         except OSError:
             pass
+
+    def _remove_path_safely(self, path: Path) -> None:
+        if path.is_dir():
+            self._remove_directory_safely(path)
+        else:
+            self._remove_file_safely(path)
 
     def _get_user_data_dir(self, account_id: int | None) -> Path:
         if account_id is None:

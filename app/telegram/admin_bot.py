@@ -88,18 +88,19 @@ async def admin_proxy_handler(message: Message) -> None:
     if not await _guard_admin(message):
         return
 
-    configured_proxies = settings.threads_proxy_pool_urls()
     async with AsyncSessionLocal() as session:
-        usage_rows = (
-            await session.execute(
-                select(Account.proxy_url, func.count(Account.id))
-                .where(
-                    Account.platform == Platform.THREADS,
-                    Account.proxy_url.is_not(None),
+        assigned_ports = list(
+            (
+                await session.scalars(
+                    select(Account.assigned_port)
+                    .where(
+                        Account.platform == Platform.THREADS,
+                        Account.assigned_port.is_not(None),
+                    )
+                    .order_by(Account.assigned_port.asc())
                 )
-                .group_by(Account.proxy_url)
-            )
-        ).all()
+            ).all()
+        )
         active_accounts = await session.scalar(
             select(func.count(Account.id)).where(
                 Account.platform == Platform.THREADS,
@@ -107,18 +108,18 @@ async def admin_proxy_handler(message: Message) -> None:
             )
         )
 
-    usage_by_proxy = {proxy_url: count for proxy_url, count in usage_rows if proxy_url}
+    configured_count = max(0, settings.proxy_port_end - settings.proxy_port_start + 1)
     lines = [
-        "Proxy pool",
-        f"Configured ports: {len(configured_proxies)}",
+        "Proxy port pool",
+        f"Host: {settings.proxy_host or 'not configured'}",
+        f"Range: {settings.proxy_port_start}-{settings.proxy_port_end}",
+        f"Configured ports: {configured_count}",
+        f"Assigned ports: {len(assigned_ports)}",
         f"Active Threads accounts: {active_accounts or 0}",
     ]
 
-    if not configured_proxies:
-        lines.append("No THREADS_PROXY_POOL configured.")
-    else:
-        for index, proxy_url in enumerate(configured_proxies, start=1):
-            lines.append(f"{index}. {_safe_proxy_label(proxy_url)} - accounts: {usage_by_proxy.get(proxy_url, 0)}")
+    if assigned_ports:
+        lines.append("Recent assigned ports: " + ", ".join(str(port) for port in assigned_ports[-20:]))
 
     await message.answer("\n".join(lines))
 

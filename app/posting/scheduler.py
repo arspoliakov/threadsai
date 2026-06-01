@@ -155,7 +155,7 @@ async def analyze_daily_trends() -> None:
                         owner_id=project.owner_id,
                         action_type=ProjectOperationType.SCRAPING,
                         status=ProjectOperationStatus.QUEUED,
-                        message="Scheduled trend scraping queued for the next safe proxy window.",
+                        message="Scheduled trend scraping queued for the next safe browser window.",
                     )
                 )
                 await session.commit()
@@ -242,6 +242,7 @@ async def _get_project_posting_accounts(project_id: int, session: AsyncSession) 
             Account.project_id == project_id,
             Account.status == AccountStatus.ACTIVE,
             Account.platform == Platform.THREADS,
+            Account.assigned_port.is_not(None),
         )
         .order_by(Account.last_used_at.asc().nulls_first(), Account.id.asc())
     )

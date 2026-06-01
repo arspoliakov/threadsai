@@ -47,9 +47,25 @@ class Settings(BaseSettings):
         default=180,
         validation_alias="ALERT_COOLDOWN_MINUTES",
     )
-    threads_proxy_pool: str = Field(
+    proxy_host: str = Field(
         default="",
-        validation_alias="THREADS_PROXY_POOL",
+        validation_alias="PROXY_HOST",
+    )
+    proxy_login: str = Field(
+        default="",
+        validation_alias="PROXY_LOGIN",
+    )
+    proxy_password: str = Field(
+        default="",
+        validation_alias="PROXY_PASSWORD",
+    )
+    proxy_port_start: int = Field(
+        default=10000,
+        validation_alias="PROXY_PORT_START",
+    )
+    proxy_port_end: int = Field(
+        default=10999,
+        validation_alias="PROXY_PORT_END",
     )
     proxy_rotation_seconds: int = Field(
         default=300,
@@ -58,6 +74,14 @@ class Settings(BaseSettings):
     selenium_deadline_seconds: int = Field(
         default=250,
         validation_alias="SELENIUM_DEADLINE_SECONDS",
+    )
+    max_concurrent_browsers: int = Field(
+        default=3,
+        validation_alias="MAX_CONCURRENT_BROWSERS",
+    )
+    proxy_failure_threshold: int = Field(
+        default=3,
+        validation_alias="PROXY_FAILURE_THRESHOLD",
     )
     web_admin_token: str = Field(
         default="dev-admin-token",
@@ -109,17 +133,6 @@ class Settings(BaseSettings):
             return False
 
         return telegram_id in self.approved_telegram_id_set()
-
-    def threads_proxy_pool_urls(self) -> list[str]:
-        raw_values = self.threads_proxy_pool.replace("\n", ",").replace(";", ",")
-        urls: list[str] = []
-
-        for raw_url in raw_values.split(","):
-            url = raw_url.strip()
-            if url and url not in urls:
-                urls.append(url)
-
-        return urls
 
 
 @lru_cache

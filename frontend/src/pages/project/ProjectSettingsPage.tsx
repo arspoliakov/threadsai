@@ -641,7 +641,7 @@ function AccountCard({
   onUnlink: () => void;
 }) {
   const [cookiesDraft, setCookiesDraft] = useState("");
-  const sessionNeedsUpdate = account.status === "cookies_expired" || account.status === "blocked" || account.status === "error";
+  const sessionNeedsUpdate = account.status === "cookies_expired" || account.status === "blocked" || account.status === "error" || account.status === "proxy_error";
 
   return (
     <article className={`rounded-2xl border p-4 transition hover:shadow-sm ${sessionNeedsUpdate ? "border-[#d88a35]/50 bg-[#fff4df]" : "border-[#e1e1dc] bg-[#fbfaf5] hover:border-[#151515]"}`}>
@@ -783,7 +783,7 @@ function ConversionModeButton({
 
 function StatusBadge({ status }: { status: AccountStatus }) {
   const label = statusLabels[status] ?? status;
-  const tone = status === "active" ? "bg-[#edf8e8] text-[#25551f]" : status === "cookies_expired" || status === "blocked" ? "bg-[#fff4df] text-[#8a4b00]" : "bg-[#f7e8e5] text-[#8a2d25]";
+  const tone = status === "active" ? "bg-[#edf8e8] text-[#25551f]" : status === "cookies_expired" || status === "blocked" || status === "proxy_error" ? "bg-[#fff4df] text-[#8a4b00]" : "bg-[#f7e8e5] text-[#8a2d25]";
   return <span className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs ${tone}`}>{label}</span>;
 }
 
@@ -892,6 +892,7 @@ const statusLabels: Record<AccountStatus, string> = {
   warming_up: "прогрев",
   cookies_expired: "cookies истекли",
   blocked: "заблокирован",
+  proxy_error: "техническая пауза",
 };
 
 function formatUsername(username: string) {

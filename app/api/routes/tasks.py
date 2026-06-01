@@ -241,7 +241,7 @@ async def publish_task_now(
     task.finished_at = None
     task.error_message = None
     await db.commit()
-    return PublishNowRead(task_id=task_id, status="queued_for_proxy_window")
+    return PublishNowRead(task_id=task_id, status="queued_for_browser_window")
 
 
 async def _get_owned_task(task_id: int, owner_id: int, db: AsyncSession) -> PostingTask | None:

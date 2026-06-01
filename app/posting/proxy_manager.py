@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import httpx
+from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -157,7 +158,11 @@ async def discover_active_proxy_accounts() -> list[tuple[int, str]]:
 
     active_accounts: list[tuple[int, str]] = []
     for account in accounts:
-        proxy_url = _account_proxy_url(account)
+        try:
+            proxy_url = _account_proxy_url(account)
+        except HTTPException as exc:
+            logger.warning("Account proxy manager is waiting for base proxy config: %s", exc.detail)
+            return []
         if proxy_url:
             active_accounts.append((account.id, proxy_url))
 

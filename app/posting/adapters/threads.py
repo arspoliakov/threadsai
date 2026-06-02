@@ -374,7 +374,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 "download.prompt_for_download": False,
             },
         )
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
         options.add_experimental_option("useAutomationExtension", False)
 
         if proxy_extension_path is not None:

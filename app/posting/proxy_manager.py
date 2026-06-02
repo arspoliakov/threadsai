@@ -28,7 +28,7 @@ from app.parsers.trend_analyzer import analyze_and_save_trends
 from app.posting.exceptions import RetryablePostingException
 from app.posting.service import execute_posting_task
 from app.posting.scheduler import (
-    _count_project_success_today,
+    _count_account_success_today,
     _is_project_in_active_window,
     _next_project_active_start,
     _project_posts_per_day,
@@ -285,7 +285,7 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
                 task.scheduled_at = _next_project_active_start(project, now)
                 continue
 
-            if await _count_project_success_today(project, session) >= _project_posts_per_day(project):
+            if await _count_account_success_today(project, account.id, session) >= _project_posts_per_day(project):
                 task.scheduled_at = _next_project_active_start(project, now + timedelta(days=1))
                 continue
 

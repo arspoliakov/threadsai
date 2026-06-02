@@ -646,6 +646,7 @@ def _clean_generated_text(text: str) -> str:
 
     cleaned = "\n".join(lines).strip()
     cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"(?<!\w)#\w+", "", cleaned, flags=re.UNICODE)
     cleaned = re.sub(r"\s+([,.!?])", r"\1", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
 

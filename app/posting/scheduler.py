@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-import random
+import hashlib
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -253,52 +253,128 @@ async def ensure_account_based_queue() -> None:
             if not _is_project_in_active_window(project):
                 continue
 
-            project_posts_limit = _project_posts_per_day(project)
-            project_tasks_today = await _count_project_tasks_today(project, session)
-            if project_tasks_today >= project_posts_limit:
-                continue
-
             accounts = await _get_project_posting_accounts(project.id, session)
             if not accounts:
                 continue
 
-            missing_count = min(
-                project_posts_limit - project_tasks_today,
-                MAX_GENERATIONS_PER_SCHEDULER_RUN - generated_count,
-            )
+            account_posts_limit = _project_posts_per_day(project)
 
-            for offset in range(missing_count):
-                if generated_count >= MAX_GENERATIONS_PER_SCHEDULER_RUN:
-                    return
+            for account in accounts:
+                account_tasks_today = await _count_account_tasks_today(project, account.id, session)
+                if account_tasks_today >= account_posts_limit:
+                    continue
 
-                account = accounts[offset % len(accounts)]
-                try:
-                    post_number = project_tasks_today + offset
-                    scheduled_at = await _calculate_next_project_slot(project, session)
-                    task = await generate_post(
-                        project_id=project.id,
-                        topic_or_context=_build_account_topic(project, account, post_number),
-                        session=session,
-                        platform=account.platform,
-                        account_id=account.id,
-                        scheduled_at=scheduled_at,
-                        use_trends=True,
-                    )
-                    generated_count += 1
-                    logger.info(
-                        "Generated scheduled task #%s for project #%s, account @%s. Scheduled at: %s.",
-                        task.id,
-                        project.id,
-                        account.username,
-                        task.scheduled_at,
-                    )
-                except Exception as exc:
-                    await session.rollback()
-                    logger.exception(
-                        "Account-based generation failed for project #%s, account #%s.",
-                        project.id,
+                reserved_slots: list[datetime] = []
+                missing_count = min(
+                    account_posts_limit - account_tasks_today,
+                    MAX_GENERATIONS_PER_SCHEDULER_RUN - generated_count,
+                )
+
+                for offset in range(missing_count):
+                    if generated_count >= MAX_GENERATIONS_PER_SCHEDULER_RUN:
+                        return
+
+                    scheduled_at = await _calculate_next_account_slot_today(
+                        project,
                         account.id,
+                        session,
+                        reserved_slots=reserved_slots,
                     )
+                    if scheduled_at is None:
+                        break
+
+                    try:
+                        post_number = account_tasks_today + offset
+                        reserved_slots.append(scheduled_at)
+                        task = await generate_post(
+                            project_id=project.id,
+                            topic_or_context=_build_account_topic(project, account, post_number),
+                            session=session,
+                            platform=account.platform,
+                            account_id=account.id,
+                            scheduled_at=scheduled_at,
+                            use_trends=True,
+                        )
+                        generated_count += 1
+                        logger.info(
+                            "Generated scheduled task #%s for project #%s, account @%s. Scheduled at: %s.",
+                            task.id,
+                            project.id,
+                            account.username,
+                            task.scheduled_at,
+                        )
+                    except Exception:
+                        await session.rollback()
+                        logger.exception(
+                            "Account-based generation failed for project #%s, account #%s.",
+                            project.id,
+                            account.id,
+                        )
+
+
+async def _calculate_next_account_slot_today(
+    project: Project,
+    account_id: int,
+    session: AsyncSession,
+    *,
+    reserved_slots: list[datetime] | None = None,
+) -> datetime | None:
+    start_at, end_at = _project_active_window_bounds(project)
+    now = datetime.now(UTC)
+    minimum_slot = max(now + timedelta(minutes=FIRST_POST_DELAY_MINUTES), start_at)
+    posts_per_day = _project_posts_per_day(project)
+    window_seconds = max(60, int((end_at - start_at).total_seconds()))
+    slot_seconds = window_seconds / posts_per_day
+    reserved = reserved_slots or []
+
+    existing_slots = list(
+        (
+            await session.scalars(
+                select(PostingTask.scheduled_at).where(
+                    PostingTask.project_id == project.id,
+                    PostingTask.account_id == account_id,
+                    PostingTask.scheduled_at >= start_at,
+                    PostingTask.scheduled_at < end_at,
+                    PostingTask.status.not_in([PostingTaskStatus.FAILED, PostingTaskStatus.CANCELLED]),
+                )
+            )
+        ).all()
+    )
+
+    for slot_index in range(posts_per_day):
+        base_slot = start_at + timedelta(seconds=slot_seconds * (slot_index + 0.5))
+        jitter_minutes = _stable_slot_jitter_minutes(project.id, account_id, start_at, slot_index)
+        candidate = base_slot + timedelta(minutes=jitter_minutes)
+        candidate = max(start_at + timedelta(minutes=1), min(candidate, end_at - timedelta(minutes=1)))
+
+        if candidate < minimum_slot:
+            continue
+
+        if _is_slot_taken(candidate, [*existing_slots, *reserved]):
+            continue
+
+        return candidate
+
+    return None
+
+
+def _stable_slot_jitter_minutes(project_id: int, account_id: int, day_start: datetime, slot_index: int) -> int:
+    seed = f"{project_id}:{account_id}:{day_start.date().isoformat()}:{slot_index}".encode("utf-8")
+    digest = hashlib.sha256(seed).digest()
+    return int(digest[0] % 31) - 15
+
+
+def _is_slot_taken(candidate: datetime, slots: list[datetime | None]) -> bool:
+    min_gap = timedelta(minutes=20)
+    for slot in slots:
+        if slot is None:
+            continue
+        if slot.tzinfo is None:
+            slot = slot.replace(tzinfo=UTC)
+        if abs(candidate - slot) < min_gap:
+            return True
+
+    return False
 
 
 async def _get_project_posting_accounts(project_id: int, session: AsyncSession) -> list[Account]:
@@ -315,11 +391,12 @@ async def _get_project_posting_accounts(project_id: int, session: AsyncSession) 
     return list((await session.scalars(stmt)).all())
 
 
-async def _count_project_tasks_today(project: Project, session: AsyncSession) -> int:
+async def _count_account_tasks_today(project: Project, account_id: int, session: AsyncSession) -> int:
     start_at, end_at = _project_day_bounds(project)
     count = await session.scalar(
         select(func.count(PostingTask.id)).where(
             PostingTask.project_id == project.id,
+            PostingTask.account_id == account_id,
             PostingTask.scheduled_at >= start_at,
             PostingTask.scheduled_at < end_at,
             PostingTask.status.not_in([PostingTaskStatus.FAILED, PostingTaskStatus.CANCELLED]),
@@ -328,48 +405,18 @@ async def _count_project_tasks_today(project: Project, session: AsyncSession) ->
     return count or 0
 
 
-async def _count_project_success_today(project: Project, session: AsyncSession) -> int:
+async def _count_account_success_today(project: Project, account_id: int, session: AsyncSession) -> int:
     start_at, end_at = _project_day_bounds(project)
     count = await session.scalar(
         select(func.count(PostingTask.id)).where(
             PostingTask.project_id == project.id,
+            PostingTask.account_id == account_id,
             PostingTask.status.in_([PostingTaskStatus.SUCCESS, PostingTaskStatus.PARTIAL_SUCCESS]),
             PostingTask.finished_at >= start_at,
             PostingTask.finished_at < end_at,
         )
     )
     return count or 0
-
-
-async def _calculate_next_project_slot(project: Project, session: AsyncSession) -> datetime:
-    start_at, end_at = _project_active_window_bounds(project)
-    last_scheduled_at = await session.scalar(
-        select(func.max(PostingTask.scheduled_at)).where(
-            PostingTask.project_id == project.id,
-            PostingTask.scheduled_at >= start_at,
-            PostingTask.scheduled_at < end_at,
-            PostingTask.status.not_in([PostingTaskStatus.FAILED, PostingTaskStatus.CANCELLED]),
-        )
-    )
-    now = datetime.now(UTC)
-    interval = _project_interval(project)
-    minimum_slot = max(now + timedelta(minutes=FIRST_POST_DELAY_MINUTES), start_at)
-
-    if last_scheduled_at is None:
-        candidate = minimum_slot + timedelta(minutes=random.randint(0, min(30, max(1, int(interval.total_seconds() // 60)))))
-        return min(candidate, end_at - timedelta(minutes=1))
-
-    if last_scheduled_at.tzinfo is None:
-        last_scheduled_at = last_scheduled_at.replace(tzinfo=UTC)
-
-    jitter_minutes = random.randint(0, max(1, int(interval.total_seconds() // 300)))
-    next_slot = last_scheduled_at + interval + timedelta(minutes=jitter_minutes)
-    candidate = max(next_slot, minimum_slot)
-
-    if candidate >= end_at:
-        return _next_project_active_start(project, now + timedelta(days=1))
-
-    return candidate
 
 
 def _project_day_bounds(project: Project, reference_utc: datetime | None = None) -> tuple[datetime, datetime]:
@@ -413,14 +460,6 @@ def _next_project_active_start(project: Project, reference_utc: datetime | None 
         return reference + timedelta(minutes=FIRST_POST_DELAY_MINUTES)
 
     return _project_active_window_bounds(project, reference + timedelta(days=1))[0]
-
-
-def _project_interval(project: Project) -> timedelta:
-    start_at, end_at = _project_active_window_bounds(project)
-    window_minutes = max(60, int((end_at - start_at).total_seconds() // 60))
-    posts_per_day = _project_posts_per_day(project)
-    interval_minutes = max(15, window_minutes // max(1, posts_per_day))
-    return timedelta(minutes=interval_minutes)
 
 
 def _project_posts_per_day(project: Project) -> int:

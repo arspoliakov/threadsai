@@ -238,7 +238,7 @@ function TaskCard({
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-            Task #{task.id}
+            Задача #{task.id}
           </p>
           <div className="mt-3 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.12em] text-[#333]">
             <StatusDot status={task.status} />
@@ -337,7 +337,7 @@ function TaskCard({
           </>
         ) : (
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#77766f]">
-            {terminalStatuses.includes(task.status) ? "closed" : "locked"}
+            {terminalStatuses.includes(task.status) ? "закрыто" : "заблокировано"}
           </span>
         )}
       </div>
@@ -358,10 +358,10 @@ function GenerationMetadataBlock({ task }: { task: PostingTask }) {
 
   return (
     <div className="mt-5 grid gap-3 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4 text-xs leading-5 text-[#55534c]">
-      <MetadataLine label="APPLIED ANGLE" value={metadata.applied_angle} />
-      <MetadataLine label="HOOK MECHANIC" value={metadata.hook_mechanic} />
-      <MetadataLine label="STRUCTURE PATTERN" value={metadata.structure_pattern} />
-      <MetadataLine label="TONE & RHYTHM" value={metadata.tone_and_rhythm} />
+      <MetadataLine label="Угол подачи" value={metadata.applied_angle} />
+      <MetadataLine label="Механика хука" value={metadata.hook_mechanic} />
+      <MetadataLine label="Структура" value={metadata.structure_pattern} />
+      <MetadataLine label="Тон и ритм" value={metadata.tone_and_rhythm} />
     </div>
   );
 }
@@ -470,14 +470,30 @@ function truncate(value: string, maxLength: number) {
 
 function formatStatus(status: PostingTaskStatus) {
   if (status === "success") {
-    return "completed";
+    return "готово";
   }
 
   if (status === "partial_success") {
-    return "partial";
+    return "частично";
   }
 
-  return status;
+  if (status === "queued") {
+    return "в очереди";
+  }
+
+  if (status === "running") {
+    return "в работе";
+  }
+
+  if (status === "failed") {
+    return "ошибка";
+  }
+
+  if (status === "cancelled") {
+    return "отменено";
+  }
+
+  return "черновик";
 }
 
 function formatDate(value: string | null) {

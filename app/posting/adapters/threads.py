@@ -900,14 +900,14 @@ class ThreadsAdapter(BasePostingAdapter):
                     raise TimeoutException(f"Composer editor is not visible: {selector}")
 
                 self._scroll_to_element(driver, element)
-                driver.execute_script("arguments[0].click();", element)
-                self._wait_until_editor_has_focus(driver, element)
+                self._focus_composer_editor(driver, element)
 
                 try:
+                    self._wait_until_editor_has_focus(driver, element)
                     self._human_type_text(driver, value)
                     self._wait_until_editor_contains_text(driver, value)
                     return
-                except WebDriverException as typing_error:
+                except (TimeoutException, WebDriverException) as typing_error:
                     logger.warning("Threads human typing failed, falling back to JS input: %s", typing_error)
 
                 if not self._inject_text_with_javascript(driver, element, value):
@@ -923,6 +923,32 @@ class ThreadsAdapter(BasePostingAdapter):
             raise last_error
 
         raise TimeoutException(f"Editor is not ready for ActionChains input: {selector}")
+
+    def _focus_composer_editor(self, driver: WebDriver, element: WebElement) -> bool:
+        try:
+            return bool(
+                driver.execute_script(
+                    """
+                    const element = arguments[0];
+                    element.scrollIntoView({ block: 'center', inline: 'nearest' });
+                    element.click();
+                    element.focus();
+
+                    const selection = window.getSelection();
+                    const range = document.createRange();
+                    range.selectNodeContents(element);
+                    range.collapse(false);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+
+                    const active = document.activeElement;
+                    return active === element || element.contains(active);
+                    """,
+                    element,
+                )
+            )
+        except WebDriverException:
+            return False
 
     def _human_type_text(self, driver: WebDriver, value: str) -> None:
         for index, character in enumerate(value):
@@ -1056,12 +1082,30 @@ class ThreadsAdapter(BasePostingAdapter):
                       continue;
                     }
                     const inDialog = Boolean(element.closest('[role="dialog"], [aria-modal="true"]'));
-                    candidates.push({ element, inDialog, rect });
+                    const label = [
+                      element.getAttribute('aria-label') || '',
+                      element.getAttribute('placeholder') || '',
+                      element.textContent || '',
+                      element.closest('[role="dialog"], [aria-modal="true"]')?.textContent || ''
+                    ].join(' ').toLowerCase();
+                    const looksLikeComposer = (
+                      label.includes("what's new") ||
+                      label.includes('new thread') ||
+                      label.includes('что нового') ||
+                      label.includes('новая тема')
+                    );
+                    const disabled = (
+                      element.getAttribute('aria-disabled') === 'true' ||
+                      element.getAttribute('contenteditable') === 'false'
+                    );
+                    if (disabled) continue;
+                    candidates.push({ element, inDialog, looksLikeComposer, rect });
                   }
                 }
 
                 candidates.sort((a, b) => {
                   if (a.inDialog !== b.inDialog) return a.inDialog ? -1 : 1;
+                  if (a.looksLikeComposer !== b.looksLikeComposer) return a.looksLikeComposer ? -1 : 1;
                   return (b.rect.width * b.rect.height) - (a.rect.width * a.rect.height);
                 });
 
@@ -1085,24 +1129,60 @@ class ThreadsAdapter(BasePostingAdapter):
 
     def _inject_text_with_javascript(self, driver: WebDriver, element, value: str) -> bool:
         try:
-            driver.execute_script(
+            return bool(driver.execute_script(
                 """
                 const element = arguments[0];
                 const text = arguments[1];
+                const lines = text.split('\\n');
+
+                element.scrollIntoView({ block: 'center', inline: 'nearest' });
+                element.click();
                 element.focus();
-                element.innerText = text;
-                element.textContent = text;
-                element.dispatchEvent(new InputEvent('input', {
-                  bubbles: true,
-                  inputType: 'insertText',
-                  data: text
-                }));
+
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(element);
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                let inserted = false;
+                try {
+                  inserted = document.execCommand('insertText', false, text);
+                } catch (_) {
+                  inserted = false;
+                }
+
+                if (!inserted || !element.innerText.includes(lines[0])) {
+                  element.innerHTML = '';
+                  for (let index = 0; index < lines.length; index += 1) {
+                    if (index > 0) {
+                      element.appendChild(document.createElement('br'));
+                    }
+                    element.appendChild(document.createTextNode(lines[index]));
+                  }
+                }
+
+                for (const eventName of ['beforeinput', 'input', 'keyup', 'change']) {
+                  let event;
+                  if (eventName === 'beforeinput' || eventName === 'input') {
+                    event = new InputEvent(eventName, {
+                      bubbles: true,
+                      cancelable: true,
+                      inputType: 'insertText',
+                      data: text
+                    });
+                  } else {
+                    event = new Event(eventName, { bubbles: true });
+                  }
+                  element.dispatchEvent(event);
+                }
                 element.dispatchEvent(new Event('change', { bubbles: true }));
+                return (element.innerText || element.textContent || '').includes(lines[0]);
                 """,
                 element,
                 value,
-            )
-            return True
+            ))
         except WebDriverException:
             return False
 

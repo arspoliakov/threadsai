@@ -574,9 +574,29 @@ class ThreadsAdapter(BasePostingAdapter):
 
         driver.get(self.BASE_URL)
         self._wait_for_dom(driver)
+        current_host = urlparse(driver.current_url).hostname or "www.threads.net"
+        added_cookies_count = 0
 
         for cookie in cookies:
-            driver.add_cookie(self._normalize_cookie(cookie))
+            normalized_cookie = self._normalize_cookie(cookie)
+            if not self._is_cookie_domain_compatible(normalized_cookie, current_host):
+                logger.debug(
+                    "Skipping cookie with incompatible domain for Threads: %s",
+                    normalized_cookie.get("domain"),
+                )
+                continue
+
+            try:
+                driver.add_cookie(normalized_cookie)
+                added_cookies_count += 1
+            except WebDriverException as exc:
+                if "invalid cookie domain" in str(exc).casefold():
+                    logger.debug("Skipping cookie rejected by Chrome domain check: %s", normalized_cookie.get("domain"))
+                    continue
+                raise
+
+        if added_cookies_count == 0:
+            raise SessionExpiredException("Threads cookies expired: no compatible threads.net cookies found.")
 
         driver.refresh()
         self._wait_for_dom(driver)
@@ -1240,6 +1260,15 @@ chrome.webRequest.onAuthRequired.addListener(
             normalized_cookie.pop("sameSite")
 
         return normalized_cookie
+
+    def _is_cookie_domain_compatible(self, cookie: dict[str, Any], current_host: str) -> bool:
+        raw_domain = cookie.get("domain")
+        if not raw_domain:
+            return True
+
+        domain = str(raw_domain).strip().lstrip(".").casefold()
+        host = current_host.strip().casefold()
+        return host == domain or host.endswith(f".{domain}")
 
     def _load_json(self, raw_value: str | None) -> Any:
         if not raw_value:

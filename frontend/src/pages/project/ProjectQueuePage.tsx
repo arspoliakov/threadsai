@@ -141,10 +141,7 @@ export default function ProjectQueuePage() {
     <section className="space-y-8">
       <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-            Publishing queue
-          </p>
-          <h1 className="mt-4 font-display text-5xl leading-none">Очередь</h1>
+          <h1 className="font-display text-5xl leading-none">Очередь</h1>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
             Задачи публикации проекта: текст, статус, время запуска, ошибки Selenium
             и сохраненная логика генерации.

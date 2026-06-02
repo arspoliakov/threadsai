@@ -151,10 +151,7 @@ export default function ProjectOverviewPage() {
     <section className="space-y-8">
       <header className="grid gap-6 border border-[#c9c9c3] bg-white p-8 md:grid-cols-[1fr_auto]">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-            Project control room
-          </p>
-          <h1 className="mt-4 font-display text-5xl leading-none">
+          <h1 className="font-display text-5xl leading-none">
             {dashboard?.project.name || "Сводка"}
           </h1>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
@@ -217,10 +214,7 @@ export default function ProjectOverviewPage() {
 
       <section className="overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-white shadow-sm">
         <header className="border-b border-[#c9c9c3] px-5 py-5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-            Журнал действий
-          </p>
-          <h2 className="mt-2 font-display text-3xl">Что система делала в проекте</h2>
+          <h2 className="font-display text-3xl">Что система делала в проекте</h2>
         </header>
 
         {isLoading ? (
@@ -474,10 +468,7 @@ function ActionPanel({
 }) {
   return (
     <article className="bg-white p-6">
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-        Manual trigger
-      </p>
-      <h2 className="mt-3 font-display text-3xl">{title}</h2>
+      <h2 className="font-display text-3xl">{title}</h2>
       <p className="mt-4 min-h-12 text-sm leading-6 text-[#66645d]">{description}</p>
       <button
         type="button"
@@ -531,10 +522,7 @@ function EditProjectPanel({
       <aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-black bg-[#f6f6f2]">
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-              Project edit
-            </p>
-            <h2 className="mt-2 font-display text-3xl">Редактировать проект</h2>
+            <h2 className="font-display text-3xl">Редактировать проект</h2>
           </div>
           <button
             type="button"

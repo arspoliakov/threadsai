@@ -55,10 +55,7 @@ export default function ProjectTrendsPage() {
     <section className="space-y-8">
       <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-            Trend intelligence
-          </p>
-          <h1 className="mt-4 font-display text-5xl leading-none">Тренды</h1>
+          <h1 className="font-display text-5xl leading-none">Тренды</h1>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
             Разобранные паттерны из ленты: механика хука, структура, ритм и оценка
             виральности.

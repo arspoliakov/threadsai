@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -258,38 +258,17 @@ export default function ProjectSettingsPage() {
   return (
     <section className="space-y-8">
       <header>
-        <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-          Настройки проекта
-        </p>
-        <h1 className="mt-4 font-display text-5xl leading-none">Проект и аккаунты</h1>
+        <h1 className="font-display text-5xl leading-none">Настройки проекта</h1>
         <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
-          Здесь задаются стоп-слова, скорость публикаций и Threads-профили, через которые проект выходит в ленту.
+          Настраивается здесь: стоп-слова, расписание, аккаунты и описание конкретного продукта. Это помогает ИИ писать не абстрактно, а под задачу проекта.
         </p>
       </header>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <StyleLayerCard
-          title="Глобальный стиль"
-          label="общий голос"
-          description="Настраивается в разделе «Стиль» и применяется ко всем вашим проектам: тон, запреты, уровень экспертности, общие правила текста."
-          href="/app/settings"
-        />
-        <StyleLayerCard
-          title="Контекст проекта"
-          label="локальная специфика"
-          description="Настраивается здесь: стоп-слова, расписание, аккаунты и описание конкретного продукта. Это помогает ИИ писать не абстрактно, а под задачу проекта."
-          href={`/app/projects/${projectId}/settings`}
-        />
-      </section>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm xl:col-span-2">
           <div className="grid gap-6 lg:grid-cols-[1fr_520px]">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-                Context & CTA
-              </p>
-              <h2 className="mt-2 font-display text-3xl">Контекст и целевые действия</h2>
+              <h2 className="font-display text-3xl">Контекст и целевые действия</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
                 Здесь задается локальная память проекта: кто вы, как говорите, что важно для аудитории
                 и какие мягкие действия можно предлагать в финале постов.
@@ -416,10 +395,7 @@ export default function ProjectSettingsPage() {
         <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm xl:col-span-2">
           <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-                Negative keywords
-              </p>
-              <h2 className="mt-2 font-display text-3xl">Стоп-слова</h2>
+              <h2 className="font-display text-3xl">Стоп-слова</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
                 Эти слова запрещаются только для текущего проекта. Используйте их для локальных табу:
                 неудачных терминов, старых мемов или слов, которые ломают тон.
@@ -444,18 +420,15 @@ export default function ProjectSettingsPage() {
         <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm xl:col-span-2">
           <div className="grid gap-6 lg:grid-cols-[1fr_520px]">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-                Posting schedule
-              </p>
-              <h2 className="mt-2 font-display text-3xl">Расписание</h2>
+              <h2 className="font-display text-3xl">Расписание</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-                Управляет скоростью проекта: сколько постов выпускать в день и в какое локальное окно можно публиковать.
+                Управляет скоростью проекта: сколько постов выпускать в день на каждый аккаунт и в какое локальное окно можно публиковать.
               </p>
             </div>
 
             <div className="grid gap-4 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
               <label className="grid gap-2">
-                <span className="field-label">Постов в день</span>
+                <span className="field-label">Постов в день на аккаунт</span>
                 <input
                   type="number"
                   min={1}
@@ -533,10 +506,7 @@ export default function ProjectSettingsPage() {
         <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-                Threads profiles
-              </p>
-              <h2 className="mt-2 font-display text-3xl">Аккаунты проекта</h2>
+              <h2 className="font-display text-3xl">Аккаунты проекта</h2>
             </div>
           </div>
 
@@ -568,10 +538,7 @@ export default function ProjectSettingsPage() {
         </section>
 
         <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-            Bind profile
-          </p>
-          <h2 className="mt-2 font-display text-3xl">Привязать аккаунт</h2>
+          <h2 className="font-display text-3xl">Привязать аккаунт</h2>
           <p className="mt-3 text-sm leading-6 text-[#66645d]">
             В списке только свободные аккаунты. Если список пуст, добавьте профиль в разделе “Аккаунты”.
           </p>
@@ -685,36 +652,6 @@ function AccountCard({
         </div>
       ) : null}
     </article>
-  );
-}
-
-function StyleLayerCard({
-  title,
-  label,
-  description,
-  href,
-}: {
-  title: string;
-  label: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <Link
-      to={href}
-      className="group overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#07100e] hover:shadow-md"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">{label}</p>
-          <h2 className="mt-2 font-display text-3xl leading-none tracking-[-0.04em]">{title}</h2>
-        </div>
-        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#eef4ec] text-[#07100e] transition group-hover:bg-[#07100e] group-hover:text-white">
-          →
-        </span>
-      </div>
-      <p className="mt-5 text-sm leading-6 text-[#66645d]">{description}</p>
-    </Link>
   );
 }
 

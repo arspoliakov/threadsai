@@ -98,10 +98,7 @@ export default function InfrastructurePage() {
     <section className="space-y-8">
       <header className="grid gap-6 border-b border-[#c9c9c3] pb-8 md:grid-cols-[1fr_auto]">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-            Аккаунты
-          </p>
-          <h1 className="mt-4 font-display text-5xl leading-none">Аккаунты</h1>
+          <h1 className="font-display text-5xl leading-none">Аккаунты</h1>
           <p className="mt-5 max-w-2xl text-sm leading-6 text-[#66645d]">
             Здесь хранится общий пул Threads-профилей. Аккаунт можно держать свободным,
             привязать к проекту, проверить cookies-сессию или удалить из системы.
@@ -153,10 +150,7 @@ export default function InfrastructurePage() {
       <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-              Threads profiles
-            </p>
-            <h2 className="mt-2 font-display text-3xl">Пул аккаунтов</h2>
+            <h2 className="font-display text-3xl">Пул аккаунтов</h2>
           </div>
         </div>
 
@@ -312,10 +306,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
       <aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-black bg-[#f6f6f2]">
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-              Новый профиль
-            </p>
-            <h2 className="mt-2 font-display text-3xl">Добавить аккаунт</h2>
+            <h2 className="font-display text-3xl">Добавить аккаунт</h2>
           </div>
           <button
             type="button"
@@ -457,10 +448,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
       <aside className="ml-auto flex h-full w-full max-w-2xl flex-col border-l border-black bg-[#f6f6f2]">
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[#77766f]">
-              Пакетная загрузка
-            </p>
-            <h2 className="mt-2 font-display text-3xl">Массовый импорт аккаунтов</h2>
+            <h2 className="font-display text-3xl">Массовый импорт аккаунтов</h2>
           </div>
           <button
             type="button"

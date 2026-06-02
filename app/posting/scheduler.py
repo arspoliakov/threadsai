@@ -318,9 +318,14 @@ async def _calculate_next_account_slot_today(
     session: AsyncSession,
     *,
     reserved_slots: list[datetime] | None = None,
+    reference_utc: datetime | None = None,
 ) -> datetime | None:
-    start_at, end_at = _project_active_window_bounds(project)
     now = datetime.now(UTC)
+    reference = reference_utc or now
+    start_at, end_at = _project_active_window_bounds(project, reference)
+    if end_at <= now:
+        return None
+
     minimum_slot = max(now + timedelta(minutes=FIRST_POST_DELAY_MINUTES), start_at)
     posts_per_day = _project_posts_per_day(project)
     window_seconds = max(60, int((end_at - start_at).total_seconds()))
@@ -356,6 +361,27 @@ async def _calculate_next_account_slot_today(
         return candidate
 
     return None
+
+
+async def calculate_next_account_slot(
+    project: Project,
+    account_id: int,
+    session: AsyncSession,
+    *,
+    days_ahead: int = 30,
+) -> datetime:
+    now = datetime.now(UTC)
+    for day_offset in range(days_ahead):
+        scheduled_at = await _calculate_next_account_slot_today(
+            project,
+            account_id,
+            session,
+            reference_utc=now + timedelta(days=day_offset),
+        )
+        if scheduled_at is not None:
+            return scheduled_at
+
+    return _next_project_active_start(project, now + timedelta(days=1))
 
 
 def _stable_slot_jitter_minutes(project_id: int, account_id: int, day_start: datetime, slot_index: int) -> int:

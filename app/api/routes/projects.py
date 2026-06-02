@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -23,6 +23,7 @@ from app.db.models import (
     SavedTrend,
 )
 from app.db.repositories.projects import ProjectRepository
+from app.posting.scheduler import calculate_next_account_slot
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
 
 
@@ -369,13 +370,14 @@ async def trigger_project_generation(
     await db.flush()
 
     try:
+        scheduled_at = await calculate_next_account_slot(project, account_id, db)
         posting_task = await generate_post(
             project_id=project.id,
             topic_or_context=_build_generation_topic(project),
             session=db,
             platform=Platform.THREADS,
             account_id=account_id,
-            scheduled_at=datetime.now(UTC) + timedelta(minutes=5),
+            scheduled_at=scheduled_at,
             use_trends=True,
         )
         operation.status = ProjectOperationStatus.SUCCESS

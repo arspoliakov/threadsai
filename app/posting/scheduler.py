@@ -5,7 +5,9 @@ import random
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,14 +26,17 @@ from app.db.models import (
 )
 from app.db.session import AsyncSessionLocal
 from app.services.admin_notifier import send_admin_alert
+from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.telegram.notifications import send_admin_notification
 
 
 TASK_CHECK_INTERVAL_SECONDS = 90
 QUEUE_HEALTH_CHECK_INTERVAL_SECONDS = 15 * 60
+PROXY_RECOVERY_INTERVAL_SECONDS = 15 * 60
 MAX_GENERATIONS_PER_SCHEDULER_RUN = 50
 FIRST_POST_DELAY_MINUTES = 15
 TREND_ANALYSIS_INTERVAL_DAYS = 3
+IP_CHECK_URL = "https://api.ipify.org"
 
 scheduler = AsyncIOScheduler()
 logger = logging.getLogger(__name__)
@@ -71,7 +76,68 @@ def setup_posting_scheduler() -> AsyncIOScheduler:
             coalesce=True,
         )
 
+    if not scheduler.get_job("recover_proxy_error_accounts"):
+        scheduler.add_job(
+            recover_proxy_error_accounts,
+            trigger="interval",
+            seconds=PROXY_RECOVERY_INTERVAL_SECONDS,
+            id="recover_proxy_error_accounts",
+            max_instances=1,
+            coalesce=True,
+        )
+
     return scheduler
+
+
+async def recover_proxy_error_accounts() -> None:
+    async with AsyncSessionLocal() as session:
+        accounts = list(
+            (
+                await session.scalars(
+                    select(Account)
+                    .where(
+                        Account.platform == Platform.THREADS,
+                        Account.status == AccountStatus.PROXY_ERROR,
+                        Account.assigned_port.is_not(None),
+                    )
+                    .order_by(Account.id.asc())
+                )
+            ).all()
+        )
+
+        for account in accounts:
+            try:
+                proxy_url = build_threads_proxy_url_for_account(account)
+            except HTTPException as exc:
+                logger.warning("Proxy auto-recovery skipped: base proxy config is invalid: %s", exc.detail)
+                return
+
+            if not proxy_url:
+                continue
+
+            try:
+                recovered_ip = await _ping_proxy_ip(proxy_url)
+            except Exception as exc:
+                logger.info("Proxy for account %s is still unavailable: %s", account.id, exc)
+                continue
+
+            account.status = AccountStatus.ACTIVE
+            account.proxy_error_count = 0
+            account.last_error = None
+            await session.commit()
+            logger.info("Proxy for account %s recovered automatically. Current IP: %s", account.id, recovered_ip)
+
+
+async def _ping_proxy_ip(proxy_url: str) -> str:
+    async with httpx.AsyncClient(proxy=proxy_url, timeout=10.0) as client:
+        response = await client.get(IP_CHECK_URL)
+        response.raise_for_status()
+        current_ip = response.text.strip()
+
+    if not current_ip:
+        raise RuntimeError("Empty ipify response from account proxy.")
+
+    return current_ip
 
 
 async def check_queue_health() -> None:

@@ -15,6 +15,28 @@ import {
   type Project,
 } from "../../api/client";
 
+const timezoneOptions = [
+  { value: "Europe/Moscow", label: "Москва — Europe/Moscow" },
+  { value: "Europe/Istanbul", label: "Стамбул — Europe/Istanbul" },
+  { value: "Europe/Berlin", label: "Берлин — Europe/Berlin" },
+  { value: "Europe/Paris", label: "Париж — Europe/Paris" },
+  { value: "Europe/London", label: "Лондон — Europe/London" },
+  { value: "Europe/Madrid", label: "Мадрид — Europe/Madrid" },
+  { value: "Europe/Rome", label: "Рим — Europe/Rome" },
+  { value: "Asia/Dubai", label: "Дубай — Asia/Dubai" },
+  { value: "Asia/Tbilisi", label: "Тбилиси — Asia/Tbilisi" },
+  { value: "Asia/Yerevan", label: "Ереван — Asia/Yerevan" },
+  { value: "Asia/Almaty", label: "Алматы — Asia/Almaty" },
+  { value: "Asia/Bangkok", label: "Бангкок — Asia/Bangkok" },
+  { value: "Asia/Tokyo", label: "Токио — Asia/Tokyo" },
+  { value: "America/New_York", label: "Нью-Йорк — America/New_York" },
+  { value: "America/Chicago", label: "Чикаго — America/Chicago" },
+  { value: "America/Los_Angeles", label: "Лос-Анджелес — America/Los_Angeles" },
+  { value: "UTC", label: "UTC" },
+];
+
+const timezoneOptionValues = new Set(timezoneOptions.map((option) => option.value));
+
 export default function ProjectSettingsPage() {
   const { id } = useParams();
   const projectId = Number(id);
@@ -60,7 +82,7 @@ export default function ProjectSettingsPage() {
         posts_per_day: dashboardResult.project.posts_per_day ?? 3,
         active_hours_start: dashboardResult.project.active_hours_start ?? "09:00",
         active_hours_end: dashboardResult.project.active_hours_end ?? "21:00",
-        timezone: dashboardResult.project.timezone ?? "Europe/Moscow",
+        timezone: normalizeTimezone(dashboardResult.project.timezone),
       });
       if (!silent) {
         toast.success("Настройки обновлены");
@@ -176,7 +198,7 @@ export default function ProjectSettingsPage() {
         posts_per_day: clampPostsPerDay(scheduleDraft.posts_per_day),
         active_hours_start: scheduleDraft.active_hours_start,
         active_hours_end: scheduleDraft.active_hours_end,
-        timezone: scheduleDraft.timezone || "Europe/Moscow",
+        timezone: normalizeTimezone(scheduleDraft.timezone),
       });
       toast.promise(savePromise, {
         loading: "Сохраняем расписание...",
@@ -189,7 +211,7 @@ export default function ProjectSettingsPage() {
         posts_per_day: savedProject.posts_per_day,
         active_hours_start: savedProject.active_hours_start,
         active_hours_end: savedProject.active_hours_end,
-        timezone: savedProject.timezone,
+        timezone: normalizeTimezone(savedProject.timezone),
       });
     } finally {
       setIsSavingSchedule(false);
@@ -478,7 +500,7 @@ export default function ProjectSettingsPage() {
 
               <label className="grid gap-2">
                 <span className="field-label">Часовой пояс</span>
-                <input
+                <select
                   value={scheduleDraft.timezone}
                   onChange={(event) =>
                     setScheduleDraft((current) => ({
@@ -487,7 +509,13 @@ export default function ProjectSettingsPage() {
                     }))
                   }
                   className="field-control"
-                />
+                >
+                  {timezoneOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <button
@@ -848,4 +876,8 @@ function clampPostsPerDay(value: number) {
   }
 
   return Math.min(20, Math.max(1, Math.round(value)));
+}
+
+function normalizeTimezone(value: string | null | undefined) {
+  return value && timezoneOptionValues.has(value) ? value : "Europe/Moscow";
 }

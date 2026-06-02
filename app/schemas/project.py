@@ -1,6 +1,7 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ProjectBase(BaseModel):
@@ -21,6 +22,11 @@ class ProjectBase(BaseModel):
     active_hours_end: str = Field(default="21:00", pattern=r"^\d{2}:\d{2}$")
     timezone: str = Field(default="Europe/Moscow", min_length=1, max_length=64)
     is_active: bool = True
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        return _validate_timezone(value)
 
 
 class ProjectCreate(ProjectBase):
@@ -51,6 +57,14 @@ class ProjectUpdate(BaseModel):
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     is_active: bool | None = None
 
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        return _validate_timezone(value)
+
 
 class ProjectRead(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
@@ -59,3 +73,12 @@ class ProjectRead(ProjectBase):
     owner_id: int | None
     created_at: datetime
     updated_at: datetime
+
+
+def _validate_timezone(value: str) -> str:
+    try:
+        ZoneInfo(value)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError("timezone must be a valid IANA timezone, for example Europe/Moscow") from exc
+
+    return value

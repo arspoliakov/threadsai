@@ -174,16 +174,17 @@ async def run_account_worker(account_id: int, proxy_url: str, stop_event: asynci
     logger.info("Account proxy worker started: account #%s via %s.", account_id, _safe_proxy_label(proxy_url))
 
     while not stop_event.is_set():
+        task = await claim_next_browser_task_for_account(account_id)
+        if task is None:
+            await _sleep_or_stop(stop_event, ACCOUNT_POLL_SECONDS)
+            continue
+
         try:
             current_ip = await get_current_ip(proxy_url)
         except Exception as exc:
             logger.warning("Proxy IP polling failed for account #%s via %s: %s", account_id, _safe_proxy_label(proxy_url), exc)
             await record_proxy_failure(account_id, f"Proxy IP polling failed: {exc}")
-            await _sleep_or_stop(stop_event, ACCOUNT_POLL_SECONDS)
-            continue
-
-        task = await claim_next_browser_task_for_account(account_id)
-        if task is None:
+            await release_claimed_task(task, f"Proxy IP polling failed before browser start: {exc}")
             await _sleep_or_stop(stop_event, ACCOUNT_POLL_SECONDS)
             continue
 
@@ -335,6 +336,27 @@ async def claim_oldest_scraping_operation_for_account(account_id: int) -> int | 
             return operation.id
 
         return None
+
+
+async def release_claimed_task(task: BrowserTaskClaim, error_message: str) -> None:
+    async with AsyncSessionLocal() as session:
+        if task.kind == "posting":
+            posting_task = await session.get(PostingTask, task.task_id)
+            if posting_task is not None and posting_task.status == PostingTaskStatus.RUNNING:
+                posting_task.status = PostingTaskStatus.QUEUED
+                posting_task.started_at = None
+                posting_task.finished_at = None
+                posting_task.error_message = error_message
+                await session.commit()
+            return
+
+        if task.kind == "scraping":
+            operation = await session.get(ProjectOperation, task.task_id)
+            if operation is not None and operation.status == ProjectOperationStatus.RUNNING:
+                operation.status = ProjectOperationStatus.QUEUED
+                operation.finished_at = None
+                operation.message = error_message
+                await session.commit()
 
 
 async def execute_scraping_operation(

@@ -87,6 +87,14 @@ class Settings(BaseSettings):
         default="selenium",
         validation_alias="CHROME_DRIVER_BACKEND",
     )
+    chrome_profiles_dir: str = Field(
+        default="./data/chrome_profiles",
+        validation_alias="CHROME_PROFILES_DIR",
+    )
+    proxy_extensions_dir: str = Field(
+        default="./data/proxy_extensions",
+        validation_alias="PROXY_EXTENSIONS_DIR",
+    )
     web_admin_token: str = Field(
         default="dev-admin-token",
         validation_alias="WEB_ADMIN_TOKEN",

@@ -42,8 +42,8 @@ from app.services.proxy_pool import build_threads_proxy_url_for_account
 
 
 SCREENSHOTS_DIR = Path("./data/screenshots")
-PROXY_EXTENSIONS_DIR = Path("./data/proxy_extensions")
-CHROME_PROFILES_DIR = Path("./data/chrome_profiles")
+PROXY_EXTENSIONS_DIR = Path(os.getenv("PROXY_EXTENSIONS_DIR", "./data/proxy_extensions"))
+CHROME_PROFILES_DIR = Path(os.getenv("CHROME_PROFILES_DIR", "./data/chrome_profiles"))
 CHROME_PROFILE_CACHE_LIMIT_MB = int(os.getenv("CHROME_PROFILE_CACHE_LIMIT_MB", "20"))
 PROFILE_LOCKS: dict[int, Any] = {}
 PROFILE_LOCKS_GUARD = threading.Lock()

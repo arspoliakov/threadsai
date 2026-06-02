@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user_id, get_db
 from app.db.models import Account, AccountStatus, PostingTask, Project
 from app.db.repositories.accounts import AccountRepository
-from app.posting.adapters.threads import ThreadsAdapter
 from app.posting.exceptions import SessionExpiredException
+from app.posting.session_checker import check_session_in_subprocess
 from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
 from app.services.proxy_pool import prepare_account_create, prepare_account_update
 
@@ -181,7 +181,7 @@ async def check_account_session(
         )
 
     try:
-        result = await ThreadsAdapter(timeout_seconds=20).check_session(account)
+        result = await check_session_in_subprocess(account.id, timeout_seconds=60)
         if result.detected_username:
             account.username = result.detected_username
         account.status = AccountStatus.ACTIVE

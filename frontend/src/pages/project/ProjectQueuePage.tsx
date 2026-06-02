@@ -150,15 +150,6 @@ export default function ProjectQueuePage() {
             и сохраненная логика генерации.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadTasks()}
-          disabled={isLoading}
-          className="flex h-11 w-fit items-center gap-3 rounded-2xl border border-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isLoading ? <Spinner /> : null}
-          Обновить
-        </button>
       </header>
 
       {isLoading ? (

@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { getProjectTrends, type SavedTrend } from "../../api/client";
+import { getProjectTrends, triggerScraping, type SavedTrend } from "../../api/client";
 
 export default function ProjectTrendsPage() {
   const { id } = useParams();
   const projectId = Number(id);
   const [trends, setTrends] = useState<SavedTrend[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCollecting, setIsCollecting] = useState(false);
 
   async function loadTrends({ silent = false }: { silent?: boolean } = {}) {
     setIsLoading(true);
@@ -31,6 +32,20 @@ export default function ProjectTrendsPage() {
     }
   }, [projectId]);
 
+  async function handleCollectTrends() {
+    setIsCollecting(true);
+
+    try {
+      await triggerScraping(projectId);
+      toast.success("Сбор трендов поставлен в очередь");
+      await loadTrends({ silent: true });
+    } catch {
+      toast.error("Не удалось запустить сбор трендов");
+    } finally {
+      setIsCollecting(false);
+    }
+  }
+
   const topScore = useMemo(
     () => trends.reduce((max, trend) => Math.max(max, Number(trend.virality_score ?? 0)), 0),
     [trends],
@@ -51,19 +66,18 @@ export default function ProjectTrendsPage() {
         </div>
         <button
           type="button"
-          onClick={() => void loadTrends()}
-          disabled={isLoading}
+          onClick={() => void handleCollectTrends()}
+          disabled={isLoading || isCollecting}
           className="flex h-11 w-fit items-center gap-3 rounded-2xl border border-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isLoading ? <Spinner /> : null}
-          Обновить
+          {isCollecting ? <Spinner /> : null}
+          Собрать тренды
         </button>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <MetricCard label="Собрано трендов" value={isLoading ? "..." : String(trends.length)} />
         <MetricCard label="Лучший score" value={isLoading ? "..." : String(topScore || "нет")} />
-        <MetricCard label="Источник" value="Threads feed" />
       </div>
 
       {isLoading ? (

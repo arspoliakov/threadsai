@@ -158,15 +158,6 @@ export default function InfrastructurePage() {
             </p>
             <h2 className="mt-2 font-display text-3xl">Пул аккаунтов</h2>
           </div>
-          <button
-            type="button"
-            onClick={() => void loadAccounts()}
-            disabled={isLoading}
-            className="flex items-center gap-2 rounded-2xl border border-[#151515] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isLoading ? <Spinner /> : null}
-            Обновить
-          </button>
         </div>
 
         <div className="mt-5 grid gap-3">

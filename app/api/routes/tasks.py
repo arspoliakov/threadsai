@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -79,7 +79,21 @@ async def get_tasks(
     if status_filter is not None:
         stmt = stmt.where(PostingTask.status == status_filter)
 
-    stmt = stmt.order_by(PostingTask.scheduled_at.desc().nullslast(), PostingTask.created_at.desc())
+    terminal_rank = case(
+        (
+            PostingTask.status.in_(
+                [
+                    PostingTaskStatus.SUCCESS,
+                    PostingTaskStatus.PARTIAL_SUCCESS,
+                    PostingTaskStatus.FAILED,
+                    PostingTaskStatus.CANCELLED,
+                ]
+            ),
+            1,
+        ),
+        else_=0,
+    )
+    stmt = stmt.order_by(terminal_rank.asc(), PostingTask.scheduled_at.desc().nullslast(), PostingTask.created_at.desc())
     return list((await db.scalars(stmt)).all())
 
 

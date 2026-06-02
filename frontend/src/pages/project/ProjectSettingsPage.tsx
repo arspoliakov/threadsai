@@ -599,7 +599,8 @@ function AccountCard({
   onUnlink: () => void;
 }) {
   const [cookiesDraft, setCookiesDraft] = useState("");
-  const sessionNeedsUpdate = account.status === "cookies_expired" || account.status === "blocked" || account.status === "error" || account.status === "proxy_error";
+  const proxyPaused = account.status === "proxy_error";
+  const sessionNeedsUpdate = account.status === "cookies_expired" || account.status === "blocked" || account.status === "error";
 
   return (
     <article className={`rounded-2xl border p-4 transition hover:shadow-sm ${sessionNeedsUpdate ? "border-[#d88a35]/50 bg-[#fff4df]" : "border-[#e1e1dc] bg-[#fbfaf5] hover:border-[#151515]"}`}>
@@ -626,6 +627,12 @@ function AccountCard({
         <p className="mt-4 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
           {account.last_error}
         </p>
+      ) : null}
+
+      {proxyPaused ? (
+        <div className="mt-4 rounded-2xl border border-[#f1d19a] bg-[#fff8e8] px-4 py-3 text-sm leading-6 text-[#6f4300]">
+          Прокси-порт временно не отвечает. Система сама перепроверяет подключение и вернет аккаунт в работу, когда порт оживет. Cookies обновлять не нужно.
+        </div>
       ) : null}
 
       {sessionNeedsUpdate ? (

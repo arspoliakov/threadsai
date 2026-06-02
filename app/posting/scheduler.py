@@ -33,7 +33,7 @@ from app.telegram.notifications import send_admin_notification
 
 TASK_CHECK_INTERVAL_SECONDS = 30 * 60
 QUEUE_HEALTH_CHECK_INTERVAL_SECONDS = 15 * 60
-PROXY_RECOVERY_INTERVAL_SECONDS = 15 * 60
+PROXY_RECOVERY_INTERVAL_SECONDS = 5 * 60
 MAX_GENERATIONS_PER_SCHEDULER_RUN = 50
 FIRST_POST_DELAY_MINUTES = 15
 TREND_ANALYSIS_INTERVAL_DAYS = 3
@@ -378,7 +378,7 @@ async def _ensure_account_queue_for_project(
     )
 
     for offset in range(missing_count):
-        scheduled_at = await _calculate_next_account_slot_today(
+        scheduled_at = await _calculate_next_account_slot(
             project,
             account.id,
             session,
@@ -476,18 +476,40 @@ async def calculate_next_account_slot(
     *,
     days_ahead: int = 30,
 ) -> datetime:
+    scheduled_at = await _calculate_next_account_slot(
+        project,
+        account_id,
+        session,
+        reserved_slots=[],
+        days_ahead=days_ahead,
+    )
+    if scheduled_at is not None:
+        return scheduled_at
+
+    return _next_project_active_start(project, datetime.now(UTC) + timedelta(days=1))
+
+
+async def _calculate_next_account_slot(
+    project: Project,
+    account_id: int,
+    session: AsyncSession,
+    *,
+    reserved_slots: list[datetime],
+    days_ahead: int = QUEUE_LOOKAHEAD_DAYS,
+) -> datetime | None:
     now = datetime.now(UTC)
     for day_offset in range(days_ahead):
         scheduled_at = await _calculate_next_account_slot_today(
             project,
             account_id,
             session,
+            reserved_slots=reserved_slots,
             reference_utc=now + timedelta(days=day_offset),
         )
         if scheduled_at is not None:
             return scheduled_at
 
-    return _next_project_active_start(project, now + timedelta(days=1))
+    return None
 
 
 def _stable_slot_jitter_minutes(project_id: int, account_id: int, day_start: datetime, slot_index: int) -> int:

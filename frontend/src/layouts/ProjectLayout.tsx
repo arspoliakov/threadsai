@@ -24,10 +24,12 @@ export default function ProjectLayout() {
   }, [id]);
 
   const projectTitle = dashboard?.project.name || `Проект #${id}`;
-  const hasDeadSession =
+  const hasSessionProblem =
     dashboard?.account_states.some(
-      (account) => account.status === "cookies_expired" || account.status === "blocked" || account.status === "proxy_error",
+      (account) => account.status === "cookies_expired" || account.status === "blocked",
     ) ?? false;
+  const hasProxyPause = dashboard?.account_states.some((account) => account.status === "proxy_error") ?? false;
+  const hasAccountWarning = hasSessionProblem || hasProxyPause;
 
   const navigation: FloatingDockItem[] = [
     {
@@ -84,13 +86,13 @@ export default function ProjectLayout() {
             <div
               className={[
                 "hidden items-center gap-2 rounded-full border bg-white px-4 py-2 text-sm shadow-sm sm:inline-flex",
-                hasDeadSession
+                hasAccountWarning
                   ? "border-[#ffd48a] text-[#7d4b00]"
                   : "border-[#d6ddd2] text-[#4f584f]",
               ].join(" ")}
             >
-              <span className={hasDeadSession ? "h-2.5 w-2.5 rounded-full bg-[#ffb020]" : "h-2.5 w-2.5 rounded-full bg-[#70ff35]"} />
-              {hasDeadSession ? "cookies истекли" : "аккаунт готов"}
+              <span className={hasAccountWarning ? "h-2.5 w-2.5 rounded-full bg-[#ffb020]" : "h-2.5 w-2.5 rounded-full bg-[#70ff35]"} />
+              {hasSessionProblem ? "cookies истекли" : hasProxyPause ? "прокси проверяется" : "аккаунт готов"}
             </div>
             <ProfileMenu />
           </div>
@@ -98,7 +100,8 @@ export default function ProjectLayout() {
       </header>
 
       <main className="relative mx-auto max-w-[1440px] px-4 pb-32 pt-5 sm:px-6 sm:pb-36 sm:pt-8 lg:px-10">
-        {hasDeadSession ? <SessionWarningBanner projectBasePath={projectBasePath} /> : null}
+        {hasSessionProblem ? <SessionWarningBanner projectBasePath={projectBasePath} /> : null}
+        {!hasSessionProblem && hasProxyPause ? <ProxyWarningBanner projectBasePath={projectBasePath} /> : null}
         <Outlet />
         <FooterUtility />
       </main>
@@ -153,6 +156,30 @@ function SessionWarningBanner({ projectBasePath }: { projectBasePath: string }) 
           className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
         >
           Обновить cookies
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function ProxyWarningBanner({ projectBasePath }: { projectBasePath: string }) {
+  return (
+    <div className="mb-5 overflow-hidden rounded-[2rem] border border-[#ffd48a] bg-[#fff7e6] p-5 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-3">
+          <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-[#ffb020]" />
+          <div>
+            <p className="text-base font-medium text-[#3b2a08]">Прокси временно не отвечает</p>
+            <p className="mt-1 text-sm leading-6 text-[#7a5b22]">
+              Cookies не слетели. Система автоматически перепроверяет порт и вернет аккаунт в работу, когда прокси снова начнет отдавать IP.
+            </p>
+          </div>
+        </div>
+        <Link
+          to={`${projectBasePath}/settings`}
+          className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
+        >
+          Открыть настройки
         </Link>
       </div>
     </div>

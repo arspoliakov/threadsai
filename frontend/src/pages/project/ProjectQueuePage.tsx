@@ -84,7 +84,7 @@ export default function ProjectQueuePage() {
   async function handlePublishNow(taskId: number) {
     const task = tasks.find((item) => item.id === taskId);
     if (task && isTaskAccountSessionDead(task, accountStates)) {
-      toast.error("Публикация недоступна: сессия аккаунта Threads истекла или заблокирована");
+      toast.error(getAccountBlockMessage(task, accountStates));
       return;
     }
 
@@ -168,6 +168,7 @@ export default function ProjectQueuePage() {
               isRegenerating={regeneratingId === task.id}
               isSaving={savingId === task.id}
               isSessionDead={isTaskAccountSessionDead(task, accountStates)}
+              accountBlockMessage={getAccountBlockMessage(task, accountStates)}
               onToggle={() => toggleExpanded(task.id)}
               onCancel={() => void handleCancel(task.id)}
               onPublishNow={() => void handlePublishNow(task.id)}
@@ -189,6 +190,7 @@ function TaskCard({
   isRegenerating,
   isSaving,
   isSessionDead,
+  accountBlockMessage,
   onToggle,
   onCancel,
   onPublishNow,
@@ -202,6 +204,7 @@ function TaskCard({
   isRegenerating: boolean;
   isSaving: boolean;
   isSessionDead: boolean;
+  accountBlockMessage: string;
   onToggle: () => void;
   onCancel: () => void;
   onPublishNow: () => void;
@@ -312,7 +315,7 @@ function TaskCard({
               isLoading={isPublishing}
               title={
                 isSessionDead
-                  ? "Сессия аккаунта Threads истекла или аккаунт заблокирован. Обновите cookies в настройках проекта."
+                  ? accountBlockMessage
                   : undefined
               }
             >
@@ -516,4 +519,13 @@ function isTaskAccountSessionDead(task: PostingTask, accountStates: ProjectAccou
 
   const account = accountStates.find((item) => item.id === task.account_id);
   return account?.status === "cookies_expired" || account?.status === "blocked" || account?.status === "proxy_error";
+}
+
+function getAccountBlockMessage(task: PostingTask, accountStates: ProjectAccountState[]) {
+  const account = accountStates.find((item) => item.id === task.account_id);
+  if (account?.status === "proxy_error") {
+    return "Публикация на паузе: прокси временно не отвечает. Система сама перепроверит порт.";
+  }
+
+  return "Публикация недоступна: сессия аккаунта Threads истекла или аккаунт заблокирован.";
 }

@@ -40,6 +40,7 @@ from app.services.proxy_pool import build_threads_proxy_url_for_account
 IP_CHECK_URL = "https://api.ipify.org"
 ACCOUNT_POLL_SECONDS = 5
 ACCOUNT_DISCOVERY_INTERVAL_SECONDS = 30
+PROXY_FAILURE_RETRY_DELAY_SECONDS = 3 * 60
 SELENIUM_DEADLINE_SECONDS = settings.selenium_deadline_seconds
 MAX_CONCURRENT_BROWSERS = max(1, settings.max_concurrent_browsers)
 PROXY_FAILURE_THRESHOLD = max(1, settings.proxy_failure_threshold)
@@ -185,7 +186,7 @@ async def run_account_worker(account_id: int, proxy_url: str, stop_event: asynci
             logger.warning("Proxy IP polling failed for account #%s via %s: %s", account_id, _safe_proxy_label(proxy_url), exc)
             await record_proxy_failure(account_id, f"Proxy IP polling failed: {exc}")
             await release_claimed_task(task, f"Proxy IP polling failed before browser start: {exc}")
-            await _sleep_or_stop(stop_event, ACCOUNT_POLL_SECONDS)
+            await _sleep_or_stop(stop_event, PROXY_FAILURE_RETRY_DELAY_SECONDS)
             continue
 
         state.active_task_id = task.task_id
@@ -195,6 +196,7 @@ async def run_account_worker(account_id: int, proxy_url: str, stop_event: asynci
                 await reset_proxy_failure_count(account_id)
             except RetryablePostingException as exc:
                 await record_proxy_failure(account_id, str(exc))
+                await _sleep_or_stop(stop_event, PROXY_FAILURE_RETRY_DELAY_SECONDS)
             except Exception:
                 logger.exception("Account worker failed while executing %s task #%s.", task.kind, task.task_id)
             finally:

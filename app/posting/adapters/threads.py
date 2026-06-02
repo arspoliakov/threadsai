@@ -94,16 +94,6 @@ class ThreadsAdapter(BasePostingAdapter):
         (By.XPATH, XPATHS["thread_text"]),
     ]
 
-    COMPOSER_TRIGGER_LOCATORS = [
-        (By.XPATH, "//*[text()='Новая ветка']"),
-        (By.XPATH, "//*[contains(text(), 'Что нового?')]"),
-        (By.XPATH, "//div[contains(@class, 'x1i10hfl') and @role='button']"),
-    ]
-
-    COMPOSER_EDITOR_LOCATORS = [
-        (By.XPATH, "//div[@contenteditable='true']"),
-    ]
-
     def __init__(self, timeout_seconds: int = 25) -> None:
         self.timeout_seconds = timeout_seconds
 
@@ -731,16 +721,12 @@ class ThreadsAdapter(BasePostingAdapter):
         *,
         timeout_seconds: int | float | None = None,
     ) -> WebElement | None:
-        for by, selector in self.COMPOSER_EDITOR_LOCATORS:
-            try:
-                element = WebDriverWait(driver, timeout_seconds or self.timeout_seconds).until(
-                    EC.element_to_be_clickable((by, selector))
-                )
-                return element
-            except (TimeoutException, WebDriverException):
-                continue
-
-        return None
+        try:
+            return WebDriverWait(driver, timeout_seconds or self.timeout_seconds).until(
+                lambda current_driver: self._find_best_visible_editor(current_driver)
+            )
+        except TimeoutException:
+            return None
 
     def _type_thread_text(self, driver: WebDriver, text: str) -> None:
         last_error: Exception | None = None
@@ -909,13 +895,24 @@ class ThreadsAdapter(BasePostingAdapter):
 
         for _ in range(retries):
             try:
-                element = WebDriverWait(driver, self.timeout_seconds).until(
-                    EC.element_to_be_clickable((by, selector))
-                )
+                element = self._wait_for_composer_editor(driver, timeout_seconds=self.timeout_seconds)
+                if element is None:
+                    raise TimeoutException(f"Composer editor is not visible: {selector}")
+
                 self._scroll_to_element(driver, element)
                 driver.execute_script("arguments[0].click();", element)
                 self._wait_until_editor_has_focus(driver, element)
-                self._human_type_text(driver, value)
+
+                try:
+                    self._human_type_text(driver, value)
+                    self._wait_until_editor_contains_text(driver, value)
+                    return
+                except WebDriverException as typing_error:
+                    logger.warning("Threads human typing failed, falling back to JS input: %s", typing_error)
+
+                if not self._inject_text_with_javascript(driver, element, value):
+                    raise TimeoutException(f"Could not inject text into composer editor: {selector}")
+
                 self._wait_until_editor_contains_text(driver, value)
                 return
             except (StaleElementReferenceException, ElementClickInterceptedException, WebDriverException) as exc:
@@ -1008,6 +1005,10 @@ class ThreadsAdapter(BasePostingAdapter):
         logger.info("Threads editor contains inserted text")
 
     def _find_visible_editors(self, driver: WebDriver) -> list[WebElement]:
+        best_editor = self._find_best_visible_editor(driver)
+        if best_editor is not None:
+            return [best_editor]
+
         editors: list[WebElement] = []
 
         for by, selector in self.COMPOSER_EDITOR_LOCATORS:
@@ -1024,6 +1025,51 @@ class ThreadsAdapter(BasePostingAdapter):
                     continue
 
         return editors
+
+    def _find_best_visible_editor(self, driver: WebDriver) -> WebElement | None:
+        try:
+            return driver.execute_script(
+                """
+                const selectors = [
+                  '[role="dialog"] div[contenteditable="true"][role="textbox"]',
+                  '[role="dialog"] div[contenteditable="true"]',
+                  '[aria-modal="true"] div[contenteditable="true"][role="textbox"]',
+                  '[aria-modal="true"] div[contenteditable="true"]',
+                  'div[contenteditable="true"][role="textbox"]',
+                  'div[contenteditable="true"]'
+                ];
+                const seen = new Set();
+                const candidates = [];
+
+                for (const selector of selectors) {
+                  for (const element of document.querySelectorAll(selector)) {
+                    if (seen.has(element)) continue;
+                    seen.add(element);
+                    const rect = element.getBoundingClientRect();
+                    const style = window.getComputedStyle(element);
+                    if (
+                      rect.width < 20 ||
+                      rect.height < 10 ||
+                      style.visibility === 'hidden' ||
+                      style.display === 'none'
+                    ) {
+                      continue;
+                    }
+                    const inDialog = Boolean(element.closest('[role="dialog"], [aria-modal="true"]'));
+                    candidates.push({ element, inDialog, rect });
+                  }
+                }
+
+                candidates.sort((a, b) => {
+                  if (a.inDialog !== b.inDialog) return a.inDialog ? -1 : 1;
+                  return (b.rect.width * b.rect.height) - (a.rect.width * a.rect.height);
+                });
+
+                return candidates.length ? candidates[0].element : null;
+                """
+            )
+        except WebDriverException:
+            return None
 
     def _read_element_text(self, element: WebElement) -> str:
         try:

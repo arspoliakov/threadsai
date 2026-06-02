@@ -620,10 +620,19 @@ function formatAccountStates(accounts: ProjectAccountState[]) {
     return "Нет привязанных аккаунтов";
   }
 
+  const statusLabels: Record<string, string> = {
+    active: "активен",
+    cookies_expired: "истекли куки",
+    blocked: "заблокирован",
+    error: "ошибка",
+    proxy_error: "ошибка прокси",
+  };
+
   return accounts
     .map((account) => {
       const lastError = account.last_error ? `, ошибка: ${account.last_error}` : "";
-      return `${account.username} / ${account.platform} / ${account.status}${lastError}`;
+      const statusLabel = statusLabels[account.status] || account.status;
+      return `${account.username} / ${account.platform} / ${statusLabel}${lastError}`;
     })
     .join("; ");
 }
@@ -635,7 +644,16 @@ function formatTaskStatuses(statuses: Record<string, number>) {
     return "Задач пока нет";
   }
 
-  return entries.map(([status, count]) => `${status}: ${count}`).join("; ");
+  const statusLabels: Record<string, string> = {
+    queued: "в очереди",
+    running: "в процессе",
+    success: "успешно",
+    failed: "ошибка",
+    cancelled: "отменена",
+    draft: "черновик",
+  };
+
+  return entries.map(([status, count]) => `${statusLabels[status] || status}: ${count}`).join("; ");
 }
 
 function formatOperation(operation: ProjectOperation | null) {
@@ -643,8 +661,8 @@ function formatOperation(operation: ProjectOperation | null) {
     return "Еще не запускался";
   }
 
-  const started = new Date(operation.started_at).toLocaleString("ru-RU");
-  const finished = operation.finished_at ? new Date(operation.finished_at).toLocaleString("ru-RU") : "в процессе";
+  const started = new Date(operation.started_at).toLocaleString("ru-RU", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const finished = operation.finished_at ? new Date(operation.finished_at).toLocaleString("ru-RU", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "в процессе";
   const collected = operation.result_json?.collected_posts_count;
   const saved = operation.result_json?.saved_trends_count;
   const status =
@@ -658,7 +676,16 @@ function formatOperation(operation: ProjectOperation | null) {
       ? `Найдено постов: ${String(collected ?? "неизвестно")}. Новых трендов сохранено: ${String(saved ?? 0)}.`
       : "";
 
-  return `${status}; старт: ${started}; финиш: ${finished}. ${result} ${operation.message || ""}`.trim();
+  let message = operation.message || "";
+  if (message.startsWith("Trend analysis completed")) {
+    message = "";
+  } else if (message.startsWith("Trend scraping is running")) {
+    message = "Сбор трендов запущен.";
+  } else if (message.startsWith("Trend analysis failed:")) {
+    message = message.replace("Trend analysis failed:", "Ошибка сбора трендов:");
+  }
+
+  return `${status}; старт: ${started}; финиш: ${finished}. ${result} ${message}`.trim();
 }
 
 function formatDate(value: string | null) {
@@ -666,7 +693,13 @@ function formatDate(value: string | null) {
     return "Генераций еще не было";
   }
 
-  return new Date(value).toLocaleString("ru-RU");
+  return new Date(value).toLocaleString("ru-RU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function getProjectSystemStatus({

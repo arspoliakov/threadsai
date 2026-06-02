@@ -100,16 +100,9 @@ function TrendCard({ trend }: { trend: SavedTrend }) {
     <article className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-6 border-b border-[#e7e5de] pb-5">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#77766f]">
-            #{trend.id} / {trend.platform}
-          </p>
-          <h2 className="mt-3 max-w-xl font-display text-2xl leading-tight">
-            {trend.author_handle || "лента"}
+          <h2 className="font-display text-2xl leading-tight">
+            Тренд #{trend.id}
           </h2>
-        </div>
-        <div className="rounded-2xl border border-[#151515] px-4 py-3 text-right font-mono">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-[#77766f]">Score</p>
-          <p className="text-2xl leading-none">{trend.virality_score ?? "—"}</p>
         </div>
       </div>
 
@@ -120,9 +113,6 @@ function TrendCard({ trend }: { trend: SavedTrend }) {
       </div>
 
       <footer className="mt-5 flex flex-wrap gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#77766f]">
-        <span className="rounded-full border border-[#d8d8d2] px-3 py-2">
-          ER: {formatMetric(trend.metrics_json?.engagement_rate)}
-        </span>
         <span className="rounded-full border border-[#d8d8d2] px-3 py-2">
           {formatDate(trend.created_at)}
         </span>
@@ -192,5 +182,11 @@ function formatDate(value: string | null) {
     return "—";
   }
 
-  return new Date(value).toLocaleString("ru-RU");
+  return new Date(value).toLocaleString("ru-RU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

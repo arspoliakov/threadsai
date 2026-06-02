@@ -94,10 +94,6 @@ export default function Dashboard() {
           <h1 className="font-display text-5xl leading-[0.9] tracking-[-0.055em] text-[#111] sm:text-6xl lg:text-7xl">
             Проекты
           </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-[#626961] sm:text-lg">
-            Главный экран: ближайший сбор трендов, опубликованные посты и проекты,
-            которые сейчас ждут публикацию.
-          </p>
         </div>
 
         <div className="grid gap-3 sm:flex sm:items-center">
@@ -198,11 +194,7 @@ function getCurrentAction(
     return "Ждем первый проект";
   }
 
-  if (nextProject) {
-    return "Очередь готова";
-  }
-
-  return "Контур активен";
+  return "Бот запущен";
 }
 
 function CreateProjectModal({
@@ -548,7 +540,13 @@ function formatDateTime(value: string | null | undefined) {
     return "Не запланировано";
   }
 
-  return new Date(value).toLocaleString("ru-RU");
+  return new Date(value).toLocaleString("ru-RU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function RefreshIcon() {

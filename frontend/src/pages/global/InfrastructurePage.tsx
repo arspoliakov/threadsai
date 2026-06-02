@@ -134,7 +134,7 @@ export default function InfrastructurePage() {
             </div>
           </div>
           <h2 className="mt-8 max-w-xl font-display text-4xl leading-none tracking-[-0.04em] sm:text-5xl">
-            Перед запуском масштабирования проверьте инфраструктуру.
+            Аккаунты
           </h2>
           <p className="mt-5 max-w-xl text-sm leading-7 text-white/58">
             Каждый Threads-профиль живет отдельно: свой статус cookies и своя привязка к проекту.

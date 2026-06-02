@@ -25,22 +25,14 @@ export function BotStatusCard({
       <div className="absolute bottom-[-7rem] left-[25%] h-64 w-64 rounded-full bg-[#0076ff]/20 blur-3xl" />
 
       <div className="relative">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#70ff35] opacity-70" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-[#70ff35]" />
-            </span>
-            <span className="text-sm text-white/68">бот работает</span>
-          </div>
-          <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-[#70ff35]">
+        <div className="flex items-start justify-between gap-4">
+          <h2 className={compact ? "font-display text-3xl leading-none" : "font-display text-4xl leading-[0.92] tracking-[-0.055em] sm:text-5xl"}>
+            {currentAction}
+          </h2>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-[#70ff35]">
             <AppIcon name="spark" />
           </span>
         </div>
-
-        <h2 className={compact ? "mt-5 font-display text-3xl leading-none" : "mt-7 font-display text-4xl leading-[0.92] tracking-[-0.055em] sm:text-5xl"}>
-          {currentAction}
-        </h2>
 
         <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.045] p-5">
           <div className="flex items-center gap-3 text-white/62">
@@ -59,5 +51,11 @@ export function formatDateTime(value: string | null | undefined) {
     return "не запланировано";
   }
 
-  return new Date(value).toLocaleString("ru-RU");
+  return new Date(value).toLocaleString("ru-RU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

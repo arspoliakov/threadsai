@@ -83,17 +83,6 @@ export default function ProjectLayout() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <div
-              className={[
-                "hidden items-center gap-2 rounded-full border bg-white px-4 py-2 text-sm shadow-sm sm:inline-flex",
-                hasAccountWarning
-                  ? "border-[#ffd48a] text-[#7d4b00]"
-                  : "border-[#d6ddd2] text-[#4f584f]",
-              ].join(" ")}
-            >
-              <span className={hasAccountWarning ? "h-2.5 w-2.5 rounded-full bg-[#ffb020]" : "h-2.5 w-2.5 rounded-full bg-[#70ff35]"} />
-              {hasSessionProblem ? "cookies истекли" : hasProxyPause ? "прокси проверяется" : "аккаунт готов"}
-            </div>
             <ProfileMenu />
           </div>
         </div>

@@ -509,7 +509,13 @@ function formatDate(value: string | null) {
     return "не запланировано";
   }
 
-  return new Date(value).toLocaleString("ru-RU");
+  return new Date(value).toLocaleString("ru-RU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function isTaskAccountSessionDead(task: PostingTask, accountStates: ProjectAccountState[]) {

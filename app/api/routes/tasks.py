@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user_id, get_db
 from app.ai_engine.generators import generate_post
@@ -20,6 +21,7 @@ class PostingTaskRead(BaseModel):
     id: int
     project_id: int
     account_id: int | None
+    account_username: str | None = None
     source_trend_id: int | None
     platform: Platform
     content_text: str
@@ -65,6 +67,7 @@ async def get_tasks(
 ) -> list[PostingTaskRead]:
     stmt = (
         select(PostingTask)
+        .options(selectinload(PostingTask.account))
         .join(Project, PostingTask.project_id == Project.id)
         .where(Project.owner_id == current_user_id)
     )
@@ -247,6 +250,7 @@ async def publish_task_now(
 async def _get_owned_task(task_id: int, owner_id: int, db: AsyncSession) -> PostingTask | None:
     return await db.scalar(
         select(PostingTask)
+        .options(selectinload(PostingTask.account))
         .join(Project, PostingTask.project_id == Project.id)
         .where(
             PostingTask.id == task_id,

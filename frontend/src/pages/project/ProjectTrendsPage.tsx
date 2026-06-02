@@ -58,7 +58,7 @@ export default function ProjectTrendsPage() {
           <h1 className="font-display text-5xl leading-none">Тренды</h1>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
             Разобранные паттерны из ленты: механика хука, структура, ритм и оценка
-            виральности.
+            виральности. Система автоматически ставит сбор трендов в очередь раз в 3 дня, кнопку можно использовать для ручного запуска.
           </p>
         </div>
         <button
@@ -82,7 +82,7 @@ export default function ProjectTrendsPage() {
       ) : trends.length === 0 ? (
         <EmptyState
           title="Тренды еще не собраны"
-          description="Запустите анализ трендов на сводке проекта или дождитесь ежедневного джоба."
+          description="Запустите сбор трендов вручную или дождитесь автоматического сбора: он ставится в очередь раз в 3 дня."
         />
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">

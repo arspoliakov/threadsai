@@ -231,6 +231,7 @@ export type PostingTask = {
   id: number;
   project_id: number;
   account_id: number | null;
+  account_username: string | null;
   source_trend_id: number | null;
   platform: Platform;
   content_text: string;

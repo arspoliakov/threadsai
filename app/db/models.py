@@ -206,6 +206,10 @@ class PostingTask(Base, TimestampMixin):
     account: Mapped[Account | None] = relationship(back_populates="posting_tasks")
     source_trend: Mapped[SavedTrend | None] = relationship(back_populates="posting_tasks")
 
+    @property
+    def account_username(self) -> str | None:
+        return self.account.username if self.account is not None else None
+
 
 class SavedTrend(Base, TimestampMixin):
     __tablename__ = "saved_trends"

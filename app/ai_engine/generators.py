@@ -354,9 +354,20 @@ def _build_publication_memory_context(posts: list[dict[str, str]]) -> str:
     if not posts:
         return "Прошлых генераций пока нет."
 
+    overused_openings = _detect_overused_openings(posts)
     sections = [
-        "Последние 10 сгенерированных текстов проекта в любых статусах. Используй их как память, чтобы не повторять структуру, заход и applied_angle."
+        "Последние тексты проекта ниже являются анти-памятью, а не примерами для копирования. "
+        "Нельзя повторять их сцену, заход, первую фразу, конфликт, applied_angle и бытовую механику. "
+        "Если несколько прошлых постов начинались через коллегу, ленту, чужую цитату или вопрос другого человека, "
+        "следующий пост обязан начинаться иначе: через личное действие, конкретный момент дня, интерфейс, оплату, календарь, клиента, заметку, ошибку или наблюдение."
     ]
+    if overused_openings:
+        sections.append(
+            "Перегретые заходы, которые сейчас запрещены: "
+            + "; ".join(overused_openings)
+            + ". Не используй их в новом посте."
+        )
+
     for index, post in enumerate(posts, start=1):
         sections.append(
             "\n".join(
@@ -370,6 +381,23 @@ def _build_publication_memory_context(posts: list[dict[str, str]]) -> str:
         )
 
     return "\n\n".join(sections)
+
+
+def _detect_overused_openings(posts: list[dict[str, str]]) -> list[str]:
+    recent_texts = [post["content"].lower() for post in posts[:8] if post.get("content")]
+    patterns = [
+        ("коллега/коллеги в ленте", ("коллег",)),
+        ("чужой пост или цитата в начале", ("читаю пост", "прочитала пост", "листаю ленту", "в ленте")),
+        ("вчера как основной старт", ("вчера",)),
+    ]
+    overheated: list[str] = []
+
+    for label, needles in patterns:
+        count = sum(1 for text in recent_texts if any(needle in text for needle in needles))
+        if count >= 2:
+            overheated.append(label)
+
+    return overheated
 
 
 def _build_project_description(project: Project | None) -> str:

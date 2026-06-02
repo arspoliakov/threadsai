@@ -244,6 +244,11 @@ function TaskCard({
             <StatusDot status={task.status} />
             {formatStatus(task.status)}
           </div>
+          {task.account_username ? (
+            <div className="mt-3 inline-flex rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] px-3 py-1.5 text-xs text-[#55534c]">
+              @{task.account_username}
+            </div>
+          ) : null}
         </div>
         <div className="rounded-2xl border border-[#d8d8d2] px-4 py-3 text-right">
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">

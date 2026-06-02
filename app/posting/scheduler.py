@@ -36,6 +36,7 @@ PROXY_RECOVERY_INTERVAL_SECONDS = 15 * 60
 MAX_GENERATIONS_PER_SCHEDULER_RUN = 50
 FIRST_POST_DELAY_MINUTES = 15
 TREND_ANALYSIS_INTERVAL_DAYS = 3
+QUEUE_LOOKAHEAD_DAYS = 2
 IP_CHECK_URL = "https://api.ipify.org"
 
 scheduler = AsyncIOScheduler()
@@ -258,15 +259,16 @@ async def ensure_account_based_queue() -> None:
                 continue
 
             account_posts_limit = _project_posts_per_day(project)
+            account_queue_limit = account_posts_limit * QUEUE_LOOKAHEAD_DAYS
 
             for account in accounts:
-                account_tasks_today = await _count_account_tasks_today(project, account.id, session)
-                if account_tasks_today >= account_posts_limit:
+                account_upcoming_tasks = await _count_account_upcoming_tasks(project, account.id, session)
+                if account_upcoming_tasks >= account_queue_limit:
                     continue
 
                 reserved_slots: list[datetime] = []
                 missing_count = min(
-                    account_posts_limit - account_tasks_today,
+                    account_queue_limit - account_upcoming_tasks,
                     MAX_GENERATIONS_PER_SCHEDULER_RUN - generated_count,
                 )
 
@@ -284,7 +286,7 @@ async def ensure_account_based_queue() -> None:
                         break
 
                     try:
-                        post_number = account_tasks_today + offset
+                        post_number = account_upcoming_tasks + offset
                         reserved_slots.append(scheduled_at)
                         task = await generate_post(
                             project_id=project.id,
@@ -417,13 +419,15 @@ async def _get_project_posting_accounts(project_id: int, session: AsyncSession) 
     return list((await session.scalars(stmt)).all())
 
 
-async def _count_account_tasks_today(project: Project, account_id: int, session: AsyncSession) -> int:
-    start_at, end_at = _project_day_bounds(project)
+async def _count_account_upcoming_tasks(project: Project, account_id: int, session: AsyncSession) -> int:
+    start_at, _ = _project_day_bounds(project)
+    _, end_at = _project_day_bounds(project, datetime.now(UTC) + timedelta(days=QUEUE_LOOKAHEAD_DAYS - 1))
+    lower_bound = max(datetime.now(UTC), start_at)
     count = await session.scalar(
         select(func.count(PostingTask.id)).where(
             PostingTask.project_id == project.id,
             PostingTask.account_id == account_id,
-            PostingTask.scheduled_at >= start_at,
+            PostingTask.scheduled_at >= lower_bound,
             PostingTask.scheduled_at < end_at,
             PostingTask.status.not_in([PostingTaskStatus.FAILED, PostingTaskStatus.CANCELLED]),
         )

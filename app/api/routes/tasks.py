@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user_id, get_db
 from app.ai_engine.generators import generate_post
 from app.db.models import Platform, PostingTask, PostingTaskStatus, Project
+from app.posting.scheduler import schedule_account_queue_refill
 
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -206,6 +207,8 @@ async def cancel_task(
     task.error_message = "Cancelled manually from web API."
     await db.commit()
     await db.refresh(task)
+    if task.account_id is not None:
+        schedule_account_queue_refill(task.project_id, task.account_id)
     return task
 
 

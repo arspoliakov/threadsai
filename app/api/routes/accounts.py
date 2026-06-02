@@ -7,6 +7,7 @@ from app.api.deps import get_current_user_id, get_db
 from app.db.models import Account, AccountStatus, PostingTask, Project
 from app.db.repositories.accounts import AccountRepository
 from app.posting.exceptions import SessionExpiredException
+from app.posting.scheduler import schedule_account_queue_refill
 from app.posting.session_checker import check_session_in_subprocess
 from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
 from app.services.proxy_pool import prepare_account_create, prepare_account_update
@@ -48,6 +49,8 @@ async def create_account(
     account.owner_id = current_user_id
     await db.commit()
     await db.refresh(account)
+    if account.project_id is not None and account.status == AccountStatus.ACTIVE:
+        schedule_account_queue_refill(account.project_id, account.id)
     return account
 
 
@@ -110,6 +113,8 @@ async def update_account_status(
     account.last_error = payload.last_error
     await db.commit()
     await db.refresh(account)
+    if account.project_id is not None and account.status == AccountStatus.ACTIVE:
+        schedule_account_queue_refill(account.project_id, account.id)
     return account
 
 
@@ -135,6 +140,8 @@ async def update_account(
                 detail="Project not found",
             )
 
+    previous_project_id = account.project_id
+    previous_status = account.status
     prepared_payload = prepare_account_update(payload)
 
     for key, value in prepared_payload.model_dump(exclude_unset=True).items():
@@ -142,6 +149,12 @@ async def update_account(
 
     await db.commit()
     await db.refresh(account)
+    if (
+        account.project_id is not None
+        and account.status == AccountStatus.ACTIVE
+        and (previous_project_id != account.project_id or previous_status != account.status)
+    ):
+        schedule_account_queue_refill(account.project_id, account.id)
     return account
 
 
@@ -188,6 +201,8 @@ async def check_account_session(
         account.last_error = None
         await db.commit()
         await db.refresh(account)
+        if account.project_id is not None:
+            schedule_account_queue_refill(account.project_id, account.id)
         return AccountSessionCheckRead(
             account_id=account.id,
             status=account.status,

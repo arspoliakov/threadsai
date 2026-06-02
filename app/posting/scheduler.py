@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import hashlib
 from datetime import UTC, datetime, time, timedelta
@@ -30,7 +31,7 @@ from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.telegram.notifications import send_admin_notification
 
 
-TASK_CHECK_INTERVAL_SECONDS = 90
+TASK_CHECK_INTERVAL_SECONDS = 30 * 60
 QUEUE_HEALTH_CHECK_INTERVAL_SECONDS = 15 * 60
 PROXY_RECOVERY_INTERVAL_SECONDS = 15 * 60
 MAX_GENERATIONS_PER_SCHEDULER_RUN = 50
@@ -42,6 +43,36 @@ IP_CHECK_URL = "https://api.ipify.org"
 scheduler = AsyncIOScheduler()
 logger = logging.getLogger(__name__)
 last_queue_alert_sent_at: datetime | None = None
+account_queue_locks: dict[int, asyncio.Lock] = {}
+
+
+def schedule_account_queue_refill(project_id: int, account_id: int) -> None:
+    task = asyncio.create_task(ensure_account_queue(project_id, account_id))
+    task.add_done_callback(_log_queue_refill_result)
+
+
+def schedule_project_queue_refill(project_id: int) -> None:
+    task = asyncio.create_task(ensure_project_queue(project_id))
+    task.add_done_callback(_log_queue_refill_result)
+
+
+def _log_queue_refill_result(task: asyncio.Task[int]) -> None:
+    try:
+        generated_count = task.result()
+    except Exception:
+        logger.exception("Event-driven queue refill failed.")
+        return
+
+    if generated_count:
+        logger.info("Event-driven queue refill generated %s task(s).", generated_count)
+
+
+def _get_account_queue_lock(account_id: int) -> asyncio.Lock:
+    lock = account_queue_locks.get(account_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        account_queue_locks[account_id] = lock
+    return lock
 
 
 def setup_posting_scheduler() -> AsyncIOScheduler:
@@ -258,60 +289,133 @@ async def ensure_account_based_queue() -> None:
             if not accounts:
                 continue
 
-            account_posts_limit = _project_posts_per_day(project)
-            account_queue_limit = account_posts_limit * QUEUE_LOOKAHEAD_DAYS
-
             for account in accounts:
-                account_upcoming_tasks = await _count_account_upcoming_tasks(project, account.id, session)
-                if account_upcoming_tasks >= account_queue_limit:
-                    continue
-
-                reserved_slots: list[datetime] = []
-                missing_count = min(
-                    account_queue_limit - account_upcoming_tasks,
-                    MAX_GENERATIONS_PER_SCHEDULER_RUN - generated_count,
-                )
-
-                for offset in range(missing_count):
-                    if generated_count >= MAX_GENERATIONS_PER_SCHEDULER_RUN:
-                        return
-
-                    scheduled_at = await _calculate_next_account_slot_today(
-                        project,
-                        account.id,
-                        session,
-                        reserved_slots=reserved_slots,
+                async with _get_account_queue_lock(account.id):
+                    generated_count += await _ensure_account_queue_for_project(
+                        project=project,
+                        account=account,
+                        session=session,
+                        remaining_generation_budget=MAX_GENERATIONS_PER_SCHEDULER_RUN - generated_count,
                     )
-                    if scheduled_at is None:
-                        break
+                if generated_count >= MAX_GENERATIONS_PER_SCHEDULER_RUN:
+                    return
 
-                    try:
-                        post_number = account_upcoming_tasks + offset
-                        reserved_slots.append(scheduled_at)
-                        task = await generate_post(
-                            project_id=project.id,
-                            topic_or_context=_build_account_topic(project, account, post_number),
-                            session=session,
-                            platform=account.platform,
-                            account_id=account.id,
-                            scheduled_at=scheduled_at,
-                            use_trends=True,
-                        )
-                        generated_count += 1
-                        logger.info(
-                            "Generated scheduled task #%s for project #%s, account @%s. Scheduled at: %s.",
-                            task.id,
-                            project.id,
-                            account.username,
-                            task.scheduled_at,
-                        )
-                    except Exception:
-                        await session.rollback()
-                        logger.exception(
-                            "Account-based generation failed for project #%s, account #%s.",
-                            project.id,
-                            account.id,
-                        )
+
+async def ensure_project_queue(project_id: int, *, generation_budget: int = MAX_GENERATIONS_PER_SCHEDULER_RUN) -> int:
+    generated_count = 0
+
+    async with AsyncSessionLocal() as session:
+        project = await session.get(Project, project_id)
+        if project is None or not project.is_active:
+            return 0
+
+        accounts = await _get_project_posting_accounts(project.id, session)
+        for account in accounts:
+            async with _get_account_queue_lock(account.id):
+                generated_count += await _ensure_account_queue_for_project(
+                    project=project,
+                    account=account,
+                    session=session,
+                    remaining_generation_budget=generation_budget - generated_count,
+                )
+            if generated_count >= generation_budget:
+                break
+
+    return generated_count
+
+
+async def ensure_account_queue(
+    project_id: int,
+    account_id: int,
+    *,
+    generation_budget: int | None = None,
+) -> int:
+    async with AsyncSessionLocal() as session:
+        project = await session.get(Project, project_id)
+        account = await session.get(Account, account_id)
+        if project is None or account is None:
+            return 0
+
+        async with _get_account_queue_lock(account.id):
+            return await _ensure_account_queue_for_project(
+                project=project,
+                account=account,
+                session=session,
+                remaining_generation_budget=generation_budget or _project_posts_per_day(project) * QUEUE_LOOKAHEAD_DAYS,
+            )
+
+
+async def _ensure_account_queue_for_project(
+    *,
+    project: Project,
+    account: Account,
+    session: AsyncSession,
+    remaining_generation_budget: int,
+) -> int:
+    if remaining_generation_budget <= 0:
+        return 0
+
+    if (
+        not project.is_active
+        or account.project_id != project.id
+        or account.status != AccountStatus.ACTIVE
+        or account.platform != Platform.THREADS
+        or account.assigned_port is None
+    ):
+        return 0
+
+    account_posts_limit = _project_posts_per_day(project)
+    account_queue_limit = account_posts_limit * QUEUE_LOOKAHEAD_DAYS
+    account_upcoming_tasks = await _count_account_upcoming_tasks(project, account.id, session)
+    if account_upcoming_tasks >= account_queue_limit:
+        return 0
+
+    generated_count = 0
+    reserved_slots: list[datetime] = []
+    missing_count = min(
+        account_queue_limit - account_upcoming_tasks,
+        remaining_generation_budget,
+    )
+
+    for offset in range(missing_count):
+        scheduled_at = await _calculate_next_account_slot_today(
+            project,
+            account.id,
+            session,
+            reserved_slots=reserved_slots,
+        )
+        if scheduled_at is None:
+            break
+
+        try:
+            post_number = account_upcoming_tasks + offset
+            reserved_slots.append(scheduled_at)
+            task = await generate_post(
+                project_id=project.id,
+                topic_or_context=_build_account_topic(project, account, post_number),
+                session=session,
+                platform=account.platform,
+                account_id=account.id,
+                scheduled_at=scheduled_at,
+                use_trends=True,
+            )
+            generated_count += 1
+            logger.info(
+                "Generated scheduled task #%s for project #%s, account @%s. Scheduled at: %s.",
+                task.id,
+                project.id,
+                account.username,
+                task.scheduled_at,
+            )
+        except Exception:
+            await session.rollback()
+            logger.exception(
+                "Account-based generation failed for project #%s, account #%s.",
+                project.id,
+                account.id,
+            )
+
+    return generated_count
 
 
 async def _calculate_next_account_slot_today(

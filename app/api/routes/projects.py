@@ -23,7 +23,7 @@ from app.db.models import (
     SavedTrend,
 )
 from app.db.repositories.projects import ProjectRepository
-from app.posting.scheduler import calculate_next_account_slot
+from app.posting.scheduler import calculate_next_account_slot, schedule_project_queue_refill
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
 
 
@@ -117,6 +117,7 @@ async def update_project(
 
     await db.commit()
     await db.refresh(project)
+    schedule_project_queue_refill(project.id)
     return project
 
 

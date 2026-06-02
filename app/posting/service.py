@@ -8,6 +8,7 @@ from app.db.models import Account, AccountStatus, Platform, PostingTask, Posting
 from app.posting.adapters.base import BasePostingAdapter
 from app.posting.adapters.threads import ThreadsAdapter
 from app.posting.exceptions import RetryablePostingException, SessionExpiredException, ThreadChainPartialSuccess
+from app.posting.scheduler import schedule_account_queue_refill
 from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.telegram.notifications import send_user_notification
 
@@ -94,6 +95,7 @@ async def execute_posting_task(
         account.last_error = None
         await session.commit()
         await session.refresh(task)
+        schedule_account_queue_refill(task.project_id, account.id)
         return task
     except SessionExpiredException as exc:
         error_message = str(exc)
@@ -124,6 +126,8 @@ async def _mark_failed(session: AsyncSession, task: PostingTask, error_message: 
         task.account.last_error = error_message
     await session.commit()
     await session.refresh(task)
+    if task.account_id is not None:
+        schedule_account_queue_refill(task.project_id, task.account_id)
 
 
 async def _mark_retryable(
@@ -160,6 +164,7 @@ async def _mark_partial_success(
     account.last_error = error_message
     await session.commit()
     await session.refresh(task)
+    schedule_account_queue_refill(task.project_id, account.id)
 
 
 async def _mark_session_expired(

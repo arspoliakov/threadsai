@@ -124,7 +124,13 @@ class ThreadsAdapter(BasePostingAdapter):
         )
 
     async def check_session(self, account: Account) -> PublishResult:
-        return await asyncio.to_thread(self._check_session_sync, account)
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(self._check_session_sync, account),
+                timeout=max(30, self.timeout_seconds + 20),
+            )
+        except TimeoutError as exc:
+            raise ProxyNetworkException("Threads session check timed out while starting Chrome.") from exc
 
     def _check_session_sync(self, account: Account) -> PublishResult:
         proxy_url = build_threads_proxy_url_for_account(account)
@@ -316,7 +322,8 @@ class ThreadsAdapter(BasePostingAdapter):
 
         if profile_lock is not None:
             logger.info("Waiting for Chrome profile lock: account #%s", account_id)
-            profile_lock.acquire()
+            if not profile_lock.acquire(timeout=max(10, self.timeout_seconds)):
+                raise ProxyNetworkException(f"Chrome profile is busy for account #{account_id}.")
             logger.info("Chrome profile lock acquired: account #%s", account_id)
 
         user_data_dir.mkdir(parents=True, exist_ok=True)
@@ -389,7 +396,10 @@ class ThreadsAdapter(BasePostingAdapter):
             return driver
         except WebDriverException as exc:
             if profile_lock is not None:
-                profile_lock.release()
+                try:
+                    profile_lock.release()
+                except RuntimeError:
+                    pass
             if account_id is None:
                 self._remove_directory_safely(user_data_dir)
             if proxy_extension_path is not None:
@@ -399,6 +409,15 @@ class ThreadsAdapter(BasePostingAdapter):
                 "совместимость ChromeDriver и системные библиотеки. "
                 f"Исходная ошибка: {exc}"
             ) from exc
+        except Exception as exc:
+            if profile_lock is not None:
+                try:
+                    profile_lock.release()
+                except RuntimeError:
+                    pass
+            if account_id is None:
+                self._remove_directory_safely(user_data_dir)
+            raise ProxyNetworkException(f"Chrome/proxy driver startup failed: {exc}") from exc
 
     def _apply_stealth_scripts(self, driver: WebDriver) -> None:
         driver.execute_cdp_cmd(

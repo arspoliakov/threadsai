@@ -20,6 +20,7 @@ from selenium.common.exceptions import (
     TimeoutException,
     WebDriverException,
 )
+from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -29,6 +30,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from app.db.models import Account, PostingTask
+from app.core.config import settings
 from app.posting.adapters.base import BasePostingAdapter, PublishResult
 from app.posting.exceptions import (
     PostingDeadlineExceeded,
@@ -316,7 +318,8 @@ class ThreadsAdapter(BasePostingAdapter):
         return deadline_at is not None and time.monotonic() >= deadline_at
 
     def _create_driver(self, proxy_extension_path: Path | None, *, account_id: int | None = None) -> WebDriver:
-        options = uc.ChromeOptions()
+        use_undetected_driver = settings.chrome_driver_backend.casefold() == "undetected"
+        options = uc.ChromeOptions() if use_undetected_driver else webdriver.ChromeOptions()
         user_data_dir = self._get_user_data_dir(account_id)
         profile_lock = _get_profile_lock(account_id)
 
@@ -386,7 +389,10 @@ class ThreadsAdapter(BasePostingAdapter):
 
         try:
             self._trim_chrome_profile_cache(user_data_dir)
-            driver = uc.Chrome(options=options, use_subprocess=True)
+            if use_undetected_driver:
+                driver = uc.Chrome(options=options, use_subprocess=True)
+            else:
+                driver = webdriver.Chrome(options=options)
             setattr(driver, "_threadsai_user_data_dir", user_data_dir)
             setattr(driver, "_threadsai_persistent_profile", account_id is not None)
             setattr(driver, "_threadsai_profile_lock", profile_lock)

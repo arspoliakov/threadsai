@@ -83,6 +83,10 @@ class Settings(BaseSettings):
         default=3,
         validation_alias="PROXY_FAILURE_THRESHOLD",
     )
+    chrome_driver_backend: str = Field(
+        default="selenium",
+        validation_alias="CHROME_DRIVER_BACKEND",
+    )
     web_admin_token: str = Field(
         default="dev-admin-token",
         validation_alias="WEB_ADMIN_TOKEN",

@@ -771,9 +771,9 @@ class ThreadsAdapter(BasePostingAdapter):
         try:
             return driver.execute_script(
                 """
-                const labels = ['post', 'publish', 'опубликовать', 'запостить'];
+                const exactLabels = ['post', 'publish', 'опубликовать', 'запостить'];
                 const dialog = document.querySelector('[role="dialog"], [aria-modal="true"]') || document;
-                const candidates = Array.from(dialog.querySelectorAll('button, [role="button"], div[tabindex]'));
+                const candidates = Array.from(dialog.querySelectorAll('button, [role="button"]'));
 
                 function isVisible(element) {
                   const rect = element.getBoundingClientRect();
@@ -785,21 +785,28 @@ class ThreadsAdapter(BasePostingAdapter):
                     style.pointerEvents !== 'none';
                 }
 
+                const exactMatches = [];
+                const ariaMatches = [];
+
                 for (const element of candidates) {
                   if (!isVisible(element)) continue;
                   if (element.disabled || element.getAttribute('aria-disabled') === 'true') continue;
-                  const text = [
-                    element.innerText || '',
-                    element.textContent || '',
+                  const visibleText = (element.innerText || element.textContent || '').trim().toLowerCase();
+                  const ariaText = [
                     element.getAttribute('aria-label') || '',
                     element.getAttribute('title') || ''
                   ].join(' ').trim().toLowerCase();
-                  if (labels.some((label) => text === label || text.includes(label))) {
-                    return element;
+                  if (visibleText.includes('option') || ariaText.includes('option')) continue;
+                  if (exactLabels.some((label) => visibleText === label)) {
+                    exactMatches.push(element);
+                    continue;
+                  }
+                  if (exactLabels.some((label) => ariaText === label)) {
+                    ariaMatches.push(element);
                   }
                 }
 
-                return null;
+                return exactMatches[exactMatches.length - 1] || ariaMatches[ariaMatches.length - 1] || null;
                 """
             )
         except WebDriverException:

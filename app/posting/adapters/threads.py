@@ -760,7 +760,10 @@ class ThreadsAdapter(BasePostingAdapter):
                 lambda current_driver: self._find_submit_button(current_driver)
             )
             self._scroll_to_element(driver, button)
-            driver.execute_script("arguments[0].click();", button)
+            try:
+                button.click()
+            except WebDriverException:
+                ActionChains(driver).move_to_element(button).pause(random.uniform(0.15, 0.45)).click().perform()
 
         self._retry_on_stale("click_submit_button", click_button, retries=3)
 

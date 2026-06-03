@@ -17,6 +17,7 @@ from app.db.models import Platform, PostingTask, PostingTaskStatus, Project, Sav
 MAX_TRENDS_FOR_SMART_SELECTION = 10
 MAX_PUBLICATION_MEMORY_ITEMS = 10
 MAX_GENERATION_ATTEMPTS = 3
+THREADS_POST_CHAR_LIMIT = 480
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +191,16 @@ STRUCTURED_OUTPUT_RULES = """
 
 Все 5 полей обязательны.
 В поле content должен быть только финальный пост.
+"""
+
+
+THREADS_LENGTH_RULES = f"""
+## Threads length limit
+
+Hard limit: each Threads post part must be at most {THREADS_POST_CHAR_LIMIT} characters.
+Return exactly one concise post in content.
+Never create a thread chain. Never return posts_chain.
+Do not put analysis, labels, headings, metadata, or explanations into content.
 """
 
 
@@ -531,6 +542,7 @@ def _build_generation_system_prompt(
             "## трендовый материал",
             trends_context,
             THREADS_VIBE_RULES,
+            THREADS_LENGTH_RULES,
             project_stop_words,
             conversion_rule,
             target_actions_rule,
@@ -558,31 +570,50 @@ async def _generate_validated_response(
         parsed_response = _parse_generation_response(response.choices[0].message.content or "")
         parsed_response["_validation_attempts"] = str(attempt)
         last_response = parsed_response
+        content_length = len(parsed_response["content"])
 
         forbidden_words = _find_forbidden_words(
             content=parsed_response["content"],
             stop_words=stop_words,
         )
-        if not forbidden_words:
+        if not forbidden_words and content_length <= THREADS_POST_CHAR_LIMIT:
             return parsed_response
 
         last_forbidden_words = forbidden_words
-        logger.warning(
-            "Generated post for project_id=%s used forbidden words on attempt %s/%s: %s",
-            project_id,
-            attempt,
-            MAX_GENERATION_ATTEMPTS,
-            ", ".join(forbidden_words),
-        )
+        if forbidden_words:
+            logger.warning(
+                "Generated post for project_id=%s used forbidden words on attempt %s/%s: %s",
+                project_id,
+                attempt,
+                MAX_GENERATION_ATTEMPTS,
+                ", ".join(forbidden_words),
+            )
+        if content_length > THREADS_POST_CHAR_LIMIT:
+            logger.warning(
+                "Generated post for project_id=%s exceeded Threads length on attempt %s/%s: %s characters.",
+                project_id,
+                attempt,
+                MAX_GENERATION_ATTEMPTS,
+                content_length,
+            )
 
         if attempt < MAX_GENERATION_ATTEMPTS:
+            retry_reasons: list[str] = []
+            if forbidden_words:
+                retry_reasons.append(
+                    "You used forbidden words: " + ", ".join(forbidden_words) + ". Remove them entirely."
+                )
+            if content_length > THREADS_POST_CHAR_LIMIT:
+                retry_reasons.append(
+                    f"Your content is {content_length} characters. Rewrite it to <= {THREADS_POST_CHAR_LIMIT} characters."
+                )
             messages.append(
                 {
                     "role": "system",
                     "content": (
-                        "SYSTEM ERROR: You violated the rules and used forbidden words: "
-                        f"{', '.join(forbidden_words)}. "
-                        "Completely rewrite the post in JSON, removing these words entirely. "
+                        "SYSTEM ERROR: "
+                        + " ".join(retry_reasons)
+                        + " Completely rewrite the post in JSON. "
                         "Keep the same JSON schema with content, applied_angle, hook_mechanic, "
                         "structure_pattern, tone_and_rhythm."
                     ),

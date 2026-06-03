@@ -283,11 +283,16 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
         )
 
         for task, account, project in candidate_rows:
-            if not _is_project_in_active_window(project, now):
+            publish_now_requested = _is_publish_now_requested(task)
+
+            if not publish_now_requested and not _is_project_in_active_window(project, now):
                 task.scheduled_at = _next_project_active_start(project, now)
                 continue
 
-            if await _count_account_success_today(project, account.id, session) >= _project_posts_per_day(project):
+            if (
+                not publish_now_requested
+                and await _count_account_success_today(project, account.id, session) >= _project_posts_per_day(project)
+            ):
                 task.scheduled_at = _next_project_active_start(project, now + timedelta(days=1))
                 continue
 
@@ -295,6 +300,12 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
             task.started_at = now
             task.finished_at = None
             task.error_message = None
+            if publish_now_requested:
+                task.generation_metadata = {
+                    key: value
+                    for key, value in (task.generation_metadata or {}).items()
+                    if key != "publish_now_requested"
+                }
             await session.commit()
             return task.id
 
@@ -488,6 +499,11 @@ def _is_proxy_failure_message(message: str | None) -> bool:
 
     normalized = message.casefold()
     return any(marker in normalized for marker in PROXY_FAILURE_MARKERS)
+
+
+def _is_publish_now_requested(task: PostingTask) -> bool:
+    metadata = task.generation_metadata if isinstance(task.generation_metadata, dict) else {}
+    return bool(metadata.get("publish_now_requested"))
 
 
 def _safe_proxy_label(proxy_url: str) -> str:

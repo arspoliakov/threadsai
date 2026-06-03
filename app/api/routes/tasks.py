@@ -260,6 +260,10 @@ async def publish_task_now(
     task.started_at = None
     task.finished_at = None
     task.error_message = None
+    task.generation_metadata = {
+        **(task.generation_metadata or {}),
+        "publish_now_requested": True,
+    }
     await db.commit()
     return PublishNowRead(task_id=task_id, status="queued_for_browser_window")
 

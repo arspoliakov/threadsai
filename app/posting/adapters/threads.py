@@ -658,12 +658,12 @@ class ThreadsAdapter(BasePostingAdapter):
             self._safe_send_keys(driver, By.XPATH, self.XPATHS["upload_photo"], media_url)
             logger.info("Threads media path attached")
 
-        self._submit_thread_with_hotkey(driver)
+        self._submit_thread(driver)
 
     def _reply_to_latest_visible_thread(self, driver: WebDriver, text: str) -> None:
         self._open_reply_composer(driver)
         self._type_thread_text(driver, text)
-        self._submit_thread_with_hotkey(driver)
+        self._submit_thread(driver)
 
     def _open_reply_composer(self, driver: WebDriver) -> None:
         reply_locators = [
@@ -744,6 +744,64 @@ class ThreadsAdapter(BasePostingAdapter):
 
         raise TimeoutException("Could not type text into Threads composer.")
 
+    def _submit_thread(self, driver: WebDriver) -> None:
+        try:
+            self._click_submit_button(driver)
+            logger.info("Threads publish button clicked")
+        except (TimeoutException, WebDriverException, StaleElementReferenceException) as exc:
+            logger.warning("Threads publish button click failed, falling back to hotkey: %s", exc)
+            self._submit_thread_with_hotkey(driver)
+
+        self._wait_after_publish_submit(driver)
+
+    def _click_submit_button(self, driver: WebDriver) -> None:
+        def click_button() -> None:
+            button = WebDriverWait(driver, 10).until(
+                lambda current_driver: self._find_submit_button(current_driver)
+            )
+            self._scroll_to_element(driver, button)
+            driver.execute_script("arguments[0].click();", button)
+
+        self._retry_on_stale("click_submit_button", click_button, retries=3)
+
+    def _find_submit_button(self, driver: WebDriver) -> WebElement | None:
+        try:
+            return driver.execute_script(
+                """
+                const labels = ['post', 'publish', 'опубликовать', 'запостить'];
+                const dialog = document.querySelector('[role="dialog"], [aria-modal="true"]') || document;
+                const candidates = Array.from(dialog.querySelectorAll('button, [role="button"], div[tabindex]'));
+
+                function isVisible(element) {
+                  const rect = element.getBoundingClientRect();
+                  const style = window.getComputedStyle(element);
+                  return rect.width > 8 &&
+                    rect.height > 8 &&
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    style.pointerEvents !== 'none';
+                }
+
+                for (const element of candidates) {
+                  if (!isVisible(element)) continue;
+                  if (element.disabled || element.getAttribute('aria-disabled') === 'true') continue;
+                  const text = [
+                    element.innerText || '',
+                    element.textContent || '',
+                    element.getAttribute('aria-label') || '',
+                    element.getAttribute('title') || ''
+                  ].join(' ').trim().toLowerCase();
+                  if (labels.some((label) => text === label || text.includes(label))) {
+                    return element;
+                  }
+                }
+
+                return null;
+                """
+            )
+        except WebDriverException:
+            return None
+
     def _submit_thread_with_hotkey(self, driver: WebDriver) -> None:
         def send_submit_hotkey() -> None:
             editor = self._wait_for_composer_editor(driver, timeout_seconds=8)
@@ -757,17 +815,16 @@ class ThreadsAdapter(BasePostingAdapter):
 
         self._retry_on_stale("submit_thread_with_hotkey", send_submit_hotkey, retries=3)
         logger.info("Threads publish hotkey sent")
-        self._wait_after_publish_submit(driver)
 
     def _wait_after_publish_submit(self, driver: WebDriver) -> None:
         try:
-            WebDriverWait(driver, 12).until(
+            WebDriverWait(driver, 20).until(
                 lambda current_driver: not self._has_visible_composer_editor(current_driver)
                 or self._active_editor_text_is_empty(current_driver)
             )
             logger.info("Threads publish submit acknowledged by UI")
         except TimeoutException:
-            logger.warning("Threads UI did not confirm submit within timeout; continuing after hotkey.")
+            raise TimeoutException("Threads UI did not confirm publication after submit.")
 
     def _has_visible_composer_editor(self, driver: WebDriver) -> bool:
         for by, selector in self.COMPOSER_EDITOR_LOCATORS:

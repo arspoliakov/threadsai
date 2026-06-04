@@ -16,7 +16,7 @@ from app.db.models import Platform, PostingTask, PostingTaskStatus, Project, Sav
 
 MAX_TRENDS_FOR_SMART_SELECTION = 10
 MAX_PUBLICATION_MEMORY_ITEMS = 10
-MAX_GENERATION_ATTEMPTS = 3
+MAX_GENERATION_ATTEMPTS = 5
 THREADS_POST_CHAR_LIMIT = 240
 
 logger = logging.getLogger(__name__)
@@ -792,6 +792,7 @@ def _find_generation_quality_issues(content: str) -> list[str]:
         "просто знаю",
         "просто запоминаю",
         "просто перестала",
+        "просто решила",
         "всё само",
         "все само",
         "одна база",

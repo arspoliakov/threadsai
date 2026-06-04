@@ -620,6 +620,7 @@ async def _generate_validated_response(
 ) -> dict[str, str]:
     last_response: dict[str, str] | None = None
     last_forbidden_words: list[str] = []
+    last_quality_issues: list[str] = []
 
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
         response = await client.chat.completions.create(
@@ -636,10 +637,12 @@ async def _generate_validated_response(
             content=parsed_response["content"],
             stop_words=stop_words,
         )
-        if not forbidden_words and content_length <= THREADS_POST_CHAR_LIMIT:
+        quality_issues = _find_generation_quality_issues(parsed_response["content"])
+        if not forbidden_words and not quality_issues and content_length <= THREADS_POST_CHAR_LIMIT:
             return parsed_response
 
         last_forbidden_words = forbidden_words
+        last_quality_issues = quality_issues
         if forbidden_words:
             logger.warning(
                 "Generated post for project_id=%s used forbidden words on attempt %s/%s: %s",
@@ -656,6 +659,14 @@ async def _generate_validated_response(
                 MAX_GENERATION_ATTEMPTS,
                 content_length,
             )
+        if quality_issues:
+            logger.warning(
+                "Generated post for project_id=%s failed quality checks on attempt %s/%s: %s",
+                project_id,
+                attempt,
+                MAX_GENERATION_ATTEMPTS,
+                "; ".join(quality_issues),
+            )
 
         if attempt < MAX_GENERATION_ATTEMPTS:
             retry_reasons: list[str] = []
@@ -666,6 +677,12 @@ async def _generate_validated_response(
             if content_length > THREADS_POST_CHAR_LIMIT:
                 retry_reasons.append(
                     f"Your content is {content_length} characters. Rewrite it to <= {THREADS_POST_CHAR_LIMIT} characters."
+                )
+            if quality_issues:
+                retry_reasons.append(
+                    "Quality issues: "
+                    + "; ".join(quality_issues)
+                    + ". Rewrite with a concrete human detail and no vague magic resolution."
                 )
             messages.append(
                 {
@@ -693,6 +710,13 @@ async def _generate_validated_response(
             project_id,
             MAX_GENERATION_ATTEMPTS,
             len(last_response["content"]),
+        )
+    elif last_quality_issues:
+        logger.error(
+            "Generated post for project_id=%s still failed quality checks after %s attempts: %s",
+            project_id,
+            MAX_GENERATION_ATTEMPTS,
+            "; ".join(last_quality_issues),
         )
 
     if last_response is None:
@@ -753,6 +777,52 @@ def _find_forbidden_words(*, content: str, stop_words: list[str]) -> list[str]:
             found_words.append(stop_word)
 
     return found_words
+
+
+def _find_generation_quality_issues(content: str) -> list[str]:
+    lowered = " ".join(content.lower().split())
+    issues: list[str] = []
+
+    vague_magic_patterns = [
+        "потом просто перестала",
+        "сейчас просто",
+        "теперь просто",
+        "просто открываю",
+        "просто смотрю",
+        "просто знаю",
+        "просто запоминаю",
+        "просто перестала",
+        "всё само",
+        "все само",
+        "одна база",
+        "одну базу",
+        "завела базу",
+    ]
+    if any(pattern in lowered for pattern in vague_magic_patterns):
+        issues.append("vague product/magic resolution")
+
+    if lowered.count("просто") >= 2:
+        issues.append("too many 'просто' shortcuts")
+
+    blaming_patterns = [
+        "кто из нас плохой",
+        "они виноваты",
+        "ученики виноваты",
+        "клиенты виноваты",
+        "родители виноваты",
+    ]
+    if any(pattern in lowered for pattern in blaming_patterns):
+        issues.append("blames the audience instead of showing fair tension")
+
+    generic_wisdom_patterns = [
+        "главный навык",
+        "выживают те",
+        "это грустный факт",
+    ]
+    if any(pattern in lowered for pattern in generic_wisdom_patterns) and len(lowered) < 180:
+        issues.append("generic wisdom without a scene")
+
+    return issues
 
 
 def _clean_generated_text(text: str) -> str:

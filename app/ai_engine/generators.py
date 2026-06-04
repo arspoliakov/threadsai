@@ -225,7 +225,8 @@ Words like "base", "system", "automation", "service", "CRM", "app" should not be
 If you mention a tool, make it incidental, not the whole point.
 Never resolve the post with vague magic phrases like "now I just look and know", "everything is automatic",
 "I simply stopped", or "I created one base". Show a tiny believable behavior instead.
-Do not blame clients, students, buyers, parents, or leads. The tension can be annoying, but the author must stay fair.
+Do not blame the audience, customers, users, buyers, leads, or counterparties.
+The tension can be annoying, but the author must stay fair.
 Avoid generic wisdom lines like "the main skill is management" unless they are anchored in a small scene.
 
 Avoid frozen openings and repeated phrases:
@@ -811,9 +812,10 @@ def _find_generation_quality_issues(content: str) -> list[str]:
     blaming_patterns = [
         "кто из нас плохой",
         "они виноваты",
-        "ученики виноваты",
         "клиенты виноваты",
-        "родители виноваты",
+        "покупатели виноваты",
+        "аудитория виновата",
+        "пользователи виноваты",
     ]
     if any(pattern in lowered for pattern in blaming_patterns):
         issues.append("blames the audience instead of showing fair tension")

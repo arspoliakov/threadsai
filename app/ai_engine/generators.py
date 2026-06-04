@@ -223,6 +223,10 @@ CTA or redirect hints are rare: roughly one out of four posts at most.
 For the next post, avoid product-solution language unless the user explicitly asked for it.
 Words like "base", "system", "automation", "service", "CRM", "app" should not be the default resolution.
 If you mention a tool, make it incidental, not the whole point.
+Never resolve the post with vague magic phrases like "now I just look and know", "everything is automatic",
+"I simply stopped", or "I created one base". Show a tiny believable behavior instead.
+Do not blame clients, students, buyers, parents, or leads. The tension can be annoying, but the author must stay fair.
+Avoid generic wisdom lines like "the main skill is management" unless they are anchored in a small scene.
 
 Avoid frozen openings and repeated phrases:
 - "yesterday I read/saw a colleague"
@@ -243,6 +247,7 @@ Use varied native Russian feed shapes:
 - one anti-advice line
 - one practical observation without a moral
 - one quiet punchline
+- one tiny operational detail without explaining the whole solution
 
 Keep the tone slightly imperfect and spoken. Short lines are good. A little asymmetry is good.
 Do not sound like a brochure, a motivational post, a startup landing page, or a lesson summary.

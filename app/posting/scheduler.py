@@ -660,6 +660,7 @@ def _build_account_topic(project: Project, account: Account, todays_count: int) 
     parts.append(
         "Live-feed instruction: make this feel like a native Russian Threads post, not a product case study. "
         "Do not default to colleague/yesterday/pinned/profile/base/system/automation endings. "
-        "Use a fresh micro-observation, tension, question, or quiet punchline."
+        "Use a fresh micro-observation, tension, question, or quiet punchline. "
+        "Do not blame students or clients, and do not end with vague magic like 'now I just know'."
     )
     return "\n".join(parts)

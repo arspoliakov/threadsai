@@ -657,4 +657,9 @@ def _build_account_topic(project: Project, account: Account, todays_count: int) 
             "Не повторяй предыдущие формулировки, опирайся на свежие тренды и описание проекта."
         ),
     ]
+    parts.append(
+        "Live-feed instruction: make this feel like a native Russian Threads post, not a product case study. "
+        "Do not default to colleague/yesterday/pinned/profile/base/system/automation endings. "
+        "Use a fresh micro-observation, tension, question, or quiet punchline."
+    )
     return "\n".join(parts)

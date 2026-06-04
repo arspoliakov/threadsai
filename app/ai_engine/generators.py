@@ -220,6 +220,9 @@ Do not repeat the same arc: "I struggled -> found a system/service/base -> life 
 Do not mention the product, service, automation, base, CRM, profile, pinned post, or bio link in every post.
 Most posts should work even if the reader never clicks anywhere.
 CTA or redirect hints are rare: roughly one out of four posts at most.
+For the next post, avoid product-solution language unless the user explicitly asked for it.
+Words like "base", "system", "automation", "service", "CRM", "app" should not be the default resolution.
+If you mention a tool, make it incidental, not the whole point.
 
 Avoid frozen openings and repeated phrases:
 - "yesterday I read/saw a colleague"
@@ -230,6 +233,8 @@ Avoid frozen openings and repeated phrases:
 - "I explained it in the pinned post"
 - "how it works is in my profile"
 - "I created a base/system"
+- "I stopped worrying after I found a service"
+- "now everything goes automatically"
 
 Use varied native Russian feed shapes:
 - one uncomfortable thought

@@ -255,7 +255,7 @@ async def generate_post(
         project_id=project_id,
         stop_words=project_stop_words,
     )
-    generated_text = _fit_generated_text_for_threads(_clean_generated_text(parsed_response["content"]))
+    generated_text = _prepare_generated_text_for_threads(_clean_generated_text(parsed_response["content"]))
     generation_metadata = {
         "applied_angle": parsed_response["applied_angle"],
         "hook_mechanic": parsed_response["hook_mechanic"],
@@ -627,12 +627,20 @@ async def _generate_validated_response(
                 }
             )
 
-    logger.error(
-        "Generated post for project_id=%s still contains forbidden words after %s attempts: %s",
-        project_id,
-        MAX_GENERATION_ATTEMPTS,
-        ", ".join(last_forbidden_words),
-    )
+    if last_forbidden_words:
+        logger.error(
+            "Generated post for project_id=%s still contains forbidden words after %s attempts: %s",
+            project_id,
+            MAX_GENERATION_ATTEMPTS,
+            ", ".join(last_forbidden_words),
+        )
+    elif last_response is not None and len(last_response["content"]) > THREADS_POST_CHAR_LIMIT:
+        logger.error(
+            "Generated post for project_id=%s still exceeds Threads length after %s attempts: %s characters.",
+            project_id,
+            MAX_GENERATION_ATTEMPTS,
+            len(last_response["content"]),
+        )
 
     if last_response is None:
         return {
@@ -719,6 +727,11 @@ def _clean_generated_text(text: str) -> str:
     return cleaned.strip()
 
 
+def _prepare_generated_text_for_threads(text: str) -> str:
+    fitted = _fit_generated_text_for_threads(text)
+    return _format_generated_text_lines(fitted)
+
+
 def _fit_generated_text_for_threads(text: str, limit: int = THREADS_POST_CHAR_LIMIT) -> str:
     cleaned = text.strip()
     if len(cleaned) <= limit:
@@ -739,5 +752,24 @@ def _fit_generated_text_for_threads(text: str, limit: int = THREADS_POST_CHAR_LI
     if cut_at < int(limit * 0.6):
         cut_at = limit
 
-    fitted = single_line[:cut_at].strip()
-    return fitted.rstrip(".,;: ") + "..."
+    suffix = "..."
+    fitted = single_line[: max(1, cut_at - len(suffix))].strip()
+    return fitted.rstrip(".,;: ") + suffix
+
+
+def _format_generated_text_lines(text: str, limit: int = THREADS_POST_CHAR_LIMIT) -> str:
+    if "\n" in text:
+        return text
+
+    parts = [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+    if len(parts) < 2:
+        return text
+
+    selected_parts: list[str] = []
+    for part in parts[:4]:
+        candidate = "\n\n".join([*selected_parts, part])
+        if len(candidate) > limit:
+            break
+        selected_parts.append(part)
+
+    return "\n\n".join(selected_parts) if len(selected_parts) >= 2 else text

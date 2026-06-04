@@ -95,11 +95,11 @@ export default function InfrastructurePage() {
   }
 
   return (
-    <section className="space-y-8">
-      <header className="grid gap-6 border-b border-[#c9c9c3] pb-8 md:grid-cols-[1fr_auto]">
+    <section className="space-y-5">
+      <header className="grid gap-4 border-b border-[#c9c9c3] pb-5 md:grid-cols-[1fr_auto]">
         <div>
-          <h1 className="font-display text-5xl leading-none">Аккаунты</h1>
-          <p className="mt-5 max-w-2xl text-sm leading-6 text-[#66645d]">
+          <h1 className="font-display text-4xl leading-none">Аккаунты</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
             Здесь хранится общий пул Threads-профилей. Аккаунт можно держать свободным,
             привязать к проекту, проверить cookies-сессию или удалить из системы.
           </p>
@@ -122,8 +122,8 @@ export default function InfrastructurePage() {
         </div>
       </header>
 
-      <section className="grid overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-[#07100e] text-white shadow-sm lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="p-6 sm:p-8">
+      <section className="grid overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#07100e] text-white shadow-sm lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="p-5 sm:p-6">
           <div className="flex items-center gap-3">
             <span className="grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/8">
               <img src="/threadsgo-logo.png" alt="" className="h-8 w-8 object-contain" />
@@ -133,22 +133,22 @@ export default function InfrastructurePage() {
               <p className="mt-1 text-xs text-white/45">cookies и здоровье сессий</p>
             </div>
           </div>
-          <h2 className="mt-8 max-w-xl font-display text-4xl leading-none tracking-[-0.04em] sm:text-5xl">
+          <h2 className="mt-5 max-w-xl font-display text-3xl leading-none tracking-[-0.035em] sm:text-4xl">
             Аккаунты
           </h2>
-          <p className="mt-5 max-w-xl text-sm leading-7 text-white/58">
+          <p className="mt-4 max-w-xl text-sm leading-6 text-white/58">
             Каждый Threads-профиль живет отдельно: свой статус cookies и своя привязка к проекту.
             Если сессия слетит, система остановит публикации и покажет проблему здесь.
           </p>
         </div>
-        <div className="relative min-h-64 overflow-hidden lg:min-h-full">
+        <div className="relative min-h-48 overflow-hidden lg:min-h-full">
           <img src="/interface/accounts-health.webp" alt="" className="h-full w-full object-cover opacity-88" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#07100e] via-[#07100e]/10 to-transparent lg:bg-gradient-to-l" />
         </div>
       </section>
 
-      <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
+      <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-4">
           <div>
             <h2 className="font-display text-3xl">Пул аккаунтов</h2>
           </div>
@@ -614,7 +614,7 @@ const statusLabels: Record<AccountStatus, string> = {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-3xl border border-dashed border-[#c9c9c3] bg-white/70 px-6 py-12 text-center shadow-sm">
+    <div className="rounded-[24px] border border-dashed border-[#c9c9c3] bg-white/70 px-5 py-10 text-center shadow-sm">
       <p className="font-display text-3xl leading-none text-[#151515]">{title}</p>
       <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d]">{description}</p>
     </div>

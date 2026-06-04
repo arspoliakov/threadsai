@@ -53,11 +53,11 @@ export default function ProjectTrendsPage() {
   );
 
   return (
-    <section className="space-y-8">
-      <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+    <section className="space-y-5">
+      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-display text-5xl leading-none">Тренды</h1>
-          <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
+          <h1 className="font-display text-4xl leading-none">Тренды</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
             Здесь лежат идеи из живой ленты Threads: как начинается пост, какой в нем конфликт,
             какой ритм и почему он может цеплять. Система сама собирает тренды раз в 3 дня,
             а кнопка нужна, если хочется обновить их сейчас.
@@ -79,7 +79,7 @@ export default function ProjectTrendsPage() {
         Потом эти паттерны помогают писать свои тексты.
       </DismissibleTip>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <MetricCard label="Собрано трендов" value={isLoading ? "..." : String(trends.length)} />
         <MetricCard label="Лучший score" value={isLoading ? "..." : String(topScore || "нет")} />
       </div>
@@ -92,7 +92,7 @@ export default function ProjectTrendsPage() {
           description="Нажмите «Собрать тренды» или дождитесь автоматического сбора. Он проходит раз в 3 дня."
         />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-3 xl:grid-cols-2">
           {trends.map((trend) => (
             <TrendCard key={trend.id} trend={trend} />
           ))}
@@ -104,8 +104,8 @@ export default function ProjectTrendsPage() {
 
 function TrendCard({ trend }: { trend: SavedTrend }) {
   return (
-    <article className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex items-start justify-between gap-6 border-b border-[#e7e5de] pb-5">
+    <article className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex items-start justify-between gap-5 border-b border-[#e7e5de] pb-4">
         <div>
           <h2 className="font-display text-2xl leading-tight">
             Тренд #{trend.id}
@@ -113,13 +113,13 @@ function TrendCard({ trend }: { trend: SavedTrend }) {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3">
+      <div className="mt-4 grid gap-3">
         <InfoBlock title="Hook Mechanic" value={trend.hook_mechanic || trend.hook_analysis} />
         <InfoBlock title="Structure Pattern" value={trend.structure_pattern} />
         <InfoBlock title="Tone & Rhythm" value={trend.tone_and_rhythm} />
       </div>
 
-      <footer className="mt-5 flex flex-wrap gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#77766f]">
+      <footer className="mt-4 flex flex-wrap gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#77766f]">
         <span className="rounded-full border border-[#d8d8d2] px-3 py-2">
           {formatDate(trend.created_at)}
         </span>
@@ -141,18 +141,18 @@ function InfoBlock({ title, value }: { title: string; value?: string | null }) {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
+    <div className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">{label}</p>
-      <p className="mt-4 font-display text-4xl leading-none">{value}</p>
+      <p className="mt-3 font-display text-3xl leading-none">{value}</p>
     </div>
   );
 }
 
 function TrendSkeleton() {
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid gap-3 xl:grid-cols-2">
       {[1, 2, 3, 4].map((item) => (
-        <div key={item} className="h-80 animate-pulse rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
+        <div key={item} className="h-64 animate-pulse rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
           <div className="h-3 w-24 rounded-full bg-[#deded7]" />
           <div className="mt-8 h-7 w-2/3 rounded-full bg-[#deded7]" />
           <div className="mt-10 h-20 rounded-2xl bg-[#f1f0ea]" />
@@ -164,10 +164,10 @@ function TrendSkeleton() {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="overflow-hidden rounded-3xl border border-dashed border-[#c9c9c3] bg-white/70 shadow-sm">
-      <div className="grid items-center gap-6 p-6 text-center sm:p-8 lg:grid-cols-[1fr_24rem] lg:text-left">
+    <div className="overflow-hidden rounded-[24px] border border-dashed border-[#c9c9c3] bg-white/70 shadow-sm">
+      <div className="grid items-center gap-5 p-5 text-center sm:p-6 lg:grid-cols-[1fr_20rem] lg:text-left">
         <div>
-          <p className="font-display text-4xl leading-none text-[#151515]">{title}</p>
+          <p className="font-display text-3xl leading-none text-[#151515]">{title}</p>
           <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d] lg:mx-0">{description}</p>
         </div>
         <img src="/interface/empty-trends.webp" alt="" className="hidden w-full rounded-[2rem] object-cover lg:block" />

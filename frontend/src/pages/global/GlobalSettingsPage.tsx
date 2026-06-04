@@ -89,8 +89,8 @@ export default function GlobalSettingsPage() {
   }
 
   return (
-    <section className="space-y-7">
-      <header className="relative overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-[#090d0c] p-7 text-white shadow-sm sm:p-8">
+    <section className="space-y-5">
+      <header className="relative overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#090d0c] p-5 text-white shadow-sm sm:p-6">
         <div className="absolute right-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-[#70ff35]/18 blur-[110px]" />
         <div className="absolute bottom-[-10rem] left-[20%] h-80 w-80 rounded-full bg-[#0076ff]/22 blur-[110px]" />
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[52%] overflow-hidden lg:block">
@@ -105,13 +105,13 @@ export default function GlobalSettingsPage() {
         </div>
 
         <div className="relative max-w-3xl">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.06]">
-            <img src="/threadsgo-logo.png" alt="" className="h-9 w-9 object-contain" />
+          <div className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.06]">
+            <img src="/threadsgo-logo.png" alt="" className="h-8 w-8 object-contain" />
           </div>
-          <h1 className="mt-8 font-display text-5xl leading-[0.9] tracking-[-0.055em] sm:text-6xl">
+          <h1 className="mt-5 font-display text-4xl leading-[0.95] tracking-[-0.04em] sm:text-5xl">
             Стиль генерации
           </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-white/62">
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-white/62">
             Это персональный глобальный промпт пользователя. Он применяется ко всем вашим проектам
             и задает общий голос: насколько текст сухой, живой, экспертный, дерзкий или спокойный.
           </p>
@@ -136,7 +136,7 @@ export default function GlobalSettingsPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-white shadow-sm"
+        className="overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-white shadow-sm"
       >
         <header className="flex flex-col gap-4 border-b border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
@@ -163,8 +163,8 @@ export default function GlobalSettingsPage() {
             value={body}
             onChange={(event) => setBody(event.target.value)}
             disabled={isLoading || isSaving}
-            rows={22}
-            className="min-h-[34rem] w-full resize-y rounded-[24px] border border-[#dfe4dc] bg-[#fbfcf7] p-5 text-sm leading-6 text-[#1d231d] outline-none transition focus:border-[#141815] disabled:opacity-50"
+            rows={18}
+            className="min-h-[26rem] w-full resize-y rounded-[20px] border border-[#dfe4dc] bg-[#fbfcf7] p-4 text-sm leading-6 text-[#1d231d] outline-none transition focus:border-[#141815] disabled:opacity-50"
           />
 
           <aside className="space-y-4">
@@ -203,7 +203,7 @@ export default function GlobalSettingsPage() {
 
 function InfoCard({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-[24px] border border-[#dfe4dc] bg-[#fbfcf7] p-5">
+    <div className="rounded-[20px] border border-[#dfe4dc] bg-[#fbfcf7] p-4">
       <p className="text-base text-[#141815]">{title}</p>
       <p className="mt-2 text-sm leading-6 text-[#667066]">{text}</p>
     </div>

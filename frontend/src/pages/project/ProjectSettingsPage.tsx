@@ -278,17 +278,17 @@ export default function ProjectSettingsPage() {
   }
 
   return (
-    <section className="space-y-8">
+    <section className="space-y-5">
       <header>
-        <h1 className="font-display text-5xl leading-none">Настройки проекта</h1>
-        <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
+        <h1 className="font-display text-4xl leading-none">Настройки проекта</h1>
+        <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
           Настраивается здесь: стоп-слова, расписание, аккаунты и описание конкретного продукта. Это помогает ИИ писать не абстрактно, а под задачу проекта.
         </p>
       </header>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm xl:col-span-2">
-          <div className="grid gap-6 lg:grid-cols-[1fr_520px]">
+        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
+          <div className="grid gap-5 lg:grid-cols-[1fr_480px]">
             <div>
               <h2 className="font-display text-3xl">Контекст и целевые действия</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
@@ -414,8 +414,8 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm xl:col-span-2">
-          <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
+        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
+          <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
             <div>
               <h2 className="font-display text-3xl">Стоп-слова</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
@@ -439,8 +439,8 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm xl:col-span-2">
-          <div className="grid gap-6 lg:grid-cols-[1fr_520px]">
+        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
+          <div className="grid gap-5 lg:grid-cols-[1fr_480px]">
             <div>
               <h2 className="font-display text-3xl">Расписание</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
@@ -531,8 +531,8 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
+        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-4">
             <div>
               <h2 className="font-display text-3xl">Аккаунты проекта</h2>
             </div>
@@ -565,7 +565,7 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
+        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
           <h2 className="font-display text-3xl">Привязать аккаунт</h2>
           <p className="mt-3 text-sm leading-6 text-[#66645d]">
             В списке только свободные аккаунты. Если список пуст, добавьте профиль в разделе “Аккаунты”.
@@ -764,7 +764,7 @@ function AccountSkeleton() {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-3xl border border-dashed border-[#c9c9c3] bg-white/70 px-6 py-12 text-center shadow-sm">
+    <div className="rounded-[24px] border border-dashed border-[#c9c9c3] bg-white/70 px-5 py-10 text-center shadow-sm">
       <p className="font-display text-3xl leading-none text-[#151515]">{title}</p>
       <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d]">{description}</p>
     </div>

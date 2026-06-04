@@ -16,7 +16,7 @@ export function BotStatusCard({
   return (
     <article
       className={[
-        "relative overflow-hidden rounded-[2rem] border border-[#151b17] bg-[#080d0b] text-white shadow-[0_24px_90px_rgba(10,10,10,0.18)]",
+        "relative overflow-hidden rounded-[24px] border border-[#151b17] bg-[#080d0b] text-white shadow-[0_18px_60px_rgba(10,10,10,0.16)]",
         compact ? "p-5" : "p-6 sm:p-7",
         className,
       ].join(" ")}
@@ -29,17 +29,17 @@ export function BotStatusCard({
           <h2 className={compact ? "font-display text-3xl leading-none" : "font-display text-4xl leading-[0.92] tracking-[-0.055em] sm:text-5xl"}>
             {currentAction}
           </h2>
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-[#70ff35]">
+          <span className={compact ? "grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-[#70ff35]" : "grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-[#70ff35]"}>
             <AppIcon name="spark" />
           </span>
         </div>
 
-        <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.045] p-5">
+        <div className={compact ? "mt-5 rounded-2xl border border-white/10 bg-white/[0.045] p-4" : "mt-6 rounded-2xl border border-white/10 bg-white/[0.045] p-5"}>
           <div className="flex items-center gap-3 text-white/62">
             <AppIcon name="refresh" className="h-5 w-5" />
             <span className="text-sm">{nextActionLabel}</span>
           </div>
-          <p className="mt-3 text-xl text-white sm:text-2xl">{formatDateTime(nextTrendCheck)}</p>
+          <p className={compact ? "mt-3 text-lg text-white sm:text-xl" : "mt-3 text-xl text-white sm:text-2xl"}>{formatDateTime(nextTrendCheck)}</p>
         </div>
       </div>
     </article>

@@ -22,9 +22,9 @@ const notes = [
 export default function HowItWorksPage() {
   return (
     <section className="space-y-5">
-      <header className="rounded-[28px] border border-[#dfe4dc] bg-white p-6 shadow-sm sm:p-7">
+      <header className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm sm:p-6">
         <div className="max-w-3xl">
-          <h1 className="font-display text-5xl leading-[0.9] tracking-[-0.055em] text-[#111] sm:text-6xl">
+          <h1 className="font-display text-4xl leading-[0.95] tracking-[-0.04em] text-[#111] sm:text-5xl">
             Какие посты пишет нейросеть?
           </h1>
           <p className="mt-5 text-sm leading-7 text-[#667066]">

@@ -149,13 +149,13 @@ export default function ProjectOverviewPage() {
   }
 
   return (
-    <section className="space-y-8">
-      <header className="grid gap-6 border border-[#c9c9c3] bg-white p-8 md:grid-cols-[1fr_auto]">
+    <section className="space-y-5">
+      <header className="grid gap-4 border border-[#c9c9c3] bg-white p-5 md:grid-cols-[1fr_auto] sm:p-6">
         <div>
-          <h1 className="font-display text-5xl leading-none">
+          <h1 className="font-display text-4xl leading-none">
             {dashboard?.project.name || "Сводка"}
           </h1>
-          <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
             Это центр управления проектом. Проверьте, готов ли аккаунт, собраны ли тренды
             и есть ли посты в контент-плане на ближайшие дни.
           </p>
@@ -191,7 +191,7 @@ export default function ProjectOverviewPage() {
       </div>
 
       {dashboard ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
           <SystemStatusCard
             dashboard={dashboard}
             operations={operations}
@@ -269,7 +269,7 @@ function SystemStatusCard({
   });
 
   return (
-    <section className="relative overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-[#07100e] p-6 text-white shadow-sm">
+    <section className="relative overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#07100e] p-5 text-white shadow-sm">
       <div className="absolute right-[-6rem] top-[-7rem] h-64 w-64 rounded-full bg-[#70ff35]/18 blur-[80px]" />
       <div className="absolute bottom-[-8rem] left-[10%] h-64 w-64 rounded-full bg-[#0076ff]/18 blur-[90px]" />
       <div className="relative">
@@ -280,10 +280,10 @@ function SystemStatusCard({
           </span>
           <p className="text-sm font-medium text-white/80">Сейчас система</p>
         </div>
-        <h2 className="mt-6 font-display text-5xl leading-[0.9] tracking-[-0.05em]">
+        <h2 className="mt-5 font-display text-4xl leading-[0.95] tracking-[-0.04em]">
           {status.title}
         </h2>
-        <p className="mt-5 max-w-xl text-sm leading-7 text-white/58">{status.description}</p>
+        <p className="mt-4 max-w-xl text-sm leading-6 text-white/58">{status.description}</p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <MiniMetric label="Активные аккаунты" value={String(activeAccounts)} />
@@ -344,7 +344,7 @@ function ReadinessChecklist({
   }
 
   return (
-    <section className="rounded-[2rem] border border-[#dfe4dc] bg-white p-6 shadow-sm xl:sticky xl:top-28">
+    <section className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm xl:sticky xl:top-28">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">Готовность</p>
@@ -489,14 +489,14 @@ function ActionPanel({
   onClick: () => void;
 }) {
   return (
-    <article className="bg-white p-6">
+    <article className="bg-white p-5">
       <h2 className="font-display text-3xl">{title}</h2>
-      <p className="mt-4 min-h-12 text-sm leading-6 text-[#66645d]">{description}</p>
+      <p className="mt-3 text-sm leading-6 text-[#66645d]">{description}</p>
       <button
         type="button"
         onClick={onClick}
         disabled={isDisabled}
-        className="mt-8 flex w-full items-center justify-center gap-3 border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition-all duration-200 ease-in-out hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+        className="mt-5 flex w-full items-center justify-center gap-3 border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition-all duration-200 ease-in-out hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isLoading ? <Spinner /> : null}
         {isLoading ? "Идет" : buttonText}

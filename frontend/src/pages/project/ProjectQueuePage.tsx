@@ -139,11 +139,11 @@ export default function ProjectQueuePage() {
   }
 
   return (
-    <section className="space-y-8">
-      <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+    <section className="space-y-5">
+      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-display text-5xl leading-none">Контент-план</h1>
-          <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
+          <h1 className="font-display text-4xl leading-none">Контент-план</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
             Здесь лежат будущие публикации. Можно посмотреть текст, аккаунт, время выхода,
             быстро поправить пост или отправить его на перегенерацию.
           </p>
@@ -163,7 +163,7 @@ export default function ProjectQueuePage() {
           description="Когда проект будет готов, система сама подготовит посты на ближайшие дни. Первый пост можно создать кнопкой на сводке проекта."
         />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-3 xl:grid-cols-2">
           {tasks.map((task) => (
             <TaskCard
               key={task.id}
@@ -243,8 +243,8 @@ function TaskCard({
   }
 
   return (
-    <article className={`rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md ${isRegenerating ? "animate-pulse" : ""}`}>
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
+    <article className={`rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md ${isRegenerating ? "animate-pulse" : ""}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e7e5de] pb-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
             Публикация #{task.id}
@@ -259,7 +259,7 @@ function TaskCard({
             </div>
           ) : null}
         </div>
-        <div className="rounded-2xl border border-[#d8d8d2] px-4 py-3 text-right">
+        <div className="rounded-2xl border border-[#d8d8d2] px-3 py-2 text-right">
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">
             Выйдет
           </p>
@@ -297,7 +297,7 @@ function TaskCard({
         <button
           type="button"
           onClick={onToggle}
-          className="mt-5 w-full text-left text-sm leading-6 text-[#252525] transition-all duration-200 ease-in-out hover:text-[#000]"
+          className="mt-4 w-full text-left text-sm leading-6 text-[#252525] transition-all duration-200 ease-in-out hover:text-[#000]"
         >
           {isRegenerating ? "Переписываем пост..." : isExpanded ? task.content_text : truncate(task.content_text, 240)}
         </button>
@@ -311,7 +311,7 @@ function TaskCard({
         </div>
       ) : null}
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="mt-5 flex flex-wrap gap-2">
         {task.status === "queued" ? (
           <>
             <ActionButton
@@ -444,9 +444,9 @@ function StatusDot({ status }: { status: PostingTaskStatus }) {
 
 function TaskSkeleton() {
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid gap-3 xl:grid-cols-2">
       {[1, 2, 3, 4].map((item) => (
-        <div key={item} className="h-64 animate-pulse rounded-3xl border border-[#deded7] bg-white p-6 shadow-sm">
+        <div key={item} className="h-56 animate-pulse rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
           <div className="h-3 w-24 rounded-full bg-[#deded7]" />
           <div className="mt-8 h-4 w-full rounded-full bg-[#deded7]" />
           <div className="mt-3 h-4 w-2/3 rounded-full bg-[#deded7]" />
@@ -458,10 +458,10 @@ function TaskSkeleton() {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="overflow-hidden rounded-3xl border border-dashed border-[#c9c9c3] bg-white/70 shadow-sm">
-      <div className="grid items-center gap-6 p-6 text-center sm:p-8 lg:grid-cols-[1fr_24rem] lg:text-left">
+    <div className="overflow-hidden rounded-[24px] border border-dashed border-[#c9c9c3] bg-white/70 shadow-sm">
+      <div className="grid items-center gap-5 p-5 text-center sm:p-6 lg:grid-cols-[1fr_20rem] lg:text-left">
         <div>
-          <p className="font-display text-4xl leading-none text-[#151515]">{title}</p>
+          <p className="font-display text-3xl leading-none text-[#151515]">{title}</p>
           <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d] lg:mx-0">{description}</p>
         </div>
         <img src="/interface/empty-queue.webp" alt="" className="hidden w-full rounded-[2rem] object-cover lg:block" />

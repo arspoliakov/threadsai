@@ -89,10 +89,10 @@ export default function Dashboard() {
   const nextProject = useMemo(() => getNextProject(summary), [summary]);
 
   return (
-    <section className="space-y-6 sm:space-y-7">
-      <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+    <section className="space-y-4 sm:space-y-5">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-display text-5xl leading-[0.9] tracking-[-0.055em] text-[#111] sm:text-6xl lg:text-7xl">
+          <h1 className="font-display text-4xl leading-[0.95] tracking-[-0.045em] text-[#111] sm:text-5xl">
             Проекты
           </h1>
         </div>
@@ -118,11 +118,12 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-3 lg:grid-cols-4">
         <BotStatusCard
           nextTrendCheck={summary?.next_trend_check ?? null}
           currentAction={getCurrentAction(summary, nextProject, isLoading)}
           nextActionLabel={nextProject ? `ближайший пост: ${nextProject.name}` : "следующий сбор трендов"}
+          compact
           className="lg:col-span-2"
         />
         <StatsWidget
@@ -155,7 +156,7 @@ export default function Dashboard() {
         сможете быстро проверить тексты перед публикацией.
       </DismissibleTip>
 
-      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
         {isLoading ? (
           <SkeletonProjects />
         ) : !summary || summary.projects.length === 0 ? (
@@ -328,11 +329,11 @@ function SystemWidget({
 }) {
   return (
     <article
-      className={`relative min-h-[21rem] overflow-hidden rounded-[32px] border border-[#151b17] bg-[#080d0b] p-6 text-white shadow-[0_24px_90px_rgba(10,10,10,0.20)] sm:p-7 ${className}`}
+      className={`relative min-h-[17rem] overflow-hidden rounded-[24px] border border-[#151b17] bg-[#080d0b] p-5 text-white shadow-[0_18px_60px_rgba(10,10,10,0.16)] ${className}`}
     >
       <div className="absolute right-[-70px] top-[-100px] h-64 w-64 rounded-full bg-[#70ff35]/16 blur-3xl" />
       <div className="absolute bottom-[-100px] left-[30%] h-64 w-64 rounded-full bg-[#0076ff]/20 blur-3xl" />
-      <div className="relative flex h-full min-h-[17rem] flex-col justify-between gap-8">
+      <div className="relative flex h-full min-h-[14rem] flex-col justify-between gap-5">
         <div>
           <div className="flex items-center gap-3">
             <span className="relative flex h-3 w-3">
@@ -341,12 +342,12 @@ function SystemWidget({
             </span>
             <span className="text-sm text-white/68">Система онлайн</span>
           </div>
-          <h2 className="mt-7 max-w-xl font-display text-4xl leading-[0.92] tracking-[-0.055em] sm:text-5xl">
+          <h2 className="mt-5 max-w-xl font-display text-3xl leading-[0.95] tracking-[-0.04em] sm:text-4xl">
             Автономный контур активен
           </h2>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
           <div className="flex items-center gap-3 text-white/62">
             <RadarIcon />
             <span className="text-sm">Следующий сбор трендов</span>
@@ -372,12 +373,12 @@ function StatsWidget({
   description: string;
 }) {
   return (
-    <article className="rounded-[32px] border border-[#dfe4dc] bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-7">
-      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#eef4ec] text-[#111]">
+    <article className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#eef4ec] text-[#111]">
         {icon}
       </div>
-      <p className="mt-8 font-display text-6xl leading-none text-[#111]">{value}</p>
-      <p className="mt-4 text-lg text-[#151815]">{label}</p>
+      <p className="mt-5 font-display text-4xl leading-none text-[#111]">{value}</p>
+      <p className="mt-3 text-base text-[#151815]">{label}</p>
       <p className="mt-2 text-sm leading-6 text-[#6b716a]">{description}</p>
     </article>
   );
@@ -393,12 +394,12 @@ function ProjectCard({
   onDelete: () => void;
 }) {
   return (
-    <article className="group relative overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-[#141815] hover:shadow-md sm:p-7">
+    <article className="group relative overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#fbfcf7] p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#141815] hover:shadow-md">
       <div className="absolute right-[-70px] top-[-70px] h-44 w-44 rounded-full bg-[#70ff35]/12 blur-3xl transition group-hover:bg-[#0076ff]/16" />
-      <div className="relative flex min-h-48 flex-col justify-between gap-8">
+      <div className="relative flex min-h-40 flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-5">
           <Link to={`/app/projects/${project.id}`} className="min-w-0 flex-1">
-            <h2 className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]">
+            <h2 className="font-display text-3xl leading-none tracking-[-0.035em] text-[#111]">
               {project.name}
             </h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
@@ -459,7 +460,7 @@ function SkeletonProjects() {
       {[1, 2, 3].map((item) => (
         <div
           key={item}
-          className="min-h-48 animate-pulse rounded-[32px] border border-[#dfe4dc] bg-white/70 p-7 shadow-sm"
+          className="min-h-40 animate-pulse rounded-[24px] border border-[#dfe4dc] bg-white/70 p-5 shadow-sm"
         >
           <div className="h-10 w-10 rounded-2xl bg-[#dfe4dc]" />
           <div className="mt-8 h-8 w-3/4 rounded-full bg-[#dfe4dc]" />
@@ -472,13 +473,13 @@ function SkeletonProjects() {
 
 function EmptyProjects({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="overflow-hidden rounded-[32px] border border-dashed border-[#c9d1c7] bg-white/70 shadow-sm lg:col-span-2 2xl:col-span-3">
-      <div className="grid items-center gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_24rem]">
+    <div className="overflow-hidden rounded-[24px] border border-dashed border-[#c9d1c7] bg-white/70 shadow-sm lg:col-span-2 2xl:col-span-3">
+      <div className="grid items-center gap-5 p-5 sm:p-6 lg:grid-cols-[1fr_20rem]">
         <div className="text-center lg:text-left">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#eef4ec] lg:mx-0">
             <FolderIcon />
           </div>
-          <p className="mt-5 font-display text-4xl text-[#111]">Проектов пока нет</p>
+          <p className="mt-5 font-display text-3xl text-[#111]">Проектов пока нет</p>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#667066] lg:mx-0">
             Создайте первый проект, подключите Threads-профиль и запустите сбор трендов.
           </p>

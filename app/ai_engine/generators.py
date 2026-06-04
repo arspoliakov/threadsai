@@ -211,6 +211,40 @@ Prefer one sharp observation, one concrete detail, and one soft ending.
 """
 
 
+THREADS_LIVE_FEED_RULES = """
+## Live Threads voice
+
+Write like a real person posting into the Threads feed, not like a product case study.
+The default post is a human observation, tiny confession, argument, question, irritation, or unfinished thought.
+Do not repeat the same arc: "I struggled -> found a system/service/base -> life got easier -> see pinned/profile".
+Do not mention the product, service, automation, base, CRM, profile, pinned post, or bio link in every post.
+Most posts should work even if the reader never clicks anywhere.
+CTA or redirect hints are rare: roughly one out of four posts at most.
+
+Avoid frozen openings and repeated phrases:
+- "yesterday I read/saw a colleague"
+- "a colleague wrote"
+- "I immediately remembered"
+- "I opened the feed"
+- "details in the pinned post"
+- "I explained it in the pinned post"
+- "how it works is in my profile"
+- "I created a base/system"
+
+Use varied native Russian feed shapes:
+- one uncomfortable thought
+- one small scene from the day
+- one question that people may argue with
+- one anti-advice line
+- one practical observation without a moral
+- one quiet punchline
+
+Keep the tone slightly imperfect and spoken. Short lines are good. A little asymmetry is good.
+Do not sound like a brochure, a motivational post, a startup landing page, or a lesson summary.
+End with an open loop, a question, or a quiet punchline unless a conversion hint truly feels natural.
+"""
+
+
 async def generate_post(
     project_id: int,
     topic_or_context: str,
@@ -379,6 +413,12 @@ def _build_publication_memory_context(posts: list[dict[str, str]]) -> str:
         "Если несколько прошлых постов начинались через коллегу, ленту, чужую цитату или вопрос другого человека, "
         "следующий пост обязан начинаться иначе: через личное действие, конкретный момент дня, интерфейс, оплату, календарь, клиента, заметку, ошибку или наблюдение."
     ]
+    sections.append(
+        "Anti-memory in plain terms: do not reuse the repeated motifs from the recent posts. "
+        "If the recent queue contains colleague/yesterday/feed/payment/base/pinned/profile/service language, "
+        "treat those motifs as temporarily banned. Move to a different scene, rhythm, and ending."
+    )
+
     if overused_openings:
         sections.append(
             "Перегретые заходы, которые сейчас запрещены: "
@@ -513,16 +553,18 @@ def _build_conversion_rule(*, conversion_mode: str, conversion_target: str | Non
 
     return (
         "## conversion strategy\n\n"
-        "Traffic strategy: value first, curiosity second, conversion third. "
-        "The post must be useful by itself and should not feel like an ad. "
-        "Use a soft conversion hint only when it is native to the idea; many posts should have no conversion hint at all. "
-        "At most one soft hint is allowed in a post.\n"
+        "Traffic strategy: trust first, liveliness second, conversion third. "
+        "Default behavior: no conversion hint. "
+        "The post must be interesting by itself and should not feel like an ad, lesson, funnel, or feature pitch. "
+        "Use a soft conversion hint only when it is native to the exact idea; most posts should have no conversion hint at all. "
+        "At most one soft hint is allowed in a post, and never force it into the final line.\n"
         f"{target_line}\n"
         f"{destination_rule} "
-        "Good patterns: 'I left the fuller breakdown in the profile', "
+        "Allowed rare patterns: 'I left the fuller breakdown in the profile', "
         "'the detailed version is pinned in the profile', "
         "'I keep the working notes there'. "
-        "Bad patterns: spammy CTAs, repeated sales language, direct promises, and forcing the same ending every time."
+        "Bad patterns: spammy CTAs, repeated sales language, direct promises, forcing the same ending every time, "
+        "and Russian endings like 'detali v zakrepe', 'raspisala v zakreplennom', 'ssylka v bio'."
     )
 
 
@@ -550,6 +592,7 @@ def _build_generation_system_prompt(
             trends_context,
             THREADS_VIBE_RULES,
             THREADS_LENGTH_RULES,
+            THREADS_LIVE_FEED_RULES,
             project_stop_words,
             conversion_rule,
             target_actions_rule,
@@ -728,8 +771,30 @@ def _clean_generated_text(text: str) -> str:
 
 
 def _prepare_generated_text_for_threads(text: str) -> str:
+    text = _remove_stale_conversion_tail(text)
     fitted = _fit_generated_text_for_threads(text)
     return _format_generated_text_lines(fitted)
+
+
+def _remove_stale_conversion_tail(text: str) -> str:
+    lines = [line.strip() for line in text.strip().splitlines()]
+    while lines and not lines[-1]:
+        lines.pop()
+
+    stale_tail_patterns = [
+        r"^(детали|подробности|разбор|как это устроено).{0,80}(закреп|закреплен|профил|био|bio|profile)",
+        r"^(оставил[аи]?|расписал[аи]?).{0,80}(закреп|профил|био|bio|profile)",
+        r"^(ссылка|линк).{0,80}(био|профил|bio|profile)",
+    ]
+    while lines:
+        last_line = lines[-1].strip().lower().rstrip(".!?:; ")
+        if any(re.search(pattern, last_line, flags=re.IGNORECASE) for pattern in stale_tail_patterns):
+            lines.pop()
+            continue
+        break
+
+    cleaned = "\n".join(lines).strip()
+    return cleaned or text.strip()
 
 
 def _fit_generated_text_for_threads(text: str, limit: int = THREADS_POST_CHAR_LIMIT) -> str:

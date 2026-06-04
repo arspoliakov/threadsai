@@ -44,7 +44,7 @@ export default function ProjectLayout() {
       end: true,
     },
     {
-      label: "Посты",
+      label: "Контент-план",
       to: `${projectBasePath}/queue`,
       icon: "queue",
     },

@@ -39,10 +39,10 @@ export default function ProjectQueuePage() {
       setTasks(tasksResult);
       setAccountStates(dashboardResult.account_states);
       if (!silent) {
-        toast.success("Очередь обновлена");
+        toast.success("Контент-план обновлен");
       }
     } catch {
-      toast.error("Не удалось загрузить очередь публикаций");
+      toast.error("Не удалось загрузить контент-план");
     } finally {
       setIsLoading(false);
     }
@@ -71,9 +71,9 @@ export default function ProjectQueuePage() {
 
     try {
       await toast.promise(cancelTask(taskId), {
-        loading: "Отменяем задачу...",
-        success: "Задача отменена",
-        error: "Не удалось отменить задачу",
+        loading: "Отменяем публикацию...",
+        success: "Публикация отменена",
+        error: "Не удалось отменить публикацию",
       });
       await loadTasks({ silent: true });
     } finally {
@@ -109,7 +109,7 @@ export default function ProjectQueuePage() {
       const updatePromise = updateTask(taskId, contentText);
       toast.promise(updatePromise, {
         loading: "Сохраняем текст...",
-        success: "Текст задачи сохранен",
+        success: "Текст публикации сохранен",
         error: "Не удалось сохранить текст",
       });
       const updatedTask = await updatePromise;
@@ -141,10 +141,10 @@ export default function ProjectQueuePage() {
     <section className="space-y-8">
       <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-display text-5xl leading-none">Очередь</h1>
+          <h1 className="font-display text-5xl leading-none">Контент-план</h1>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Задачи публикации проекта: текст, статус, время запуска, ошибки Selenium
-            и сохраненная логика генерации.
+            Здесь лежат будущие публикации. Можно посмотреть текст, аккаунт, время выхода,
+            быстро поправить пост или отправить его на перегенерацию.
           </p>
         </div>
       </header>
@@ -153,8 +153,8 @@ export default function ProjectQueuePage() {
         <TaskSkeleton />
       ) : tasks.length === 0 ? (
         <EmptyState
-          title="Очередь пуста"
-          description="Автономный планировщик создаст задачи, когда подойдет окно генерации."
+          title="Публикаций пока нет"
+          description="Когда проект будет готов, система сама подготовит посты на ближайшие дни. Первый пост можно создать кнопкой на сводке проекта."
         />
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -241,7 +241,7 @@ function TaskCard({
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-5">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-            Задача #{task.id}
+            Публикация #{task.id}
           </p>
           <div className="mt-3 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.12em] text-[#333]">
             <StatusDot status={task.status} />
@@ -255,7 +255,7 @@ function TaskCard({
         </div>
         <div className="rounded-2xl border border-[#d8d8d2] px-4 py-3 text-right">
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">
-            Запланировано
+            Выйдет
           </p>
           <p className="mt-1 text-sm text-[#24231f]">{formatDate(task.scheduled_at)}</p>
         </div>
@@ -293,7 +293,7 @@ function TaskCard({
           onClick={onToggle}
           className="mt-5 w-full text-left text-sm leading-6 text-[#252525] transition-all duration-200 ease-in-out hover:text-[#000]"
         >
-          {isRegenerating ? "Генератор переписывает пост..." : isExpanded ? task.content_text : truncate(task.content_text, 240)}
+          {isRegenerating ? "Переписываем пост..." : isExpanded ? task.content_text : truncate(task.content_text, 240)}
         </button>
       )}
 
@@ -358,17 +358,17 @@ function GenerationMetadataBlock({ task }: { task: PostingTask }) {
 
   if (!metadata) {
     return (
-      <div className="mt-5 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4 text-xs leading-5 text-[#77766f]">
-        Анализ не сохранен
+        <div className="mt-5 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4 text-xs leading-5 text-[#77766f]">
+        Объяснение еще не сохранено
       </div>
     );
   }
 
   return (
     <div className="mt-5 grid gap-3 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4 text-xs leading-5 text-[#55534c]">
-      <MetadataLine label="Угол подачи" value={metadata.applied_angle} />
-      <MetadataLine label="Механика хука" value={metadata.hook_mechanic} />
-      <MetadataLine label="Структура" value={metadata.structure_pattern} />
+      <MetadataLine label="Почему так написано" value={metadata.applied_angle} />
+      <MetadataLine label="Что должно зацепить" value={metadata.hook_mechanic} />
+      <MetadataLine label="Как устроен пост" value={metadata.structure_pattern} />
       <MetadataLine label="Тон и ритм" value={metadata.tone_and_rhythm} />
     </div>
   );
@@ -380,7 +380,7 @@ function MetadataLine({ label, value }: { label: string; value?: string }) {
       <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8d8b84]">
         {label}
       </div>
-      <div className="mt-1 text-[#333]">{value || "Анализ не сохранен"}</div>
+      <div className="mt-1 text-[#333]">{value || "Объяснение еще не сохранено"}</div>
     </div>
   );
 }

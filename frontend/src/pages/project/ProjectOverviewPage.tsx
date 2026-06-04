@@ -136,8 +136,8 @@ export default function ProjectOverviewPage() {
 
     try {
       const result = await triggerGeneration(projectId);
-      setStatusMessage(`Пост сгенерирован и поставлен в очередь: задача #${result.task_id}.`);
-      toast.success(`Пост сгенерирован: задача #${result.task_id}`);
+      setStatusMessage(`Пост готов и добавлен в контент-план: публикация #${result.task_id}.`);
+      toast.success(`Пост добавлен в контент-план: #${result.task_id}`);
       await loadDashboard();
     } catch {
       toast.error("Не удалось сгенерировать пост");
@@ -155,8 +155,8 @@ export default function ProjectOverviewPage() {
             {dashboard?.project.name || "Сводка"}
           </h1>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Ручной запуск основных процессов проекта: сбор трендов, генерация поста
-            и контроль последнего состояния перед боевым прогоном.
+            Это центр управления проектом. Проверьте, готов ли аккаунт, собраны ли тренды
+            и есть ли посты в контент-плане на ближайшие дни.
           </p>
         </div>
         {dashboard ? (
@@ -172,17 +172,17 @@ export default function ProjectOverviewPage() {
 
       <div className="grid gap-px border border-[#c9c9c3] bg-[#c9c9c3] md:grid-cols-2">
         <ActionPanel
-          title="Анализ трендов"
-          description="Принудительно собрать ленту, очистить старые тренды проекта и сохранить свежие паттерны."
-          buttonText="Запустить анализ трендов"
+          title="Собрать тренды"
+          description="Система посмотрит свежую ленту Threads и сохранит паттерны, из которых потом будут собираться посты."
+          buttonText="Собрать тренды"
           isLoading={runningAction === "scraping"}
           isDisabled={runningAction !== null || isLoading}
           onClick={() => void handleTriggerScraping()}
         />
         <ActionPanel
-          title="Генерация"
-          description="Взять последние тренды, выбрать подходящий паттерн и создать задачу публикации."
-          buttonText="Сгенерировать пост сейчас"
+          title="Создать пост"
+          description="Система возьмет контекст проекта, стиль и тренды, а затем добавит новый пост в контент-план."
+          buttonText="Создать пост"
           isLoading={runningAction === "generation"}
           isDisabled={runningAction !== null || isLoading}
           onClick={() => void handleTriggerGeneration()}
@@ -208,7 +208,7 @@ export default function ProjectOverviewPage() {
 
       {latestScrapingOperation?.status === "running" ? (
         <Notice tone="neutral">
-          Анализ трендов идет в фоне. Можно перейти в настройки или очередь: статус сохранен на бэкенде и восстановится при возврате.
+          Сбор трендов идет в фоне. Можно перейти в настройки или контент-план: система продолжит работу сама.
         </Notice>
       ) : null}
       {statusMessage ? <Notice tone="neutral">{statusMessage}</Notice> : null}
@@ -216,7 +216,7 @@ export default function ProjectOverviewPage() {
 
       <section className="overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-white shadow-sm">
         <header className="border-b border-[#c9c9c3] px-5 py-5">
-          <h2 className="font-display text-3xl">Что система делала в проекте</h2>
+          <h2 className="font-display text-3xl">Что уже произошло</h2>
         </header>
 
         {isLoading ? (
@@ -288,7 +288,7 @@ function SystemStatusCard({
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <MiniMetric label="Активные аккаунты" value={String(activeAccounts)} />
           <MiniMetric label="Тренды" value={String(dashboard.saved_trends_count)} />
-          <MiniMetric label="В очереди" value={String(queuedCount)} />
+          <MiniMetric label="В плане" value={String(queuedCount)} />
         </div>
       </div>
     </section>
@@ -307,33 +307,33 @@ function ReadinessChecklist({
   const activeAccounts = dashboard.account_states.filter((account) => account.status === "active").length;
   const checklist = [
     {
-      title: "Описание проекта",
+      title: "Опишите проект",
       done: Boolean(dashboard.project.description && dashboard.project.description.length >= 30),
-      hint: "Нужно описать продукт, аудиторию и тон.",
+      hint: "Что продаете, кому, какая боль и как должен звучать аккаунт.",
       to: `/app/projects/${projectId}/settings`,
     },
     {
-      title: "Глобальный стиль",
+      title: "Выберите общий стиль",
       done: hasGlobalPrompt,
-      hint: "Общий голос для всех ваших проектов.",
+      hint: "Спокойный, дерзкий, экспертный или свой тон для всех проектов.",
       to: "/app/settings",
     },
     {
-      title: "Threads-аккаунт",
+      title: "Подключите Threads-аккаунт",
       done: activeAccounts > 0,
-      hint: "Нужен хотя бы один активный профиль.",
+      hint: "Пароль не нужен. Достаточно cookies от готового аккаунта.",
       to: `/app/projects/${projectId}/settings`,
     },
     {
-      title: "Тренды проекта",
+      title: "Соберите тренды",
       done: dashboard.saved_trends_count > 0,
-      hint: "Запустите анализ, чтобы генерация опиралась на свежую ленту.",
+      hint: "Так посты будут собираться не из воздуха, а из живой механики ленты.",
       to: `/app/projects/${projectId}/trends`,
     },
     {
-      title: "Расписание",
+      title: "Настройте расписание",
       done: Boolean(dashboard.project.posts_per_day && dashboard.project.active_hours_start && dashboard.project.active_hours_end),
-      hint: "Сколько постов в день и в какое окно выпускать.",
+      hint: "Сколько постов в день выпускать по каждому аккаунту и в какие часы.",
       to: `/app/projects/${projectId}/settings`,
     },
   ];
@@ -348,15 +348,15 @@ function ReadinessChecklist({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">Готовность</p>
-          <h2 className="mt-2 font-display text-3xl">Перед большим запуском</h2>
+          <h2 className="mt-2 font-display text-3xl">Что сделать дальше</h2>
         </div>
         <span className="rounded-full bg-[#eef4ec] px-4 py-2 text-sm text-[#4f584f]">
           {completed}/{checklist.length} готово
         </span>
       </div>
       <p className="mt-3 text-xs leading-5 text-[#687168]">
-        Чек-лист исчезнет сам, когда основные шаги будут закрыты. Инфраструктурные настройки
-        платформа применит автоматически.
+        Закройте эти шаги один раз. После этого система сама будет готовить посты,
+        ждать времени публикации и следить за техническими паузами.
       </p>
 
       <div className="mt-5 grid gap-2">
@@ -422,13 +422,13 @@ function ActivityLog({
   return (
     <div className="divide-y divide-[#e1e1dc]">
       {visibleOperations.length === 0 ? (
-        <EmptyLine text="Действий пока не было" />
+        <EmptyLine text="Система еще ничего не запускала" />
       ) : (
         visibleOperations.map((operation) => (
           <div key={operation.id} className="grid gap-3 px-5 py-5 md:grid-cols-[190px_1fr_auto] md:items-start">
             <div>
               <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">
-                {operation.action_type === "scraping" ? "Анализ трендов" : "Генерация"}
+                {operation.action_type === "scraping" ? "Сбор трендов" : "Создание поста"}
               </span>
               <p className="mt-2 text-xs text-[#77766f]">{formatDate(operation.started_at)}</p>
             </div>
@@ -441,7 +441,7 @@ function ActivityLog({
       )}
 
       <LogRow label="Аккаунты" value={formatAccountStates(dashboard.account_states)} />
-      <LogRow label="Задачи по статусам" value={formatTaskStatuses(dashboard.posting_tasks_by_status)} />
+      <LogRow label="Публикации" value={formatTaskStatuses(dashboard.posting_tasks_by_status)} />
       <LogRow
         label="Последняя ошибка"
         value={dashboard.recent_errors[0] || "Ошибок нет"}
@@ -502,7 +502,7 @@ function ActionPanel({
         className="mt-8 flex w-full items-center justify-center gap-3 border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition-all duration-200 ease-in-out hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isLoading ? <Spinner /> : null}
-        {isLoading ? "Выполняется" : buttonText}
+        {isLoading ? "Идет" : buttonText}
       </button>
     </article>
   );
@@ -744,8 +744,8 @@ function getProjectSystemStatus({
 }) {
   if (runningOperation?.status === "queued") {
     return {
-      title: "ждет безопасное окно",
-      description: "Браузерная задача стоит в очереди и стартует автоматически.",
+      title: "ждет своей очереди",
+      description: "Система запустит действие автоматически, когда аккаунт будет свободен.",
       dotClass: "bg-[#ffcb45]",
       pulse: true,
     };
@@ -753,11 +753,11 @@ function getProjectSystemStatus({
 
   if (runningOperation?.status === "running") {
     return {
-      title: runningOperation.action_type === "scraping" ? "собирает тренды" : "генерирует пост",
+      title: runningOperation.action_type === "scraping" ? "собирает тренды" : "готовит пост",
       description:
         runningOperation.action_type === "scraping"
-          ? "Система смотрит ленту Threads, отбирает свежие сигналы и готовит паттерны для генерации."
-          : "ИИ собирает контекст проекта, тренды и историю публикаций, чтобы подготовить новый черновик.",
+          ? "Система смотрит ленту Threads и сохраняет идеи, которые помогут писать нативные посты."
+          : "Система берет описание проекта, стиль и тренды, чтобы подготовить новый пост.",
       dotClass: "bg-[#70ff35]",
       pulse: true,
     };
@@ -767,7 +767,7 @@ function getProjectSystemStatus({
     return {
       title: "ждет проверки",
       description:
-        "Есть проблема с аккаунтом или последней публикацией. Проверьте cookies, ошибки и привязанные Threads-профили.",
+        "Есть проблема с аккаунтом или последней публикацией. Если дело в cookies, обновите их в настройках проекта.",
       dotClass: "bg-[#ffb020]",
       pulse: true,
     };
@@ -776,7 +776,7 @@ function getProjectSystemStatus({
   if (activeAccounts === 0) {
     return {
       title: "ждет аккаунт",
-      description: "Проекту нужен хотя бы один активный Threads-профиль, иначе генерация есть, а публикация невозможна.",
+      description: "Подключите хотя бы один Threads-профиль. Без аккаунта система может готовить тексты, но не сможет их публиковать.",
       dotClass: "bg-[#9aa39a]",
       pulse: false,
     };
@@ -785,7 +785,7 @@ function getProjectSystemStatus({
   if (trendsCount === 0) {
     return {
       title: "готов к анализу",
-      description: "Аккаунт подключен. Следующий логичный шаг — собрать тренды, чтобы посты опирались на живую ленту.",
+      description: "Аккаунт подключен. Теперь соберите тренды, чтобы посты опирались на живую ленту.",
       dotClass: "bg-[#0076ff]",
       pulse: false,
     };
@@ -793,8 +793,8 @@ function getProjectSystemStatus({
 
   if (queuedCount > 0) {
     return {
-      title: "ведет очередь",
-      description: "Черновики уже стоят в расписании. Можно проверять тексты, публиковать вручную или ждать планировщик.",
+      title: "контент-план готов",
+      description: "Посты уже стоят в контент-плане. Можно проверить тексты или просто ждать публикации по расписанию.",
       dotClass: "bg-[#70ff35]",
       pulse: true,
     };
@@ -802,7 +802,7 @@ function getProjectSystemStatus({
 
   return {
     title: "готов к генерации",
-    description: "Тренды собраны, аккаунт активен. Можно создать следующий пост вручную или дождаться автогенерации.",
+    description: "Тренды собраны, аккаунт активен. Можно создать пост сейчас или дождаться, пока система сделает это сама.",
     dotClass: "bg-[#70ff35]",
     pulse: false,
   };

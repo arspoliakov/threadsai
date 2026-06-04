@@ -37,7 +37,7 @@ export default function ProjectTrendsPage() {
 
     try {
       await triggerScraping(projectId);
-      toast.success("Сбор трендов поставлен в очередь");
+      toast.success("Сбор трендов запущен");
       await loadTrends({ silent: true });
     } catch {
       toast.error("Не удалось запустить сбор трендов");
@@ -57,8 +57,9 @@ export default function ProjectTrendsPage() {
         <div>
           <h1 className="font-display text-5xl leading-none">Тренды</h1>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Разобранные паттерны из ленты: механика хука, структура, ритм и оценка
-            виральности. Система автоматически ставит сбор трендов в очередь раз в 3 дня, кнопку можно использовать для ручного запуска.
+            Здесь лежат идеи из живой ленты Threads: как начинается пост, какой в нем конфликт,
+            какой ритм и почему он может цеплять. Система сама собирает тренды раз в 3 дня,
+            а кнопка нужна, если хочется обновить их сейчас.
           </p>
         </div>
         <button
@@ -82,7 +83,7 @@ export default function ProjectTrendsPage() {
       ) : trends.length === 0 ? (
         <EmptyState
           title="Тренды еще не собраны"
-          description="Запустите сбор трендов вручную или дождитесь автоматического сбора: он ставится в очередь раз в 3 дня."
+          description="Нажмите «Собрать тренды» или дождитесь автоматического сбора. Он проходит раз в 3 дня."
         />
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">

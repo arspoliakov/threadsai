@@ -12,6 +12,11 @@ const navigation: FloatingDockItem[] = [
     end: true,
   },
   {
+    label: "Формула",
+    to: "/app/how-it-works",
+    icon: "spark",
+  },
+  {
     label: "Аккаунты",
     to: "/app/infrastructure",
     icon: "accounts",

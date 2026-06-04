@@ -116,6 +116,25 @@ export default function GlobalSettingsPage() {
         </div>
       </header>
 
+      <section className="rounded-[28px] border border-[#dfe4dc] bg-white p-5 shadow-sm sm:p-6">
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">что писать здесь</p>
+            <h2 className="mt-2 font-display text-3xl leading-none text-[#111]">Это общий голос, не описание продукта</h2>
+            <p className="mt-3 text-sm leading-6 text-[#667066]">
+              В стиль добавляйте тон, ритм, запретные слова и общий характер текстов. Он применяется ко всем вашим проектам.
+            </p>
+          </div>
+          <div className="rounded-[24px] border border-[#e2e6df] bg-[#fbfcf7] p-5">
+            <p className="text-base text-[#151815]">Локальные детали проекта</p>
+            <p className="mt-2 text-sm leading-6 text-[#667066]">
+              Продукт, аудитория, оффер, ссылка в био или закрепленный пост настраиваются внутри конкретного проекта.
+              Системные ограничения ThreadsGo применяются автоматически и не редактируются.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <form
         onSubmit={handleSubmit}
         className="overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-white shadow-sm"

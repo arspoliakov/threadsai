@@ -204,6 +204,8 @@ export default function ProjectOverviewPage() {
         </div>
       ) : null}
 
+      <ContentFormulaNote />
+
       {latestScrapingOperation?.status === "running" ? (
         <Notice tone="neutral">
           Анализ трендов идет в фоне. Можно перейти в настройки или очередь: статус сохранен на бэкенде и восстановится при возврате.
@@ -378,6 +380,29 @@ function ReadinessChecklist({
             </span>
           </Link>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function ContentFormulaNote() {
+  return (
+    <section className="rounded-[2rem] border border-[#dfe4dc] bg-[#fbfcf7] p-6 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-3xl">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">логика генерации</p>
+          <h2 className="mt-2 font-display text-3xl leading-none text-[#111]">Посты короткие специально</h2>
+          <p className="mt-3 text-sm leading-6 text-[#667066]">
+            Система пишет не рекламные объявления, а нативные наблюдения для ленты Threads: сцена, напряжение, вопрос или
+            мягкий вывод. Прямой увод в био или закреп появляется редко, чтобы не ломать доверие.
+          </p>
+        </div>
+        <Link
+          to="/app/how-it-works"
+          className="inline-flex h-11 w-full items-center justify-center rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white sm:w-fit"
+        >
+          Открыть формулу
+        </Link>
       </div>
     </section>
   );

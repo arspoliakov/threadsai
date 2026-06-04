@@ -138,6 +138,8 @@ export default function Dashboard() {
         />
       </div>
 
+      <LaunchPathCard hasProjects={Boolean(summary?.projects.length)} onCreate={() => setIsCreateOpen(true)} />
+
       <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {isLoading ? (
           <SkeletonProjects />
@@ -363,6 +365,58 @@ function StatsWidget({
       <p className="mt-4 text-lg text-[#151815]">{label}</p>
       <p className="mt-2 text-sm leading-6 text-[#6b716a]">{description}</p>
     </article>
+  );
+}
+
+function LaunchPathCard({ hasProjects, onCreate }: { hasProjects: boolean; onCreate: () => void }) {
+  const steps = [
+    ["1", "Проект", "Опишите продукт, аудиторию и куда вести интерес."],
+    ["2", "Стиль", "Задайте общий голос: спокойный, дерзкий, экспертный или свой."],
+    ["3", "Аккаунт", "Подключите Threads-профиль через cookies, без пароля."],
+    ["4", "Контент-план", "Проверьте будущие посты и запустите публикации."],
+  ];
+
+  return (
+    <section className="rounded-[32px] border border-[#dfe4dc] bg-white p-6 shadow-sm sm:p-7">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-3xl">
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#77766f]">путь запуска</p>
+          <h2 className="mt-3 font-display text-4xl leading-none text-[#111]">Сначала запускаем систему, потом она ведет рутину</h2>
+          <p className="mt-4 text-sm leading-7 text-[#667066]">
+            ThreadsGo не просит вас писать каждый пост вручную. Вы задаете рамку проекта, подключаете аккаунт и проверяете
+            контент-план. Дальше система сама собирает тренды, генерирует короткие нативные посты и ставит их в очередь.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row lg:shrink-0">
+          <Link
+            to="/app/how-it-works"
+            className="inline-flex h-12 items-center justify-center rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white"
+          >
+            Как это работает
+          </Link>
+          {!hasProjects ? (
+            <button
+              type="button"
+              onClick={onCreate}
+              className="inline-flex h-12 items-center justify-center rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
+            >
+              Создать проект
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-6 grid gap-3 md:grid-cols-4">
+        {steps.map(([number, title, text]) => (
+          <div key={title} className="rounded-[24px] border border-[#e2e6df] bg-[#fbfcf7] p-4">
+            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-[#eef4ec] font-mono text-sm text-[#07100e]">
+              {number}
+            </span>
+            <p className="mt-4 text-base text-[#151815]">{title}</p>
+            <p className="mt-2 text-sm leading-6 text-[#667066]">{text}</p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

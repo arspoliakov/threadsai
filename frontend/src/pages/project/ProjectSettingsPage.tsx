@@ -147,7 +147,7 @@ export default function ProjectSettingsPage() {
         conversion_target: conversionTarget.trim() || null,
       });
       toast.promise(savePromise, {
-        loading: "Сохраняем контекст и CTA...",
+        loading: "Сохраняем настройки проекта...",
         success: "Контекст проекта сохранен",
         error: "Не удалось сохранить контекст проекта",
       });
@@ -326,7 +326,7 @@ export default function ProjectSettingsPage() {
                 <div className="mt-3 grid gap-2">
                   {targetActions.length === 0 ? (
                     <p className="rounded-2xl border border-dashed border-[#d8d8d2] bg-white px-4 py-4 text-sm leading-6 text-[#77766f]">
-                      CTA пока не заданы. Можно добавить разные варианты: написать в личку, оставить комментарий,
+                      Целевые действия пока не заданы. Можно добавить варианты: написать в личку, оставить комментарий,
                       перейти по ссылке, подписаться, забронировать место.
                     </p>
                   ) : (

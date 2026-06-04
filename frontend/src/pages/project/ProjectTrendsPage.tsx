@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { getProjectTrends, triggerScraping, type SavedTrend } from "../../api/client";
+import { DismissibleTip } from "../../components/DismissibleTip";
 
 export default function ProjectTrendsPage() {
   const { id } = useParams();
@@ -72,6 +73,11 @@ export default function ProjectTrendsPage() {
           Собрать тренды
         </button>
       </header>
+
+      <DismissibleTip storageKey="threadsgo.trends-tip" title="Тренды — это не темы для копирования">
+        Система смотрит, как устроены живые посты: с чего они начинаются, где возникает напряжение и какой у них ритм.
+        Потом эти паттерны помогают писать свои тексты.
+      </DismissibleTip>
 
       <div className="grid gap-4 md:grid-cols-2">
         <MetricCard label="Собрано трендов" value={isLoading ? "..." : String(trends.length)} />

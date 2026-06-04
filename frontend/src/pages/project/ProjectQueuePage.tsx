@@ -13,6 +13,7 @@ import {
   type PostingTaskStatus,
   type ProjectAccountState,
 } from "../../api/client";
+import { DismissibleTip } from "../../components/DismissibleTip";
 
 const terminalStatuses: PostingTaskStatus[] = ["success", "partial_success", "failed", "cancelled"];
 
@@ -148,6 +149,11 @@ export default function ProjectQueuePage() {
           </p>
         </div>
       </header>
+
+      <DismissibleTip storageKey="threadsgo.queue-tip" title="Это план будущих публикаций">
+        Здесь можно быстро проверить текст, время выхода и аккаунт. Если пост звучит не так — отредактируйте его или
+        нажмите «Перегенерировать».
+      </DismissibleTip>
 
       {isLoading ? (
         <TaskSkeleton />

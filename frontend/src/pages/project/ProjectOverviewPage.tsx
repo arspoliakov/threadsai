@@ -15,6 +15,7 @@ import {
   type ProjectDashboard,
   type ProjectOperation,
 } from "../../api/client";
+import { DismissibleTip } from "../../components/DismissibleTip";
 
 type RunningAction = "scraping" | "generation" | null;
 
@@ -204,8 +205,6 @@ export default function ProjectOverviewPage() {
         </div>
       ) : null}
 
-      <ContentFormulaNote />
-
       {latestScrapingOperation?.status === "running" ? (
         <Notice tone="neutral">
           Сбор трендов идет в фоне. Можно перейти в настройки или контент-план: система продолжит работу сама.
@@ -227,6 +226,8 @@ export default function ProjectOverviewPage() {
           <EmptyLine text="Нет данных" />
         )}
       </section>
+
+      <ContentFormulaNote />
 
       {isEditOpen && dashboard ? (
         <EditProjectPanel
@@ -265,7 +266,6 @@ function SystemStatusCard({
     failedAccounts,
     trendsCount: dashboard.saved_trends_count,
     queuedCount,
-    recentErrorsCount: dashboard.recent_errors.length,
   });
 
   return (
@@ -387,24 +387,21 @@ function ReadinessChecklist({
 
 function ContentFormulaNote() {
   return (
-    <section className="rounded-[2rem] border border-[#dfe4dc] bg-[#fbfcf7] p-6 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="max-w-3xl">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">логика генерации</p>
-          <h2 className="mt-2 font-display text-3xl leading-none text-[#111]">Посты короткие специально</h2>
-          <p className="mt-3 text-sm leading-6 text-[#667066]">
-            Система пишет не рекламные объявления, а нативные наблюдения для ленты Threads: сцена, напряжение, вопрос или
-            мягкий вывод. Прямой увод в био или закреп появляется редко, чтобы не ломать доверие.
-          </p>
-        </div>
+    <DismissibleTip
+      storageKey="threadsgo.project-post-style-tip"
+      title="Какие посты пишет нейросеть?"
+      action={
         <Link
           to="/app/how-it-works"
-          className="inline-flex h-11 w-full items-center justify-center rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white sm:w-fit"
+          className="inline-flex h-10 items-center justify-center rounded-full border border-[#141815] px-4 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white"
         >
-          Открыть формулу
+          Подробнее
         </Link>
-      </div>
-    </section>
+      }
+    >
+      Обычно это короткие заметки для ленты: мысль, сцена, вопрос или маленькое напряжение. Прямой увод в био или закреп
+      появляется не в каждом посте, чтобы аккаунт не выглядел как реклама.
+    </DismissibleTip>
   );
 }
 
@@ -733,14 +730,12 @@ function getProjectSystemStatus({
   failedAccounts,
   trendsCount,
   queuedCount,
-  recentErrorsCount,
 }: {
   runningOperation: ProjectOperation | null;
   activeAccounts: number;
   failedAccounts: number;
   trendsCount: number;
   queuedCount: number;
-  recentErrorsCount: number;
 }) {
   if (runningOperation?.status === "queued") {
     return {
@@ -763,11 +758,11 @@ function getProjectSystemStatus({
     };
   }
 
-  if (failedAccounts > 0 || recentErrorsCount > 0) {
+  if (failedAccounts > 0) {
     return {
-      title: "ждет проверки",
+      title: "нужно проверить аккаунт",
       description:
-        "Есть проблема с аккаунтом или последней публикацией. Если дело в cookies, обновите их в настройках проекта.",
+        "Откройте настройки проекта и посмотрите статус аккаунта. Если cookies истекли — обновите их. Если техническая пауза — система попробует вернуть аккаунт сама.",
       dotClass: "bg-[#ffb020]",
       pulse: true,
     };

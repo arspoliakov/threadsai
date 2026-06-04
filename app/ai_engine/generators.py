@@ -17,7 +17,7 @@ from app.db.models import Platform, PostingTask, PostingTaskStatus, Project, Sav
 MAX_TRENDS_FOR_SMART_SELECTION = 10
 MAX_PUBLICATION_MEMORY_ITEMS = 10
 MAX_GENERATION_ATTEMPTS = 3
-THREADS_POST_CHAR_LIMIT = 480
+THREADS_POST_CHAR_LIMIT = 240
 
 logger = logging.getLogger(__name__)
 
@@ -197,10 +197,17 @@ STRUCTURED_OUTPUT_RULES = """
 THREADS_LENGTH_RULES = f"""
 ## Threads length limit
 
-Hard limit: each Threads post part must be at most {THREADS_POST_CHAR_LIMIT} characters.
+This rule overrides any older instruction asking for 3-5 sentences or a full article-like paragraph.
+Hard limit: content must be at most {THREADS_POST_CHAR_LIMIT} characters.
+Target length: 160-220 characters.
 Return exactly one concise post in content.
 Never create a thread chain. Never return posts_chain.
 Do not put analysis, labels, headings, metadata, or explanations into content.
+Write like a live Threads post, not like an article.
+Use 2-4 very short lines.
+Put line breaks inside content. A blank line between micro-thoughts is allowed.
+Avoid dense paragraphs, long explanations, and polished marketing copy.
+Prefer one sharp observation, one concrete detail, and one soft ending.
 """
 
 
@@ -248,7 +255,7 @@ async def generate_post(
         project_id=project_id,
         stop_words=project_stop_words,
     )
-    generated_text = _clean_generated_text(parsed_response["content"])
+    generated_text = _fit_generated_text_for_threads(_clean_generated_text(parsed_response["content"]))
     generation_metadata = {
         "applied_angle": parsed_response["applied_angle"],
         "hook_mechanic": parsed_response["hook_mechanic"],
@@ -710,3 +717,27 @@ def _clean_generated_text(text: str) -> str:
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
 
     return cleaned.strip()
+
+
+def _fit_generated_text_for_threads(text: str, limit: int = THREADS_POST_CHAR_LIMIT) -> str:
+    cleaned = text.strip()
+    if len(cleaned) <= limit:
+        return cleaned
+
+    single_line = " ".join(cleaned.split())
+    if len(single_line) <= limit:
+        return single_line
+
+    cut_at = max(
+        single_line.rfind(". ", 0, limit),
+        single_line.rfind("! ", 0, limit),
+        single_line.rfind("? ", 0, limit),
+        single_line.rfind("; ", 0, limit),
+        single_line.rfind(", ", 0, limit),
+        single_line.rfind(" ", 0, limit),
+    )
+    if cut_at < int(limit * 0.6):
+        cut_at = limit
+
+    fitted = single_line[:cut_at].strip()
+    return fitted.rstrip(".,;: ") + "..."

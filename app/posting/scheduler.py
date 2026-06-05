@@ -35,6 +35,7 @@ from app.telegram.notifications import send_admin_notification
 TASK_CHECK_INTERVAL_SECONDS = 30 * 60
 QUEUE_HEALTH_CHECK_INTERVAL_SECONDS = 15 * 60
 PROXY_RECOVERY_INTERVAL_SECONDS = 5 * 60
+SUBSCRIPTION_RECONCILE_INTERVAL_SECONDS = 15 * 60
 MAX_GENERATIONS_PER_SCHEDULER_RUN = 50
 FIRST_POST_DELAY_MINUTES = 15
 TREND_ANALYSIS_INTERVAL_DAYS = 3
@@ -119,7 +120,30 @@ def setup_posting_scheduler() -> AsyncIOScheduler:
             coalesce=True,
         )
 
+    if not scheduler.get_job("reconcile_subscriptions"):
+        scheduler.add_job(
+            reconcile_subscriptions,
+            trigger="interval",
+            seconds=SUBSCRIPTION_RECONCILE_INTERVAL_SECONDS,
+            id="reconcile_subscriptions",
+            max_instances=1,
+            coalesce=True,
+        )
+
     return scheduler
+
+
+async def reconcile_subscriptions() -> None:
+    from app.services.subscriptions import reconcile_known_user_subscriptions
+    from app.telegram.bot import get_bot
+
+    bot = get_bot()
+    if bot is None:
+        logger.info("Subscription reconciliation skipped: Telegram bot is not configured.")
+        return
+
+    async with AsyncSessionLocal() as session:
+        await reconcile_known_user_subscriptions(bot=bot, session=session)
 
 
 async def recover_proxy_error_accounts() -> None:

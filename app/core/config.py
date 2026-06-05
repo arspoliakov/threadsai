@@ -6,9 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 DEFAULT_TARIFF_CHATS: dict[int, dict[str, Any]] = {
-    -1000000000001: {"name": "basic", "accounts": 1, "posts": 3, "projects": 1, "queue_days": 2},
-    -1000000000002: {"name": "pro", "accounts": 7, "posts": 5, "projects": 5, "queue_days": 3},
-    -1000000000003: {"name": "agency", "accounts": 30, "posts": 10, "projects": 15, "queue_days": 14},
+    -1004180842166: {"name": "basic", "accounts": 1, "posts": 3, "projects": 1, "queue_days": 2},
+    -1003768244441: {"name": "pro", "accounts": 7, "posts": 5, "projects": 5, "queue_days": 3},
+    -1004290860246: {"name": "agency", "accounts": 30, "posts": 10, "projects": 15, "queue_days": 14},
 }
 
 

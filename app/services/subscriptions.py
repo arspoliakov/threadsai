@@ -35,6 +35,12 @@ class TariffLimits:
     queue_days: int
 
 
+@dataclass(frozen=True, slots=True)
+class TariffMembershipCheck:
+    active_tariff: TariffLimits | None
+    checked_chats_count: int
+
+
 def get_tariff_chats() -> dict[int, TariffLimits]:
     tariff_chats: dict[int, TariffLimits] = {}
 
@@ -94,7 +100,8 @@ async def handle_user_left_tariff_chat(
         logger.info("Tribute leave ignored because telegram_id=%s is not registered yet.", telegram_id)
         return False
 
-    active_tariff = await find_active_tariff_for_user(bot=bot, telegram_id=telegram_id)
+    membership_check = await check_tariff_membership_for_user(bot=bot, telegram_id=telegram_id)
+    active_tariff = membership_check.active_tariff
     if active_tariff is not None:
         _apply_tariff(user, active_tariff)
         await session.commit()
@@ -106,13 +113,26 @@ async def handle_user_left_tariff_chat(
         )
         return False
 
+    if membership_check.checked_chats_count == 0:
+        logger.warning(
+            "Subscription leave for user_id=%s telegram_id=%s was not applied: no tariff chats could be checked.",
+            user.id,
+            telegram_id,
+        )
+        return False
+
     await disable_user_subscription(user=user, session=session)
     logger.info("Subscription disabled for user_id=%s telegram_id=%s.", user.id, telegram_id)
     return True
 
 
 async def find_active_tariff_for_user(*, bot: Bot, telegram_id: int) -> TariffLimits | None:
+    return (await check_tariff_membership_for_user(bot=bot, telegram_id=telegram_id)).active_tariff
+
+
+async def check_tariff_membership_for_user(*, bot: Bot, telegram_id: int) -> TariffMembershipCheck:
     active_tariffs: list[TariffLimits] = []
+    checked_chats_count = 0
 
     for chat_id, tariff in get_tariff_chats().items():
         try:
@@ -126,13 +146,61 @@ async def find_active_tariff_for_user(*, bot: Bot, telegram_id: int) -> TariffLi
             )
             continue
 
+        checked_chats_count += 1
         if _is_active_member(member):
             active_tariffs.append(tariff)
 
     if not active_tariffs:
-        return None
+        return TariffMembershipCheck(active_tariff=None, checked_chats_count=checked_chats_count)
 
-    return max(active_tariffs, key=_tariff_priority)
+    return TariffMembershipCheck(
+        active_tariff=max(active_tariffs, key=_tariff_priority),
+        checked_chats_count=checked_chats_count,
+    )
+
+
+async def reconcile_known_user_subscriptions(*, bot: Bot, session: AsyncSession) -> int:
+    users = list(
+        (
+            await session.scalars(
+                select(User)
+                .where(User.telegram_id.is_not(None))
+                .order_by(User.id.asc())
+            )
+        ).all()
+    )
+    changed_count = 0
+
+    for user in users:
+        if user.telegram_id is None:
+            continue
+
+        membership_check = await check_tariff_membership_for_user(bot=bot, telegram_id=user.telegram_id)
+        active_tariff = membership_check.active_tariff
+        if active_tariff is not None:
+            previous_state = _user_subscription_snapshot(user)
+            _apply_tariff(user, active_tariff)
+            if previous_state != _user_subscription_snapshot(user):
+                changed_count += 1
+            continue
+
+        if membership_check.checked_chats_count == 0:
+            logger.warning(
+                "Subscription reconciliation skipped user_id=%s telegram_id=%s: no tariff chats could be checked.",
+                user.id,
+                user.telegram_id,
+            )
+            continue
+
+        if user.subscription_status:
+            await disable_user_subscription(user=user, session=session)
+            changed_count += 1
+
+    await session.commit()
+    if changed_count:
+        logger.info("Subscription reconciliation changed %s user(s).", changed_count)
+
+    return changed_count
 
 
 async def disable_user_subscription(*, user: User, session: AsyncSession) -> None:
@@ -187,6 +255,17 @@ def _apply_tariff(user: User, tariff: TariffLimits) -> None:
     user.tariff_posts_per_day = tariff.posts
     user.tariff_projects_limit = tariff.projects
     user.tariff_queue_days = tariff.queue_days
+
+
+def _user_subscription_snapshot(user: User) -> tuple[bool, str, int, int, int, int]:
+    return (
+        user.subscription_status,
+        user.tariff_plan,
+        user.tariff_accounts_limit,
+        user.tariff_posts_per_day,
+        user.tariff_projects_limit,
+        user.tariff_queue_days,
+    )
 
 
 def _is_active_member(member: Any) -> bool:

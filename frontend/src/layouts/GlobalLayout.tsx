@@ -6,7 +6,7 @@ import { ProfileMenu } from "../components/ProfileMenu";
 
 const navigation: FloatingDockItem[] = [
   {
-    label: "Проекты",
+    label: "Мои проекты",
     to: "/app",
     icon: "home",
     end: true,
@@ -17,7 +17,7 @@ const navigation: FloatingDockItem[] = [
     icon: "accounts",
   },
   {
-    label: "Стиль",
+    label: "Настройки стиля",
     to: "/app/settings",
     icon: "style",
   },
@@ -35,7 +35,7 @@ export default function GlobalLayout() {
               <img src="/threadsgo-logo.png" alt="ThreadsGo" className="h-8 w-8 object-contain sm:h-9 sm:w-9" />
             </span>
             <div className="min-w-0">
-              <p className="text-xs leading-none text-[#6d746d]">рабочая панель</p>
+              <p className="text-xs leading-none text-[#6d746d]">Панель управления</p>
               <h1 className="truncate font-display text-2xl leading-none tracking-[-0.04em] sm:text-3xl">
                 ThreadsGo
               </h1>
@@ -60,9 +60,7 @@ export default function GlobalLayout() {
 function FooterUtility() {
   return (
     <footer className="mt-12 flex flex-col gap-3 border-t border-[#d9ddd4] pt-5 text-xs leading-5 text-[#747d73] sm:flex-row sm:items-center sm:justify-between">
-      <p>
-        *Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.
-      </p>
+      <p>*Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.</p>
       <div className="flex flex-wrap gap-2">
         <NavLink
           to="/terms"

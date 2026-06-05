@@ -3,7 +3,7 @@ import { AppIcon } from "./AppIcons";
 export function BotStatusCard({
   nextTrendCheck,
   currentAction,
-  nextActionLabel = "следующий сбор трендов",
+  nextActionLabel = "следующий сбор идей",
   compact = false,
   className = "",
 }: {
@@ -39,7 +39,9 @@ export function BotStatusCard({
             <AppIcon name="refresh" className="h-5 w-5" />
             <span className="text-sm">{nextActionLabel}</span>
           </div>
-          <p className={compact ? "mt-3 text-lg text-white sm:text-xl" : "mt-3 text-xl text-white sm:text-2xl"}>{formatDateTime(nextTrendCheck)}</p>
+          <p className={compact ? "mt-3 text-lg text-white sm:text-xl" : "mt-3 text-xl text-white sm:text-2xl"}>
+            {formatDateTime(nextTrendCheck)}
+          </p>
         </div>
       </div>
     </article>

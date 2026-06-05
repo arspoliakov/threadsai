@@ -35,7 +35,7 @@ export function DismissibleTip({ storageKey, title, children, action }: Dismissi
               onClick={dismiss}
               className="inline-flex h-10 items-center justify-center rounded-full bg-[#141815] px-4 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
             >
-              Понял, спасибо
+              Всё понятно
             </button>
             {action}
           </div>

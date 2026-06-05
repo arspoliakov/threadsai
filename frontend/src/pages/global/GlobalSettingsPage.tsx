@@ -2,18 +2,18 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
-import { DismissibleTip } from "../../components/DismissibleTip";
 import {
   createGlobalPrompt,
   getActiveGlobalPrompts,
   updateGlobalPrompt,
   type GlobalPrompt,
 } from "../../api/client";
+import { DismissibleTip } from "../../components/DismissibleTip";
 
 const DEFAULT_GLOBAL_PROMPT = `Ты — редактор ThreadsGo. Пиши как живой человек, а не как рекламный отдел.
 
 Главная задача:
-создавать короткие, понятные и нативные посты для Threads. Текст должен звучать как наблюдение, заметка или сообщение от человека/команды, а не как промо-баннер.
+создавать короткие, понятные и нативные посты для Threads. Текст должен звучать как наблюдение, заметка или сообщение от человека, а не как промо-баннер.
 
 Правила стиля:
 - сначала конкретика, потом настроение;
@@ -46,7 +46,7 @@ export default function GlobalSettingsPage() {
         setPrompt(activePrompt);
         setBody(activePrompt?.body || DEFAULT_GLOBAL_PROMPT);
       } catch {
-        toast.error("Не удалось загрузить стиль генерации");
+        toast.error("Не удалось загрузить настройки стиля");
       } finally {
         setIsLoading(false);
       }
@@ -75,9 +75,9 @@ export default function GlobalSettingsPage() {
           });
 
       setPrompt(savedPrompt);
-      toast.success("Стиль генерации сохранен");
+      toast.success("Настройки стиля сохранены");
     } catch {
-      toast.error("Не удалось сохранить стиль генерации");
+      toast.error("Не удалось сохранить настройки стиля");
     } finally {
       setIsSaving(false);
     }
@@ -85,7 +85,7 @@ export default function GlobalSettingsPage() {
 
   function resetToDefault() {
     setBody(DEFAULT_GLOBAL_PROMPT);
-    toast.success("Базовый стиль возвращен в редактор");
+    toast.success("Стандартный стиль вернулся в редактор");
   }
 
   return (
@@ -109,43 +109,40 @@ export default function GlobalSettingsPage() {
             <img src="/threadsgo-logo.png" alt="" className="h-8 w-8 object-contain" />
           </div>
           <h1 className="mt-5 font-display text-4xl leading-[0.95] tracking-[-0.04em] sm:text-5xl">
-            Стиль генерации
+            Ваш фирменный голос
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-white/62">
-            Это персональный глобальный промпт пользователя. Он применяется ко всем вашим проектам
-            и задает общий голос: насколько текст сухой, живой, экспертный, дерзкий или спокойный.
+            Это настройка, которая задает характер ваших постов. Она работает для всех проектов сразу и определяет,
+            как будет звучать текст: дружелюбно или строго, экспертно или по-простому, бодро или спокойно.
           </p>
         </div>
       </header>
 
       <DismissibleTip
         storageKey="threadsgo.global-style-tip"
-        title="Здесь настраивается общий голос"
+        title="Здесь мы задаем настроение, а не содержание"
         action={
           <Link
             to="/app/how-it-works"
             className="inline-flex h-10 items-center justify-center rounded-full border border-[#141815] px-4 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white"
           >
-            Какие посты пишет нейросеть?
+            Посмотреть примеры постов
           </Link>
         }
       >
-        В стиль лучше писать про тон, ритм и запретные слова. А продукт, аудиторию, оффер и закреп настраивайте внутри
-        конкретного проекта.
+        Пишите о том, как говорить: дружелюбно, с юмором, строго, коротко или экспертно. Детали для конкретных
+        проектов лучше прописать внутри самих проектов.
       </DismissibleTip>
 
-      <form
-        onSubmit={handleSubmit}
-        className="overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-white shadow-sm"
-      >
+      <form onSubmit={handleSubmit} className="overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-white shadow-sm">
         <header className="flex flex-col gap-4 border-b border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
             <h2 className="font-display text-3xl leading-none tracking-[-0.04em] text-[#111]">
-              Системный промпт
+              Правила для нейросети
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[#667066]">
-              Пишите человеческим языком: какие слова избегать, какой тон держать,
-              что важно для вашей аудитории и чего ИИ не должен делать.
+              Говорите с нейросетью, как с помощником. Объясните, чего не делать и какой стиль общения выбрать:
+              дружелюбный, экспертный, лаконичный или любой другой.
             </p>
           </div>
           <button
@@ -154,7 +151,7 @@ export default function GlobalSettingsPage() {
             disabled={isLoading || isSaving}
             className="inline-flex h-11 items-center justify-center rounded-full border border-[#cfd5cc] px-5 text-sm text-[#323832] transition hover:border-[#141815] hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Вернуть базовый
+            Сбросить к стандартному
           </button>
         </header>
 
@@ -170,15 +167,15 @@ export default function GlobalSettingsPage() {
           <aside className="space-y-4">
             <InfoCard
               title="Для чего это"
-              text="Это верхний слой правил. Он не заменяет описание проекта, а задает общий голос генерации."
+              text="Это ваша общая настройка характера. Она работает для всех проектов сразу, но не заменяет детальные настройки каждого отдельного проекта."
             />
             <InfoCard
               title="Что писать"
-              text="Тон, запреты, слова-паразиты, формат подачи, уровень экспертности и границы brand safety."
+              text="Тон, запреты, слова-паразиты, формат подачи, уровень экспертности и правила, которые важно соблюдать в каждом посте."
             />
             <InfoCard
               title="Что не писать"
-              text="Не забивайте сюда локальные стоп-слова одного проекта. Для этого есть настройки конкретного проекта."
+              text="Не вводите здесь специфические запреты для одного аккаунта. Такие настройки лучше делать внутри самого проекта."
             />
           </aside>
         </div>
@@ -193,7 +190,7 @@ export default function GlobalSettingsPage() {
             className="inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? <Spinner /> : null}
-            {isSaving ? "Сохраняем" : "Сохранить стиль"}
+            {isSaving ? "Сохраняем" : "Применить настройки стиля"}
           </button>
         </footer>
       </form>

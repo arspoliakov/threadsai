@@ -39,12 +39,10 @@ export default function Dashboard() {
   }, []);
 
   async function handleCreateProject(payload: { name: string; description: string }) {
-    const slug = createSlug(payload.name);
-
     await toast.promise(
       createProject({
         name: payload.name,
-        slug,
+        slug: createSlug(payload.name),
         description: payload.description || null,
         is_active: true,
       }),
@@ -120,23 +118,21 @@ export default function Dashboard() {
 
       <div className="grid gap-3 lg:grid-cols-4">
         <BotStatusCard
-          nextTrendCheck={summary?.next_trend_check ?? null}
-          currentAction={getCurrentAction(summary, nextProject, isLoading)}
-          nextActionLabel={nextProject ? `ближайший пост: ${nextProject.name}` : "следующий сбор трендов"}
+          nextTrendCheck={nextProject?.next_post_time ?? summary?.next_trend_check ?? null}
+          currentAction={getCurrentAction(summary, isLoading)}
+          nextActionLabel={nextProject ? `Следующий пост: «${nextProject.name}»` : "следующий сбор идей"}
           compact
           className="lg:col-span-2"
         />
         <StatsWidget
           icon={<FolderIcon />}
-          label="Проекты"
+          label={formatProjectCountLabel(summary?.projects.length ?? 0)}
           value={isLoading ? "..." : String(summary?.projects.length ?? 0)}
-          description="активные рабочие контуры"
         />
         <StatsWidget
           icon={<SendIcon />}
-          label="Опубликовано"
+          label={formatPublishedCountLabel(totalPublished)}
           value={isLoading ? "..." : String(totalPublished)}
-          description="постов вышло через систему"
         />
       </div>
 
@@ -152,8 +148,8 @@ export default function Dashboard() {
           </Link>
         }
       >
-        Создайте проект, опишите продукт и подключите Threads-аккаунт. Дальше система сама подготовит контент-план, а вы
-        сможете быстро проверить тексты перед публикацией.
+        Начните за 3 шага: создайте проект → опишите, что будете публиковать → подключите аккаунт Threads.
+        Система сама составит план постов, а вам останется только быстро проверить тексты перед выходом.
       </DismissibleTip>
 
       <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
@@ -174,10 +170,7 @@ export default function Dashboard() {
       </div>
 
       {isCreateOpen ? (
-        <CreateProjectModal
-          onClose={() => setIsCreateOpen(false)}
-          onSubmit={handleCreateProject}
-        />
+        <CreateProjectModal onClose={() => setIsCreateOpen(false)} onSubmit={handleCreateProject} />
       ) : null}
     </section>
   );
@@ -193,17 +186,12 @@ function getNextProject(summary: DashboardSummary | null) {
       .filter((project) => Boolean(project.next_post_time))
       .sort(
         (first, second) =>
-          new Date(first.next_post_time || 0).getTime() -
-          new Date(second.next_post_time || 0).getTime(),
+          new Date(first.next_post_time || 0).getTime() - new Date(second.next_post_time || 0).getTime(),
       )[0] ?? null
   );
 }
 
-function getCurrentAction(
-  summary: DashboardSummary | null,
-  nextProject: DashboardProjectSummary | null,
-  isLoading: boolean,
-) {
+function getCurrentAction(summary: DashboardSummary | null, isLoading: boolean) {
   if (isLoading) {
     return "Проверяем систему";
   }
@@ -212,7 +200,7 @@ function getCurrentAction(
     return "Ждем первый проект";
   }
 
-  return "Бот запущен";
+  return "Автопостинг активен";
 }
 
 function CreateProjectModal({
@@ -250,11 +238,9 @@ function CreateProjectModal({
       >
         <header className="flex items-start justify-between gap-4 border-b border-[#e3e7df] p-6">
           <div>
-            <h2 className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]">
-              Новый проект
-            </h2>
+            <h2 className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]">Новый проект</h2>
             <p className="mt-3 text-sm leading-6 text-[#667066]">
-              Проект хранит свой стиль, аккаунты, очередь публикаций и тренды.
+              Проект хранит свой стиль, аккаунты, очередь публикаций и актуальные темы.
             </p>
           </div>
           <button
@@ -273,7 +259,7 @@ function CreateProjectModal({
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Например: MosRiders"
+              placeholder="Например: проект для эксперта"
               className="mt-2 h-12 w-full rounded-2xl border border-[#dfe4dc] bg-white px-4 text-base outline-none transition focus:border-[#141815]"
               disabled={isSaving}
             />
@@ -284,13 +270,13 @@ function CreateProjectModal({
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Опишите суть проекта, аудиторию, продукт, боли ЦА и желаемый Tone of Voice."
+              placeholder="Коротко опишите продукт, аудиторию, задачу и желаемый тон."
               rows={7}
               className="mt-2 w-full resize-y rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6 outline-none transition focus:border-[#141815]"
               disabled={isSaving}
             />
             <span className="mt-2 block text-xs leading-5 text-[#7a8179]">
-              Чем подробнее описание, тем лучше ИИ попадет в голос проекта и не будет писать абстрактный текст.
+              Чем понятнее описание, тем меньше абстрактных постов получится на выходе.
             </span>
           </label>
         </div>
@@ -318,68 +304,12 @@ function CreateProjectModal({
   );
 }
 
-function SystemWidget({
-  nextTrendCheck,
-  isLoading,
-  className = "",
-}: {
-  nextTrendCheck: string | null;
-  isLoading: boolean;
-  className?: string;
-}) {
-  return (
-    <article
-      className={`relative min-h-[17rem] overflow-hidden rounded-[24px] border border-[#151b17] bg-[#080d0b] p-5 text-white shadow-[0_18px_60px_rgba(10,10,10,0.16)] ${className}`}
-    >
-      <div className="absolute right-[-70px] top-[-100px] h-64 w-64 rounded-full bg-[#70ff35]/16 blur-3xl" />
-      <div className="absolute bottom-[-100px] left-[30%] h-64 w-64 rounded-full bg-[#0076ff]/20 blur-3xl" />
-      <div className="relative flex h-full min-h-[14rem] flex-col justify-between gap-5">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#70ff35] opacity-70" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-[#70ff35]" />
-            </span>
-            <span className="text-sm text-white/68">Система онлайн</span>
-          </div>
-          <h2 className="mt-5 max-w-xl font-display text-3xl leading-[0.95] tracking-[-0.04em] sm:text-4xl">
-            Автономный контур активен
-          </h2>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-          <div className="flex items-center gap-3 text-white/62">
-            <RadarIcon />
-            <span className="text-sm">Следующий сбор трендов</span>
-          </div>
-          <p className="mt-3 text-xl text-white sm:text-2xl">
-            {isLoading ? "Загрузка" : formatDateTime(nextTrendCheck)}
-          </p>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function StatsWidget({
-  icon,
-  label,
-  value,
-  description,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  description: string;
-}) {
+function StatsWidget({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <article className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#eef4ec] text-[#111]">
-        {icon}
-      </div>
+      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#eef4ec] text-[#111]">{icon}</div>
       <p className="mt-5 font-display text-4xl leading-none text-[#111]">{value}</p>
       <p className="mt-3 text-base text-[#151815]">{label}</p>
-      <p className="mt-2 text-sm leading-6 text-[#6b716a]">{description}</p>
     </article>
   );
 }
@@ -399,11 +329,9 @@ function ProjectCard({
       <div className="relative flex min-h-40 flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-5">
           <Link to={`/app/projects/${project.id}`} className="min-w-0 flex-1">
-            <h2 className="font-display text-3xl leading-none tracking-[-0.035em] text-[#111]">
-              {project.name}
-            </h2>
+            <h2 className="font-display text-3xl leading-none tracking-[-0.035em] text-[#111]">{project.name}</h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
-              Откройте проект, чтобы управлять очередью, трендами, аккаунтами и настройками.
+              Нажмите, чтобы зайти в проект и управлять очередью публикаций, трендами и настройками.
             </p>
           </Link>
           <div className="flex shrink-0 items-center gap-2">
@@ -428,8 +356,8 @@ function ProjectCard({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Metric icon={<SendIcon />} label="Опубликовано" value={String(project.published_count)} />
-          <Metric icon={<ClockIcon />} label="Ближайший пост" value={formatDateTime(project.next_post_time)} />
+          <Metric icon={<SendIcon />} label="Вышло постов" value={String(project.published_count)} />
+          <Metric icon={<ClockIcon />} label="Следующий пост" value={formatDateTime(project.next_post_time)} />
         </div>
       </div>
     </article>
@@ -458,10 +386,7 @@ function SkeletonProjects() {
   return (
     <>
       {[1, 2, 3].map((item) => (
-        <div
-          key={item}
-          className="min-h-40 animate-pulse rounded-[24px] border border-[#dfe4dc] bg-white/70 p-5 shadow-sm"
-        >
+        <div key={item} className="min-h-40 animate-pulse rounded-[24px] border border-[#dfe4dc] bg-white/70 p-5 shadow-sm">
           <div className="h-10 w-10 rounded-2xl bg-[#dfe4dc]" />
           <div className="mt-8 h-8 w-3/4 rounded-full bg-[#dfe4dc]" />
           <div className="mt-12 h-3 w-1/2 rounded-full bg-[#dfe4dc]" />
@@ -481,7 +406,7 @@ function EmptyProjects({ onCreate }: { onCreate: () => void }) {
           </div>
           <p className="mt-5 font-display text-3xl text-[#111]">Проектов пока нет</p>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#667066] lg:mx-0">
-            Создайте первый проект, подключите Threads-профиль и запустите сбор трендов.
+            Создайте первый проект, подключите Threads-профиль и запустите сбор актуальных идей.
           </p>
           <button
             type="button"
@@ -503,54 +428,29 @@ function EmptyProjects({ onCreate }: { onCreate: () => void }) {
 }
 
 function createSlug(name: string) {
-  const translitMap: Record<string, string> = {
-    а: "a",
-    б: "b",
-    в: "v",
-    г: "g",
-    д: "d",
-    е: "e",
-    ё: "e",
-    ж: "zh",
-    з: "z",
-    и: "i",
-    й: "y",
-    к: "k",
-    л: "l",
-    м: "m",
-    н: "n",
-    о: "o",
-    п: "p",
-    р: "r",
-    с: "s",
-    т: "t",
-    у: "u",
-    ф: "f",
-    х: "h",
-    ц: "c",
-    ч: "ch",
-    ш: "sh",
-    щ: "sch",
-    ы: "y",
-    э: "e",
-    ю: "yu",
-    я: "ya",
-  };
-
   const base = name
     .toLowerCase()
-    .split("")
-    .map((char) => translitMap[char] ?? char)
-    .join("")
-    .replace(/[^a-z0-9]+/g, "-")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zа-яё0-9]+/gi, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
 
   return `${base || "project"}-${Date.now().toString(36)}`;
 }
 
-function Spinner() {
-  return <span className="h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />;
+function formatProjectCountLabel(count: number) {
+  if (count === 1) {
+    return "проект в работе";
+  }
+  return "проектов в работе";
+}
+
+function formatPublishedCountLabel(count: number) {
+  if (count === 1) {
+    return "пост опубликован";
+  }
+  return "постов опубликовано";
 }
 
 function formatDateTime(value: string | null | undefined) {
@@ -565,6 +465,10 @@ function formatDateTime(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function Spinner() {
+  return <span className="h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />;
 }
 
 function RefreshIcon() {
@@ -611,14 +515,6 @@ function ClockIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function RadarIcon() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 21a9 9 0 1 0-9-9M12 21v-4M12 21h4M12 12l6-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

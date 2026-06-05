@@ -156,8 +156,8 @@ export default function ProjectOverviewPage() {
             {dashboard?.project.name || "Сводка"}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Это центр управления проектом. Проверьте, готов ли аккаунт, собраны ли тренды
-            и есть ли посты в контент-плане на ближайшие дни.
+            Здесь вы управляете всем процессом. Проверьте: подключен ли аккаунт, собраны ли свежие идеи
+            для постов и составлено ли расписание публикаций на ближайшие дни.
           </p>
         </div>
         {dashboard ? (
@@ -173,17 +173,17 @@ export default function ProjectOverviewPage() {
 
       <div className="grid gap-px border border-[#c9c9c3] bg-[#c9c9c3] md:grid-cols-2">
         <ActionPanel
-          title="Собрать тренды"
-          description="Система посмотрит свежую ленту Threads и сохранит паттерны, из которых потом будут собираться посты."
-          buttonText="Собрать тренды"
+          title="Обновить идеи для постов"
+          description="Нейросеть изучит, о чем сейчас говорят в ленте Threads, и подберет актуальные темы. На их основе мы будем создавать ваши посты."
+          buttonText="Обновить идеи для постов"
           isLoading={runningAction === "scraping"}
           isDisabled={runningAction !== null || isLoading}
           onClick={() => void handleTriggerScraping()}
         />
         <ActionPanel
           title="Создать пост"
-          description="Система возьмет контекст проекта, стиль и тренды, а затем добавит новый пост в контент-план."
-          buttonText="Создать пост"
+          description="Нейросеть создаст новый пост, опираясь на вашу тему, выбранный стиль и актуальные идеи. Пост сразу добавится в расписание публикаций."
+          buttonText="Добавить новый пост в план"
           isLoading={runningAction === "generation"}
           isDisabled={runningAction !== null || isLoading}
           onClick={() => void handleTriggerGeneration()}
@@ -207,7 +207,7 @@ export default function ProjectOverviewPage() {
 
       {latestScrapingOperation?.status === "running" ? (
         <Notice tone="neutral">
-          Сбор трендов идет в фоне. Можно перейти в настройки или контент-план: система продолжит работу сама.
+          Сбор идей идет в фоне. Можно перейти в настройки или расписание постов: система продолжит работу сама.
         </Notice>
       ) : null}
       {statusMessage ? <Notice tone="neutral">{statusMessage}</Notice> : null}
@@ -215,7 +215,7 @@ export default function ProjectOverviewPage() {
 
       <section className="overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-white shadow-sm">
         <header className="border-b border-[#c9c9c3] px-5 py-5">
-          <h2 className="font-display text-3xl">Что уже произошло</h2>
+          <h2 className="font-display text-3xl">Что система успела сделать</h2>
         </header>
 
         {isLoading ? (
@@ -286,8 +286,8 @@ function SystemStatusCard({
         <p className="mt-4 max-w-xl text-sm leading-6 text-white/58">{status.description}</p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <MiniMetric label="Активные аккаунты" value={String(activeAccounts)} />
-          <MiniMetric label="Тренды" value={String(dashboard.saved_trends_count)} />
+          <MiniMetric label="Активные профили" value={String(activeAccounts)} />
+          <MiniMetric label="Идеи" value={String(dashboard.saved_trends_count)} />
           <MiniMetric label="В плане" value={String(queuedCount)} />
         </div>
       </div>
@@ -319,13 +319,13 @@ function ReadinessChecklist({
       to: "/app/settings",
     },
     {
-      title: "Подключите Threads-аккаунт",
+      title: "Подключите Threads-профиль",
       done: activeAccounts > 0,
-      hint: "Пароль не нужен. Достаточно cookies от готового аккаунта.",
+      hint: "Пароль не нужен. Достаточно cookies от готового профиля.",
       to: `/app/projects/${projectId}/settings`,
     },
     {
-      title: "Соберите тренды",
+      title: "Обновите идеи",
       done: dashboard.saved_trends_count > 0,
       hint: "Так посты будут собираться не из воздуха, а из живой механики ленты.",
       to: `/app/projects/${projectId}/trends`,
@@ -333,7 +333,7 @@ function ReadinessChecklist({
     {
       title: "Настройте расписание",
       done: Boolean(dashboard.project.posts_per_day && dashboard.project.active_hours_start && dashboard.project.active_hours_end),
-      hint: "Сколько постов в день выпускать по каждому аккаунту и в какие часы.",
+      hint: "Сколько постов в день выпускать по каждому профилю и в какие часы.",
       to: `/app/projects/${projectId}/settings`,
     },
   ];
@@ -425,7 +425,7 @@ function ActivityLog({
           <div key={operation.id} className="grid gap-3 px-5 py-5 md:grid-cols-[190px_1fr_auto] md:items-start">
             <div>
               <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">
-                {operation.action_type === "scraping" ? "Сбор трендов" : "Создание поста"}
+                {operation.action_type === "scraping" ? "Сбор идей" : "Создание поста"}
               </span>
               <p className="mt-2 text-xs text-[#77766f]">{formatDate(operation.started_at)}</p>
             </div>
@@ -437,7 +437,7 @@ function ActivityLog({
         ))
       )}
 
-      <LogRow label="Аккаунты" value={formatAccountStates(dashboard.account_states)} />
+      <LogRow label="Профили" value={formatAccountStates(dashboard.account_states)} />
       <LogRow label="Публикации" value={formatTaskStatuses(dashboard.posting_tasks_by_status)} />
       <LogRow
         label="Последняя ошибка"
@@ -695,16 +695,16 @@ function formatOperation(operation: ProjectOperation | null) {
         : "ошибка";
   const result =
     typeof saved === "number" || typeof collected === "number"
-      ? `Найдено постов: ${String(collected ?? "неизвестно")}. Новых трендов сохранено: ${String(saved ?? 0)}.`
+      ? `Найдено постов: ${String(collected ?? "неизвестно")}. Новых идей сохранено: ${String(saved ?? 0)}.`
       : "";
 
   let message = operation.message || "";
   if (message.startsWith("Trend analysis completed")) {
     message = "";
   } else if (message.startsWith("Trend scraping is running")) {
-    message = "Сбор трендов запущен.";
+    message = "Сбор идей запущен.";
   } else if (message.startsWith("Trend analysis failed:")) {
-    message = message.replace("Trend analysis failed:", "Ошибка сбора трендов:");
+    message = message.replace("Trend analysis failed:", "Ошибка сбора идей:");
   }
 
   return `${status}; старт: ${started}; финиш: ${finished}. ${result} ${message}`.trim();
@@ -748,11 +748,11 @@ function getProjectSystemStatus({
 
   if (runningOperation?.status === "running") {
     return {
-      title: runningOperation.action_type === "scraping" ? "собирает тренды" : "готовит пост",
+      title: runningOperation.action_type === "scraping" ? "обновляет идеи" : "готовит пост",
       description:
         runningOperation.action_type === "scraping"
           ? "Система смотрит ленту Threads и сохраняет идеи, которые помогут писать нативные посты."
-          : "Система берет описание проекта, стиль и тренды, чтобы подготовить новый пост.",
+          : "Система берет описание проекта, стиль и актуальные идеи, чтобы подготовить новый пост.",
       dotClass: "bg-[#70ff35]",
       pulse: true,
     };
@@ -760,9 +760,9 @@ function getProjectSystemStatus({
 
   if (failedAccounts > 0) {
     return {
-      title: "нужно проверить аккаунт",
+      title: "нужно проверить профиль",
       description:
-        "Откройте настройки проекта и посмотрите статус аккаунта. Если cookies истекли — обновите их. Если техническая пауза — система попробует вернуть аккаунт сама.",
+        "Откройте настройки проекта и посмотрите статус профиля. Если cookies истекли — обновите их. Если техническая пауза — система попробует вернуть профиль сама.",
       dotClass: "bg-[#ffb020]",
       pulse: true,
     };
@@ -770,8 +770,8 @@ function getProjectSystemStatus({
 
   if (activeAccounts === 0) {
     return {
-      title: "ждет аккаунт",
-      description: "Подключите хотя бы один Threads-профиль. Без аккаунта система может готовить тексты, но не сможет их публиковать.",
+      title: "ждет профиль",
+      description: "Подключите хотя бы один Threads-профиль. Без него система может готовить тексты, но не сможет их публиковать.",
       dotClass: "bg-[#9aa39a]",
       pulse: false,
     };
@@ -780,7 +780,7 @@ function getProjectSystemStatus({
   if (trendsCount === 0) {
     return {
       title: "готов к анализу",
-      description: "Аккаунт подключен. Теперь соберите тренды, чтобы посты опирались на живую ленту.",
+      description: "Профиль подключен. Теперь обновите идеи, чтобы посты опирались на живую ленту.",
       dotClass: "bg-[#0076ff]",
       pulse: false,
     };
@@ -788,8 +788,8 @@ function getProjectSystemStatus({
 
   if (queuedCount > 0) {
     return {
-      title: "контент-план готов",
-      description: "Посты уже стоят в контент-плане. Можно проверить тексты или просто ждать публикации по расписанию.",
+      title: "расписание постов готово",
+      description: "Все посты уже запланированы. Можно проверить тексты или просто ждать публикации по расписанию.",
       dotClass: "bg-[#70ff35]",
       pulse: true,
     };
@@ -797,7 +797,7 @@ function getProjectSystemStatus({
 
   return {
     title: "готов к генерации",
-    description: "Тренды собраны, аккаунт активен. Можно создать пост сейчас или дождаться, пока система сделает это сама.",
+    description: "Идеи собраны, профиль активен. Можно создать пост сейчас или дождаться, пока система сделает это сама.",
     dotClass: "bg-[#70ff35]",
     pulse: false,
   };

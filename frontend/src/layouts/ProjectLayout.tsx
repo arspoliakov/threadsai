@@ -29,27 +29,26 @@ export default function ProjectLayout() {
       (account) => account.status === "cookies_expired" || account.status === "blocked",
     ) ?? false;
   const hasProxyPause = dashboard?.account_states.some((account) => account.status === "proxy_error") ?? false;
-  const hasAccountWarning = hasSessionProblem || hasProxyPause;
 
   const navigation: FloatingDockItem[] = [
     {
-      label: "К проектам",
+      label: "Все проекты",
       to: "/app",
       icon: "home",
     },
     {
-      label: "Сводка",
+      label: "Обзор",
       to: projectBasePath,
       icon: "overview",
       end: true,
     },
     {
-      label: "Контент-план",
+      label: "Расписание постов",
       to: `${projectBasePath}/queue`,
       icon: "queue",
     },
     {
-      label: "Тренды",
+      label: "Актуальные темы",
       to: `${projectBasePath}/trends`,
       icon: "trends",
     },
@@ -70,7 +69,7 @@ export default function ProjectLayout() {
             <Link
               to="/app"
               className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[#dfe4dc] bg-white shadow-sm transition hover:bg-[#07100e] hover:text-white"
-              aria-label="К проектам"
+              aria-label="Все проекты"
             >
               <AppIcon name="home" className="h-5 w-5" />
             </Link>
@@ -104,9 +103,7 @@ export default function ProjectLayout() {
 function FooterUtility() {
   return (
     <footer className="mt-12 flex flex-col gap-3 border-t border-[#d9ddd4] pt-5 text-xs leading-5 text-[#747d73] sm:flex-row sm:items-center sm:justify-between">
-      <p>
-        *Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.
-      </p>
+      <p>*Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.</p>
       <div className="flex flex-wrap gap-2">
         <Link
           to="/terms"
@@ -136,7 +133,7 @@ function SessionWarningBanner({ projectBasePath }: { projectBasePath: string }) 
           <div>
             <p className="text-base font-medium text-[#3b2a08]">Сессия Threads истекла</p>
             <p className="mt-1 text-sm leading-6 text-[#7a5b22]">
-              Генерация работает, но публикация остановлена до обновления cookies.
+              Генерация работает, но публикация остановлена до обновления доступа.
             </p>
           </div>
         </div>
@@ -144,7 +141,7 @@ function SessionWarningBanner({ projectBasePath }: { projectBasePath: string }) 
           to={`${projectBasePath}/settings`}
           className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
         >
-          Обновить cookies
+          Обновить доступ
         </Link>
       </div>
     </div>
@@ -160,7 +157,7 @@ function ProxyWarningBanner({ projectBasePath }: { projectBasePath: string }) {
           <div>
             <p className="text-base font-medium text-[#3b2a08]">Прокси временно не отвечает</p>
             <p className="mt-1 text-sm leading-6 text-[#7a5b22]">
-              Cookies не слетели. Система автоматически перепроверяет порт и вернет аккаунт в работу, когда прокси снова начнет отдавать IP.
+              Cookies не слетели. Система сама перепроверяет порт и вернет профиль в работу, когда прокси снова начнет отдавать IP.
             </p>
           </div>
         </div>

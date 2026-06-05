@@ -37,13 +37,13 @@ export default function ProjectQueuePage() {
         getProjectTasks(projectId),
         getProjectDashboard(projectId),
       ]);
-      setTasks(tasksResult);
+      setTasks(sortTasks(tasksResult));
       setAccountStates(dashboardResult.account_states);
       if (!silent) {
-        toast.success("Контент-план обновлен");
+        toast.success("Расписание постов обновлено");
       }
     } catch {
-      toast.error("Не удалось загрузить контент-план");
+      toast.error("Не удалось загрузить расписание постов");
     } finally {
       setIsLoading(false);
     }
@@ -114,7 +114,7 @@ export default function ProjectQueuePage() {
         error: "Не удалось сохранить текст",
       });
       const updatedTask = await updatePromise;
-      setTasks((current) => current.map((task) => (task.id === taskId ? updatedTask : task)));
+      setTasks((current) => sortTasks(current.map((task) => (task.id === taskId ? updatedTask : task))));
     } finally {
       setSavingId(null);
     }
@@ -126,12 +126,12 @@ export default function ProjectQueuePage() {
     try {
       const regeneratePromise = regenerateTask(taskId);
       toast.promise(regeneratePromise, {
-        loading: "Перегенерируем пост...",
-        success: "Пост перегенерирован",
-        error: "Не удалось перегенерировать пост",
+        loading: "Переписываем пост...",
+        success: "Пост переписан",
+        error: "Не удалось переписать пост",
       });
       const regeneratedTask = await regeneratePromise;
-      setTasks((current) => current.map((task) => (task.id === taskId ? regeneratedTask : task)));
+      setTasks((current) => sortTasks(current.map((task) => (task.id === taskId ? regeneratedTask : task))));
       setExpandedTaskIds((current) => new Set(current).add(taskId));
     } finally {
       setRegeneratingId(null);
@@ -140,19 +140,17 @@ export default function ProjectQueuePage() {
 
   return (
     <section className="space-y-5">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="font-display text-4xl leading-none">Контент-план</h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Здесь лежат будущие публикации. Можно посмотреть текст, аккаунт, время выхода,
-            быстро поправить пост или отправить его на перегенерацию.
-          </p>
-        </div>
+      <header>
+        <h1 className="font-display text-4xl leading-none">Расписание будущих постов</h1>
+        <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
+          Здесь собраны посты, которые выйдут в ближайшее время. Можно проверить текст, аккаунт и время выхода,
+          быстро отредактировать публикацию или попросить систему переписать её заново.
+        </p>
       </header>
 
       <DismissibleTip storageKey="threadsgo.queue-tip" title="Это план будущих публикаций">
-        Здесь можно быстро проверить текст, время выхода и аккаунт. Если пост звучит не так — отредактируйте его или
-        нажмите «Перегенерировать».
+        Сначала смотрите ближайшие посты. Ошибки и отмененные публикации уходят вниз списка, чтобы не мешать
+        проверять то, что еще должно выйти.
       </DismissibleTip>
 
       {isLoading ? (
@@ -160,7 +158,7 @@ export default function ProjectQueuePage() {
       ) : tasks.length === 0 ? (
         <EmptyState
           title="Публикаций пока нет"
-          description="Когда проект будет готов, система сама подготовит посты на ближайшие дни. Первый пост можно создать кнопкой на сводке проекта."
+          description="Когда проект будет готов, система подготовит посты на ближайшие дни. Первый пост можно создать кнопкой на обзоре проекта."
         />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
@@ -246,10 +244,8 @@ function TaskCard({
     <article className={`rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md ${isRegenerating ? "animate-pulse" : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e7e5de] pb-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">
-            Публикация #{task.id}
-          </p>
-          <div className="mt-3 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.12em] text-[#333]">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">Публикация #{task.id}</p>
+          <div className="mt-3 flex items-center gap-2 text-xs text-[#333]">
             <StatusDot status={task.status} />
             {formatStatus(task.status)}
           </div>
@@ -260,9 +256,7 @@ function TaskCard({
           ) : null}
         </div>
         <div className="rounded-2xl border border-[#d8d8d2] px-3 py-2 text-right">
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">
-            Выйдет
-          </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">Выйдет</p>
           <p className="mt-1 text-sm text-[#24231f]">{formatDate(task.scheduled_at)}</p>
         </div>
       </div>
@@ -276,19 +270,10 @@ function TaskCard({
             className="w-full resize-y rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] p-4 text-sm leading-6 text-[#252525] outline-none transition-all duration-200 ease-in-out focus:border-[#151515]"
           />
           <div className="mt-3 flex flex-wrap gap-2">
-            <ActionButton
-              variant="dark"
-              onClick={handleSaveEdit}
-              disabled={isBusy}
-              isLoading={isSaving}
-            >
+            <ActionButton variant="dark" onClick={handleSaveEdit} disabled={isBusy} isLoading={isSaving}>
               Сохранить
             </ActionButton>
-            <ActionButton
-              onClick={handleCancelEdit}
-              disabled={isBusy}
-              isLoading={false}
-            >
+            <ActionButton onClick={handleCancelEdit} disabled={isBusy} isLoading={false}>
               Отмена
             </ActionButton>
           </div>
@@ -297,7 +282,7 @@ function TaskCard({
         <button
           type="button"
           onClick={onToggle}
-          className="mt-4 w-full text-left text-sm leading-6 text-[#252525] transition-all duration-200 ease-in-out hover:text-[#000]"
+          className="mt-4 w-full whitespace-pre-line text-left text-sm leading-6 text-[#252525] transition-all duration-200 ease-in-out hover:text-[#000]"
         >
           {isRegenerating ? "Переписываем пост..." : isExpanded ? task.content_text : truncate(task.content_text, 240)}
         </button>
@@ -319,40 +304,22 @@ function TaskCard({
               onClick={onPublishNow}
               disabled={isBusy || isEditing || isSessionDead}
               isLoading={isPublishing}
-              title={
-                isSessionDead
-                  ? accountBlockMessage
-                  : undefined
-              }
+              title={isSessionDead ? accountBlockMessage : undefined}
             >
               Опубликовать сейчас
             </ActionButton>
-            <ActionButton
-              onClick={() => setIsEditing(true)}
-              disabled={isBusy || isEditing || !canEdit}
-              isLoading={false}
-            >
+            <ActionButton onClick={() => setIsEditing(true)} disabled={isBusy || isEditing || !canEdit} isLoading={false}>
               Редактировать
             </ActionButton>
-            <ActionButton
-              onClick={onRegenerate}
-              disabled={isBusy || isEditing || !canEdit}
-              isLoading={isRegenerating}
-            >
-              Перегенерировать
+            <ActionButton onClick={onRegenerate} disabled={isBusy || isEditing || !canEdit} isLoading={isRegenerating}>
+              Переписать
             </ActionButton>
-            <ActionButton
-              onClick={onCancel}
-              disabled={isBusy || isEditing}
-              isLoading={isCancelling}
-            >
+            <ActionButton onClick={onCancel} disabled={isBusy || isEditing} isLoading={isCancelling}>
               Отменить
             </ActionButton>
           </>
         ) : (
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#77766f]">
-            {terminalStatuses.includes(task.status) ? "закрыто" : "заблокировано"}
-          </span>
+          <span className="text-xs text-[#77766f]">{terminalStatuses.includes(task.status) ? "закрыто" : "заблокировано"}</span>
         )}
       </div>
     </article>
@@ -363,11 +330,7 @@ function GenerationMetadataBlock({ task }: { task: PostingTask }) {
   const metadata = task.generation_metadata;
 
   if (!metadata) {
-    return (
-        <div className="mt-5 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4 text-xs leading-5 text-[#77766f]">
-        Объяснение еще не сохранено
-      </div>
-    );
+    return <div className="mt-5 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4 text-xs leading-5 text-[#77766f]">Пояснение еще не сохранено</div>;
   }
 
   return (
@@ -383,10 +346,8 @@ function GenerationMetadataBlock({ task }: { task: PostingTask }) {
 function MetadataLine({ label, value }: { label: string; value?: string }) {
   return (
     <div>
-      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8d8b84]">
-        {label}
-      </div>
-      <div className="mt-1 text-[#333]">{value || "Объяснение еще не сохранено"}</div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8d8b84]">{label}</div>
+      <div className="mt-1 text-[#333]">{value || "Пояснение еще не сохранено"}</div>
     </div>
   );
 }
@@ -417,7 +378,7 @@ function ActionButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`flex items-center gap-2 rounded-2xl border px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+      className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-xs transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
     >
       {isLoading ? <Spinner /> : null}
       {children}
@@ -433,11 +394,11 @@ function StatusDot({ status }: { status: PostingTaskStatus }) {
         ? "bg-[#6f7564]"
         : status === "partial_success"
           ? "bg-[#d88a35]"
-        : status === "running"
-          ? "bg-[#151515]"
-          : status === "cancelled"
-            ? "bg-[#c9c9c3]"
-            : "bg-transparent border border-[#151515]";
+          : status === "running"
+            ? "bg-[#151515]"
+            : status === "cancelled"
+              ? "bg-[#c9c9c3]"
+              : "bg-transparent border border-[#151515]";
 
   return <span className={`h-2 w-2 rounded-full ${color}`} />;
 }
@@ -482,32 +443,29 @@ function truncate(value: string, maxLength: number) {
   return `${value.slice(0, maxLength).trim()}...`;
 }
 
+function sortTasks(tasks: PostingTask[]) {
+  return [...tasks].sort((first, second) => {
+    const firstTerminal = terminalStatuses.includes(first.status) ? 1 : 0;
+    const secondTerminal = terminalStatuses.includes(second.status) ? 1 : 0;
+    if (firstTerminal !== secondTerminal) {
+      return firstTerminal - secondTerminal;
+    }
+    return new Date(first.scheduled_at || 0).getTime() - new Date(second.scheduled_at || 0).getTime();
+  });
+}
+
 function formatStatus(status: PostingTaskStatus) {
-  if (status === "success") {
-    return "готово";
-  }
+  const labels: Record<PostingTaskStatus, string> = {
+    draft: "черновик",
+    queued: "ждет своей очереди",
+    running: "в работе",
+    success: "готово",
+    partial_success: "частично готово",
+    failed: "ошибка",
+    cancelled: "отменено",
+  };
 
-  if (status === "partial_success") {
-    return "частично";
-  }
-
-  if (status === "queued") {
-    return "в очереди";
-  }
-
-  if (status === "running") {
-    return "в работе";
-  }
-
-  if (status === "failed") {
-    return "ошибка";
-  }
-
-  if (status === "cancelled") {
-    return "отменено";
-  }
-
-  return "черновик";
+  return labels[status] ?? status;
 }
 
 function formatDate(value: string | null) {

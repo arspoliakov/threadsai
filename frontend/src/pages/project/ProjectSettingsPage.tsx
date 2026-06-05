@@ -290,29 +290,29 @@ export default function ProjectSettingsPage() {
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <div className="grid gap-5 lg:grid-cols-[1fr_480px]">
             <div>
-              <h2 className="font-display text-3xl">Контекст и целевые действия</h2>
+              <h2 className="font-display text-3xl">Что система должна знать</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-                Здесь задается локальная память проекта: кто вы, как говорите, что важно для аудитории
-                и какие мягкие действия можно предлагать в финале постов.
+                Здесь мы обучаем систему: кто вы, как общаетесь, что волнует ваших читателей
+                и к каким ненавязчивым действиям можно подвести в конце поста.
               </p>
             </div>
 
             <div className="grid gap-4 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
               <label className="grid gap-2">
-                <span className="field-label">Глобальный контекст проекта</span>
+                <span className="field-label">Описание проекта для нейросети</span>
                 <textarea
                   value={globalContext}
                   onChange={(event) => setGlobalContext(event.target.value)}
                   disabled={isLoading || isSavingContext}
                   rows={8}
-                  placeholder="Опишите бренд, аудиторию, tone of voice, продукт, ограничения и факты, которые ИИ должен учитывать."
+                  placeholder="Опишите бренд, аудиторию, tone of voice, продукт, ограничения и факты, которые нейросеть должна учитывать."
                   className="resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-sm leading-6 text-[#24231f] outline-none transition focus:border-[#151515] disabled:opacity-50"
                 />
               </label>
 
               <div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="field-label">Целевые действия</span>
+                  <span className="field-label">Мягкие действия в конце поста</span>
                   <button
                     type="button"
                     onClick={() => setTargetActions((current) => [...current, ""])}
@@ -326,7 +326,7 @@ export default function ProjectSettingsPage() {
                 <div className="mt-3 grid gap-2">
                   {targetActions.length === 0 ? (
                     <p className="rounded-2xl border border-dashed border-[#d8d8d2] bg-white px-4 py-4 text-sm leading-6 text-[#77766f]">
-                      Целевые действия пока не заданы. Можно добавить варианты: написать в личку, оставить комментарий,
+                      Действия пока не заданы. Можно добавить варианты: написать в личку, оставить комментарий,
                       перейти по ссылке, подписаться, забронировать место.
                     </p>
                   ) : (
@@ -387,7 +387,7 @@ export default function ProjectSettingsPage() {
                 {conversionMode !== "none" ? (
                   <label className="grid gap-2">
                     <span className="field-label">
-                      {conversionMode === "bio_link" ? "Что находится по ссылке в био" : "Что находится в закрепленном посте"}
+                      {conversionMode === "bio_link" ? "Что указано в описании профиля" : "Что указано в закрепленном посте"}
                     </span>
                     <textarea
                       value={conversionTarget}
@@ -408,7 +408,7 @@ export default function ProjectSettingsPage() {
                 className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isSavingContext ? <Spinner /> : null}
-                {isSavingContext ? "Сохранение..." : "Сохранить контекст"}
+                {isSavingContext ? "Сохранение..." : "Сохранить настройки"}
               </button>
             </div>
           </div>
@@ -417,10 +417,10 @@ export default function ProjectSettingsPage() {
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
             <div>
-              <h2 className="font-display text-3xl">Стоп-слова</h2>
+              <h2 className="font-display text-3xl">Запрещенные слова</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-                Эти слова запрещаются только для текущего проекта. Используйте их для локальных табу:
-                неудачных терминов, старых мемов или слов, которые ломают тон.
+                Здесь можно указать слова, которые нейросеть не должна использовать в постах для этого проекта:
+                неудачные термины, старые мемы или слова, которые ломают тон.
               </p>
             </div>
 
@@ -433,7 +433,7 @@ export default function ProjectSettingsPage() {
                 className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isSavingStopWords ? <Spinner /> : null}
-                {isSavingStopWords ? "Сохранение..." : "Сохранить стоп-слова"}
+                {isSavingStopWords ? "Сохранение..." : "Сохранить запрещенные слова"}
               </button>
             </div>
           </div>
@@ -442,15 +442,16 @@ export default function ProjectSettingsPage() {
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <div className="grid gap-5 lg:grid-cols-[1fr_480px]">
             <div>
-              <h2 className="font-display text-3xl">Расписание</h2>
+              <h2 className="font-display text-3xl">Настройка публикаций</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-                Управляет скоростью проекта: сколько постов выпускать в день на каждый аккаунт и в какое локальное окно можно публиковать.
+                Здесь задаем правила автопубликации: сколько постов в день выпускать на каждом аккаунте
+                и в какое время суток система может их публиковать.
               </p>
             </div>
 
             <div className="grid gap-4 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
               <label className="grid gap-2">
-                <span className="field-label">Постов в день на аккаунт</span>
+                <span className="field-label">Постов в день на каждый профиль</span>
                 <input
                   type="number"
                   min={1}
@@ -525,7 +526,7 @@ export default function ProjectSettingsPage() {
                 className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isSavingSchedule ? <Spinner /> : null}
-                {isSavingSchedule ? "Сохранение..." : "Сохранить расписание"}
+                {isSavingSchedule ? "Сохранение..." : "Сохранить настройки"}
               </button>
             </div>
           </div>
@@ -534,7 +535,7 @@ export default function ProjectSettingsPage() {
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-4">
             <div>
-              <h2 className="font-display text-3xl">Аккаунты проекта</h2>
+              <h2 className="font-display text-3xl">Подключенные профили</h2>
             </div>
           </div>
 
@@ -543,8 +544,8 @@ export default function ProjectSettingsPage() {
               <AccountSkeleton />
             ) : projectAccounts.length === 0 ? (
               <EmptyState
-                title="Аккаунты еще не привязаны"
-                description="Выберите свободный аккаунт из общего пула справа."
+                title="Профили еще не подключены"
+                description="Выберите свободный профиль из общего пула справа."
               />
             ) : (
               <div className="grid gap-3">
@@ -566,19 +567,19 @@ export default function ProjectSettingsPage() {
         </section>
 
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
-          <h2 className="font-display text-3xl">Привязать аккаунт</h2>
+          <h2 className="font-display text-3xl">Добавить профиль в проект</h2>
           <p className="mt-3 text-sm leading-6 text-[#66645d]">
-            В списке только свободные аккаунты. Если список пуст, добавьте профиль в разделе “Аккаунты”.
+            В списке только свободные профили. Если список пуст, сначала добавьте профиль в разделе «Аккаунты».
           </p>
 
           <label className="mt-6 grid gap-2">
-            <span className="field-label">Свободный аккаунт</span>
+            <span className="field-label">Свободный профиль</span>
             <select
               value={selectedAccountId}
               onChange={(event) => setSelectedAccountId(event.target.value)}
               className="field-control"
             >
-              <option value="">Выберите аккаунт</option>
+              <option value="">Выберите профиль</option>
               {freeAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {formatUsername(account.username)} / {statusLabels[account.status]}
@@ -594,11 +595,11 @@ export default function ProjectSettingsPage() {
             className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isBinding ? <Spinner /> : null}
-            {isBinding ? "Привязка..." : "Привязать"}
+            {isBinding ? "Добавляем..." : "Добавить профиль"}
           </button>
 
           <div className="mt-6 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
-            <p className="field-label">Пул</p>
+            <p className="field-label">Пул профилей</p>
             <p className="mt-2 text-sm text-[#333]">
               Свободно: {freeAccounts.length} / Всего: {accounts.length}
             </p>
@@ -634,19 +635,19 @@ function AccountCard({
     <article className={`rounded-2xl border p-4 transition hover:shadow-sm ${sessionNeedsUpdate ? "border-[#d88a35]/50 bg-[#fff4df]" : "border-[#e1e1dc] bg-[#fbfaf5] hover:border-[#151515]"}`}>
       <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-center">
         <div>
-          <p className="field-label">Профиль</p>
+          <p className="field-label">Имя профиля</p>
           <p className="mt-1 text-sm text-[#24231f]">{formatUsername(account.username)}</p>
         </div>
         <div>
-          <p className="field-label">Статус</p>
+          <p className="field-label">Статус подключения</p>
           <StatusBadge status={account.status} />
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton onClick={onCheckSession} disabled={isChecking || isUnlinking}>
-            {isChecking ? "проверка..." : "проверить cookies"}
+            {isChecking ? "проверка..." : "Проверить доступ"}
           </ActionButton>
           <ActionButton danger onClick={onUnlink} disabled={isChecking || isUnlinking}>
-            {isUnlinking ? "отвязка..." : "отвязать"}
+            {isUnlinking ? "отключаем..." : "Отключить профиль"}
           </ActionButton>
         </div>
       </div>
@@ -793,7 +794,7 @@ function TagInput({
     }
 
     if (value.map((item) => item.toLowerCase()).includes(normalized)) {
-      toast.error("Такое стоп-слово уже добавлено");
+      toast.error("Такое слово уже добавлено");
       setDraft("");
       return;
     }
@@ -805,7 +806,7 @@ function TagInput({
   return (
     <div>
       <label className="grid gap-2">
-        <span className="field-label">Добавить слово</span>
+        <span className="field-label">Введите слово, которое нужно запретить</span>
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -816,14 +817,14 @@ function TagInput({
             }
           }}
           disabled={disabled}
-          placeholder="например: сплиты"
+          placeholder="Пример: сплиты"
           className="field-control disabled:opacity-50"
         />
       </label>
 
       <div className="mt-4 flex flex-wrap gap-2">
         {value.length === 0 ? (
-          <span className="text-sm text-[#77766f]">Стоп-слова пока не заданы</span>
+          <span className="text-sm text-[#77766f]">Список запрещенных слов пока пуст</span>
         ) : (
           value.map((word) => (
             <span
@@ -849,7 +850,7 @@ function TagInput({
 }
 
 const statusLabels: Record<AccountStatus, string> = {
-  active: "активен",
+  active: "Подключено",
   disabled: "выключен",
   error: "ошибка",
   warming_up: "прогрев",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -18,10 +18,10 @@ export default function ProjectTrendsPage() {
     try {
       setTrends(await getProjectTrends(projectId));
       if (!silent) {
-        toast.success("База трендов обновлена");
+        toast.success("Подборка идей обновлена");
       }
     } catch {
-      toast.error("Не удалось загрузить базу трендов проекта");
+      toast.error("Не удалось загрузить актуальные идеи проекта");
     } finally {
       setIsLoading(false);
     }
@@ -38,29 +38,24 @@ export default function ProjectTrendsPage() {
 
     try {
       await triggerScraping(projectId);
-      toast.success("Сбор трендов запущен");
+      toast.success("Сбор идей запущен");
       await loadTrends({ silent: true });
     } catch {
-      toast.error("Не удалось запустить сбор трендов");
+      toast.error("Не удалось запустить сбор идей");
     } finally {
       setIsCollecting(false);
     }
   }
 
-  const topScore = useMemo(
-    () => trends.reduce((max, trend) => Math.max(max, Number(trend.virality_score ?? 0)), 0),
-    [trends],
-  );
-
   return (
     <section className="space-y-5">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-display text-4xl leading-none">Тренды</h1>
+          <h1 className="font-display text-4xl leading-none">Актуальные идеи для постов</h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Здесь лежат идеи из живой ленты Threads: как начинается пост, какой в нем конфликт,
-            какой ритм и почему он может цеплять. Система сама собирает тренды раз в 3 дня,
-            а кнопка нужна, если хочется обновить их сейчас.
+            Здесь собраны свежие идеи из ленты Threads, которые сейчас интересны аудитории. Мы анализируем,
+            как лучше начать пост, какую эмоцию передать и как удержать внимание читателей. Система обновляет
+            подборку автоматически раз в 3 дня, но вы можете собрать новые идеи прямо сейчас.
           </p>
         </div>
         <button
@@ -70,31 +65,30 @@ export default function ProjectTrendsPage() {
           className="flex h-11 w-fit items-center gap-3 rounded-2xl border border-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isCollecting ? <Spinner /> : null}
-          Собрать тренды
+          Обновить подборку идей
         </button>
       </header>
 
-      <DismissibleTip storageKey="threadsgo.trends-tip" title="Тренды — это не темы для копирования">
-        Система смотрит, как устроены живые посты: с чего они начинаются, где возникает напряжение и какой у них ритм.
-        Потом эти паттерны помогают писать свои тексты.
+      <DismissibleTip storageKey="threadsgo.trends-tip" title="Идеи — это не темы для копирования">
+        Система смотрит, как устроены живые посты: с чего они начинаются, где возникает напряжение и какой у них
+        ритм. Потом эти паттерны помогают писать свои тексты, а не повторять чужие.
       </DismissibleTip>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <MetricCard label="Собрано трендов" value={isLoading ? "..." : String(trends.length)} />
-        <MetricCard label="Лучший score" value={isLoading ? "..." : String(topScore || "нет")} />
+        <MetricCard label="Найдено свежих идей" value={isLoading ? "..." : String(trends.length)} />
       </div>
 
       {isLoading ? (
         <TrendSkeleton />
       ) : trends.length === 0 ? (
         <EmptyState
-          title="Тренды еще не собраны"
-          description="Нажмите «Собрать тренды» или дождитесь автоматического сбора. Он проходит раз в 3 дня."
+          title="Актуальные идеи еще не собраны"
+          description="Нажмите «Обновить подборку идей» или дождитесь автоматического сбора. Он проходит раз в 3 дня."
         />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
-          {trends.map((trend) => (
-            <TrendCard key={trend.id} trend={trend} />
+          {trends.map((trend, index) => (
+            <TrendCard key={trend.id} trend={trend} index={index} />
           ))}
         </div>
       )}
@@ -102,27 +96,21 @@ export default function ProjectTrendsPage() {
   );
 }
 
-function TrendCard({ trend }: { trend: SavedTrend }) {
+function TrendCard({ trend, index }: { trend: SavedTrend; index: number }) {
   return (
     <article className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-5 border-b border-[#e7e5de] pb-4">
-        <div>
-          <h2 className="font-display text-2xl leading-tight">
-            Тренд #{trend.id}
-          </h2>
-        </div>
+        <h2 className="font-display text-2xl leading-tight">Идея №{index + 1}</h2>
       </div>
 
       <div className="mt-4 grid gap-3">
-        <InfoBlock title="Hook Mechanic" value={trend.hook_mechanic || trend.hook_analysis} />
-        <InfoBlock title="Structure Pattern" value={trend.structure_pattern} />
-        <InfoBlock title="Tone & Rhythm" value={trend.tone_and_rhythm} />
+        <InfoBlock title="Как цепляет" value={trend.hook_mechanic || trend.hook_analysis} />
+        <InfoBlock title="Как устроен пост" value={trend.structure_pattern} />
+        <InfoBlock title="Тон и ритм" value={trend.tone_and_rhythm} />
       </div>
 
       <footer className="mt-4 flex flex-wrap gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#77766f]">
-        <span className="rounded-full border border-[#d8d8d2] px-3 py-2">
-          {formatDate(trend.created_at)}
-        </span>
+        <span className="rounded-full border border-[#d8d8d2] px-3 py-2">{formatDate(trend.created_at)}</span>
       </footer>
     </article>
   );
@@ -131,9 +119,7 @@ function TrendCard({ trend }: { trend: SavedTrend }) {
 function InfoBlock({ title, value }: { title: string; value?: string | null }) {
   return (
     <div className="rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
-      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">
-        {title}
-      </p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">{title}</p>
       <p className="mt-2 text-sm leading-6 text-[#333]">{value || "—"}</p>
     </div>
   );
@@ -178,10 +164,6 @@ function EmptyState({ title, description }: { title: string; description: string
 
 function Spinner() {
   return <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />;
-}
-
-function formatMetric(value: unknown) {
-  return typeof value === "number" ? value.toFixed(4) : "—";
 }
 
 function formatDate(value: string | null) {

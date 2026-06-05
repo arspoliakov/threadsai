@@ -7,26 +7,26 @@ export const RESTART_ONBOARDING_EVENT = "threadsgo:onboarding:restart";
 const steps = [
   {
     title: "Создайте первый проект",
-    text: "Проект хранит описание бренда, стиль, стоп-слова и расписание. С него начинается вся логика генерации.",
-    action: "Откройте раздел «Проекты» и нажмите «Создать проект».",
+    text: "Проект хранит описание задачи, стиль, запрещенные слова, расписание и подключенные профили.",
+    action: "Откройте «Мои проекты» и нажмите «Создать проект».",
     image: "/interface/project-library.webp",
   },
   {
     title: "Подключите Threads-профиль",
-    text: "Добавьте аккаунт через cookies. Система проверит сессию и покажет, готов ли профиль к публикации.",
-    action: "Откройте раздел «Аккаунты», добавьте Threads-профиль и вставьте Export JSON из Cookie-Editor. Сетевую изоляцию платформа настроит автоматически на своей стороне.",
+    text: "Добавьте готовый профиль через cookies. Система проверит доступ и покажет, можно ли публиковать.",
+    action: "Откройте «Аккаунты», добавьте Threads-профиль и вставьте Export JSON из Cookie-Editor.",
     image: "/interface/accounts-health.webp",
   },
   {
-    title: "Настройте голос генерации",
-    text: "Глобальный стиль применяется ко всем проектам, а описание проекта уточняет контекст конкретного бренда.",
-    action: "Откройте «Стиль» и опишите, как должен звучать ваш контент.",
+    title: "Настройте голос",
+    text: "Общий стиль задает характер всех постов, а настройки проекта уточняют конкретную задачу.",
+    action: "Откройте «Настройки стиля» и опишите, как должен звучать ваш контент.",
     image: "/interface/prompt-lab.webp",
   },
   {
-    title: "Запустите контент-контур",
-    text: "ThreadsGo соберет тренды, подготовит посты и добавит их в контент-план. Любой текст можно быстро поправить перед публикацией.",
-    action: "Внутри проекта нажмите «Собрать тренды» или «Создать пост».",
+    title: "Запустите систему",
+    text: "ThreadsGo обновит идеи, подготовит посты и поставит их в расписание. Любой текст можно быстро поправить.",
+    action: "Внутри проекта нажмите «Обновить идеи для постов» или «Добавить новый пост в план».",
     image: "/interface/queue-timeline.webp",
   },
 ];
@@ -85,9 +85,7 @@ export function OnboardingTour() {
               className="absolute left-6 top-6 h-14 w-14 rounded-2xl border border-white/12 bg-white/8 p-2"
             />
             <div className="absolute bottom-6 left-6 right-6">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/48">
-                Быстрый старт
-              </p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/48">Быстрый старт</p>
               <p className="mt-2 font-display text-4xl leading-none tracking-[-0.05em] text-white">
                 {String(stepIndex + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")}
               </p>

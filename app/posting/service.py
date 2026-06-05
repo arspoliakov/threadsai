@@ -136,12 +136,18 @@ async def _mark_retryable(
     account: Account,
     error_message: str,
 ) -> None:
+    is_proxy_rotation = _is_proxy_rotation_retry(error_message)
     task.status = PostingTaskStatus.QUEUED
     task.started_at = None
     task.finished_at = None
-    task.error_message = error_message
+    task.error_message = (
+        "Техническая пауза: прокси сменил IP во время публикации. Система повторит задачу автоматически."
+        if is_proxy_rotation
+        else error_message
+    )
     task.retry_count += 1
-    account.last_error = error_message
+    if not is_proxy_rotation:
+        account.last_error = error_message
     await session.commit()
     await session.refresh(task)
 
@@ -223,3 +229,7 @@ def _should_update_username(username: str | None) -> bool:
 
 def _account_proxy_url(account: Account) -> str | None:
     return build_threads_proxy_url_for_account(account)
+
+
+def _is_proxy_rotation_retry(error_message: str) -> bool:
+    return "proxy ip changed during selenium session" in error_message.casefold()

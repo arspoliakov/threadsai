@@ -190,7 +190,6 @@ class ThreadsAdapter(BasePostingAdapter):
             except (PostingDeadlineExceeded, ProxyNetworkException, SessionExpiredException, ThreadChainPartialSuccess):
                 raise
             except Exception as exc:
-                screenshot_path = self._save_error_screenshot(driver, task.id)
                 self._raise_if_proxy_ip_changed(ip_watchdog)
                 if self._is_deadline_exceeded(deadline_at):
                     raise PostingDeadlineExceeded(
@@ -200,6 +199,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 if self._is_retryable_network_error(exc):
                     raise ProxyNetworkException(f"Threads proxy/network transport failed: {exc}") from exc
 
+                screenshot_path = self._save_error_screenshot(driver, task.id)
                 if attempt == 0 and self._is_recoverable_browser_crash(exc):
                     logger.warning("Threads browser crashed for task #%s, retrying once: %s", task.id, exc)
                     self._quit_driver_safely(driver)
@@ -1386,7 +1386,7 @@ chrome.webRequest.onAuthRequired.addListener(
 
         try:
             driver.save_screenshot(str(screenshot_path))
-        except WebDriverException:
+        except Exception:
             return None
 
         return str(screenshot_path)

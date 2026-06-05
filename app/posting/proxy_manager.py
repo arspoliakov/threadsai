@@ -195,7 +195,14 @@ async def run_account_worker(account_id: int, proxy_url: str, stop_event: asynci
                 await _run_claimed_task(task, state.proxy_url, current_ip)
                 await reset_proxy_failure_count(account_id)
             except RetryablePostingException as exc:
-                await record_proxy_failure(account_id, str(exc))
+                if _is_proxy_ip_changed_message(str(exc)):
+                    logger.warning(
+                        "Account #%s browser window was interrupted by proxy IP rotation; task will retry without opening circuit breaker: %s",
+                        account_id,
+                        exc,
+                    )
+                else:
+                    await record_proxy_failure(account_id, str(exc))
                 await _sleep_or_stop(stop_event, PROXY_FAILURE_RETRY_DELAY_SECONDS)
             except Exception:
                 logger.exception("Account worker failed while executing %s task #%s.", task.kind, task.task_id)
@@ -499,6 +506,13 @@ def _is_proxy_failure_message(message: str | None) -> bool:
 
     normalized = message.casefold()
     return any(marker in normalized for marker in PROXY_FAILURE_MARKERS)
+
+
+def _is_proxy_ip_changed_message(message: str | None) -> bool:
+    if not message:
+        return False
+
+    return "proxy ip changed during selenium session" in message.casefold()
 
 
 def _is_publish_now_requested(task: PostingTask) -> bool:

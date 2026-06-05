@@ -54,7 +54,7 @@ export function ProfileMenu() {
         type="button"
         onClick={() => setIsOpen((value) => !value)}
         className="group flex h-12 items-center gap-3 rounded-full border border-[#d6ddd2] bg-white p-1.5 pr-4 text-[#111] shadow-sm transition hover:border-[#141815] hover:shadow-md"
-        aria-label="РћС‚РєСЂС‹С‚СЊ РїСЂРѕС„РёР»СЊ"
+        aria-label="Открыть профиль"
       >
         <Avatar user={user} sizeClass="h-9 w-9" />
         <span className="hidden max-w-32 truncate text-sm sm:block">{displayName}</span>
@@ -102,7 +102,7 @@ export function ProfileMenu() {
             className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#dfe4dc] bg-white px-5 text-sm text-[#07100e] transition hover:border-[#07100e] hover:bg-[#eef4ec]"
           >
             <AppIcon name="spark" className="h-4 w-4" />
-            РџСЂРѕР№С‚Рё РѕР±СѓС‡РµРЅРёРµ Р·Р°РЅРѕРІРѕ
+            Пройти обучение заново
           </button>
 
           <button
@@ -111,7 +111,7 @@ export function ProfileMenu() {
             className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
           >
             <AppIcon name="logout" className="h-4 w-4" />
-            Р’С‹Р№С‚Рё РёР· РїСЂРѕС„РёР»СЏ
+            Выйти из профиля
           </button>
         </div>
       ) : null}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { getCurrentUser, type CurrentUser } from "../api/client";
@@ -39,8 +39,14 @@ export function ProfileMenu() {
     window.dispatchEvent(new Event(RESTART_ONBOARDING_EVENT));
   }
 
+  function handleBillingClick() {
+    setIsOpen(false);
+    navigate("/app/billing");
+  }
+
   const displayName = user?.first_name || user?.username || "Профиль";
   const handle = user?.username ? `@${user.username}` : user?.telegram_id ? `id ${user.telegram_id}` : "telegram";
+  const subscriptionLabel = user?.subscription_status ? `Тариф ${user.tariff_plan}` : "Подписка не активна";
 
   return (
     <div ref={rootRef} className="relative">
@@ -48,7 +54,7 @@ export function ProfileMenu() {
         type="button"
         onClick={() => setIsOpen((value) => !value)}
         className="group flex h-12 items-center gap-3 rounded-full border border-[#d6ddd2] bg-white p-1.5 pr-4 text-[#111] shadow-sm transition hover:border-[#141815] hover:shadow-md"
-        aria-label="Открыть профиль"
+        aria-label="РћС‚РєСЂС‹С‚СЊ РїСЂРѕС„РёР»СЊ"
       >
         <Avatar user={user} sizeClass="h-9 w-9" />
         <span className="hidden max-w-32 truncate text-sm sm:block">{displayName}</span>
@@ -71,21 +77,24 @@ export function ProfileMenu() {
             </div>
           </div>
 
-          <div className="mt-3 overflow-hidden rounded-[1.35rem] border border-[#e2e7df] bg-white">
+          <button
+            type="button"
+            onClick={handleBillingClick}
+            className="mt-3 w-full overflow-hidden rounded-[1.35rem] border border-[#e2e7df] bg-white text-left transition hover:border-[#07100e]"
+          >
             <div className="relative h-28 overflow-hidden bg-[#07100e]">
               <img src="/interface/billing-soon.webp" alt="" className="h-full w-full object-cover opacity-82" />
               <div className="absolute inset-0 bg-gradient-to-r from-[#07100e]/90 via-[#07100e]/35 to-transparent" />
               <div className="absolute bottom-3 left-4 right-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/48">billing</p>
-                <p className="mt-1 text-sm font-medium text-white">Тарифы скоро появятся</p>
+                <p className="text-sm font-medium text-white">{subscriptionLabel}</p>
               </div>
             </div>
             <div className="p-4">
               <p className="text-sm leading-6 text-[#5d665d]">
-                Пока доступ выдается вручную. Позже здесь будут тариф, лимиты и платежи.
+                Открыть тарифы, пробный период и управление подпиской через Tribute.
               </p>
             </div>
-          </div>
+          </button>
 
           <button
             type="button"
@@ -93,7 +102,7 @@ export function ProfileMenu() {
             className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#dfe4dc] bg-white px-5 text-sm text-[#07100e] transition hover:border-[#07100e] hover:bg-[#eef4ec]"
           >
             <AppIcon name="spark" className="h-4 w-4" />
-            Пройти обучение заново
+            РџСЂРѕР№С‚Рё РѕР±СѓС‡РµРЅРёРµ Р·Р°РЅРѕРІРѕ
           </button>
 
           <button
@@ -102,14 +111,13 @@ export function ProfileMenu() {
             className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
           >
             <AppIcon name="logout" className="h-4 w-4" />
-            Выйти из профиля
+            Р’С‹Р№С‚Рё РёР· РїСЂРѕС„РёР»СЏ
           </button>
         </div>
       ) : null}
     </div>
   );
 }
-
 function Avatar({ user, sizeClass }: { user: CurrentUser | null; sizeClass: string }) {
   if (user?.photo_url) {
     return (

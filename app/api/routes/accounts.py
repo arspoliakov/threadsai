@@ -1,10 +1,10 @@
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id, get_db
-from app.db.models import Account, AccountStatus, PostingTask, Project
+from app.api.deps import get_current_user_id, get_db, require_active_subscription
+from app.db.models import Account, AccountStatus, PostingTask, Project, User
 from app.db.repositories.accounts import AccountRepository
 from app.posting.exceptions import SessionExpiredException
 from app.posting.scheduler import schedule_account_queue_refill
@@ -33,7 +33,22 @@ async def create_account(
     payload: AccountCreate,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(require_active_subscription),
 ) -> AccountRead:
+    accounts_count = await db.scalar(
+        select(func.count(Account.id)).where(Account.owner_id == current_user_id)
+    )
+    if (accounts_count or 0) >= current_user.tariff_accounts_limit:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "tariff_accounts_limit_reached",
+                "message": "Current tariff account limit is reached.",
+                "limit": current_user.tariff_accounts_limit,
+                "tariff_plan": current_user.tariff_plan,
+            },
+        )
+
     if payload.project_id is not None:
         project = await _get_owned_project(payload.project_id, current_user_id, db)
 

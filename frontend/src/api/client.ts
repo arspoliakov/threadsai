@@ -44,6 +44,15 @@ apiClient.interceptors.response.use(
       }
     }
 
+    if (error?.response?.status === 402) {
+      const detail = error?.response?.data?.detail;
+      const code = typeof detail === "object" && detail ? detail.code : "";
+
+      if (code === "subscription_required" && window.location.pathname !== "/app/billing") {
+        window.location.assign("/app/billing");
+      }
+    }
+
     if (error?.response?.status >= 500) {
       const detail = error?.response?.data?.detail;
       const errorId = error?.response?.data?.error_id;
@@ -69,10 +78,35 @@ export type LoginResponse = {
 
 export type CurrentUser = {
   id: number;
-  telegram_id: number;
+  telegram_id: number | null;
   username: string | null;
   first_name: string;
   photo_url: string | null;
+  subscription_status: boolean;
+  tariff_plan: string;
+  tariff_accounts_limit: number;
+  tariff_posts_per_day: number;
+  tariff_projects_limit: number;
+  tariff_queue_days: number;
+};
+
+export type BillingPlan = {
+  name: string;
+  accounts: number;
+  posts: number;
+  projects: number;
+  queue_days: number;
+  tribute_url: string;
+};
+
+export type BillingStatus = {
+  subscription_status: boolean;
+  tariff_plan: string;
+  accounts_limit: number;
+  posts_per_day_limit: number;
+  projects_limit: number;
+  queue_days: number;
+  plans: BillingPlan[];
 };
 
 export type TelegramAuthPayload = {
@@ -444,6 +478,11 @@ export async function loginWithTelegramWebApp(initData: string): Promise<LoginRe
 
 export async function getCurrentUser(): Promise<CurrentUser> {
   const response = await apiClient.get<CurrentUser>("/api/v1/auth/me");
+  return response.data;
+}
+
+export async function getBillingStatus(): Promise<BillingStatus> {
+  const response = await apiClient.get<BillingStatus>("/api/v1/billing/status");
   return response.data;
 }
 

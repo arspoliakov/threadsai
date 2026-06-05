@@ -5,6 +5,7 @@ import GlobalLayout from "./layouts/GlobalLayout";
 import ProjectLayout from "./layouts/ProjectLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
+import BillingPage from "./pages/BillingPage";
 import LandingPage from "./pages/LandingPage";
 import TermsPage from "./pages/TermsPage";
 import LoginPage from "./pages/auth/LoginPage";
@@ -35,6 +36,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="app" element={<GlobalLayout />}>
             <Route index element={<Dashboard />} />
+            <Route path="billing" element={<BillingPage />} />
             <Route path="how-it-works" element={<HowItWorksPage />} />
             <Route path="infrastructure" element={<InfrastructurePage />} />
             <Route path="settings" element={<GlobalSettingsPage />} />

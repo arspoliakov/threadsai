@@ -2,9 +2,11 @@ from collections.abc import AsyncGenerator
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.models import User
 from app.db.session import AsyncSessionLocal
 
 
@@ -61,3 +63,33 @@ async def get_current_user_id(current_user: str = Depends(get_current_admin)) ->
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tenant-scoped API requires Telegram JWT authentication.",
         ) from exc
+
+
+async def get_current_user(
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    user = await db.scalar(select(User).where(User.id == current_user_id).limit(1))
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    return user
+
+
+async def require_active_subscription(
+    user: User = Depends(get_current_user),
+) -> User:
+    if user.subscription_status:
+        return user
+
+    raise HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail={
+            "code": "subscription_required",
+            "message": "Subscription is inactive. Choose a Tribute plan to continue.",
+            "tariff_plan": user.tariff_plan,
+        },
+    )

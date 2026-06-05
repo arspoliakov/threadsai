@@ -21,6 +21,7 @@ from app.db.models import (
     ProjectOperation,
     ProjectOperationStatus,
     ProjectOperationType,
+    User,
 )
 from app.db.session import AsyncSessionLocal
 from app.parsers.scraper import scrape_trends
@@ -147,10 +148,12 @@ async def discover_active_proxy_accounts() -> list[tuple[int, str]]:
             (
                 await session.scalars(
                     select(Account)
+                    .join(User, Account.owner_id == User.id)
                     .where(
                         Account.platform == Platform.THREADS,
                         Account.status == AccountStatus.ACTIVE,
                         Account.assigned_port.is_not(None),
+                        User.subscription_status.is_(True),
                     )
                     .order_by(Account.id.asc())
                 )
@@ -270,9 +273,10 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
         candidate_rows = list(
             (
                 await session.execute(
-                    select(PostingTask, Account, Project)
+                    select(PostingTask, Account, Project, User)
                     .join(Account, PostingTask.account_id == Account.id)
                     .join(Project, PostingTask.project_id == Project.id)
+                    .join(User, Account.owner_id == User.id)
                     .where(
                         PostingTask.status == PostingTaskStatus.QUEUED,
                         PostingTask.account_id == account_id,
@@ -282,6 +286,7 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
                         Account.platform == Platform.THREADS,
                         Account.assigned_port.is_not(None),
                         Project.is_active.is_(True),
+                        User.subscription_status.is_(True),
                     )
                     .order_by(PostingTask.scheduled_at.asc(), PostingTask.id.asc())
                     .limit(20)
@@ -289,7 +294,7 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
             ).all()
         )
 
-        for task, account, project in candidate_rows:
+        for task, account, project, user in candidate_rows:
             publish_now_requested = _is_publish_now_requested(task)
 
             if not publish_now_requested and not _is_project_in_active_window(project, now):
@@ -298,7 +303,8 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
 
             if (
                 not publish_now_requested
-                and await _count_account_success_today(project, account.id, session) >= _project_posts_per_day(project)
+                and await _count_account_success_today(project, account.id, session)
+                >= _project_posts_per_day(project, user.tariff_posts_per_day)
             ):
                 task.scheduled_at = _next_project_active_start(project, now + timedelta(days=1))
                 continue
@@ -328,6 +334,7 @@ async def claim_oldest_scraping_operation_for_account(account_id: int) -> int | 
                     select(ProjectOperation, Account, Project)
                     .join(Project, ProjectOperation.project_id == Project.id)
                     .join(Account, Account.project_id == Project.id)
+                    .join(User, Account.owner_id == User.id)
                     .where(
                         Account.id == account_id,
                         ProjectOperation.action_type == ProjectOperationType.SCRAPING,
@@ -337,6 +344,7 @@ async def claim_oldest_scraping_operation_for_account(account_id: int) -> int | 
                         Account.cookies_encrypted.is_not(None),
                         Account.assigned_port.is_not(None),
                         Project.is_active.is_(True),
+                        User.subscription_status.is_(True),
                     )
                     .order_by(ProjectOperation.started_at.asc(), ProjectOperation.id.asc())
                     .limit(20)

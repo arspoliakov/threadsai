@@ -11,7 +11,7 @@ from slowapi import _rate_limit_exceeded_handler
 from app.api import auth
 from app.api.auth import limiter
 from app.api.middleware.error_reporting import ErrorReportingMiddleware
-from app.api.routes import accounts, dashboard, health, projects, prompts, tasks, trends
+from app.api.routes import accounts, billing, dashboard, health, projects, prompts, tasks, trends
 from app.posting.proxy_manager import ProxyManager
 from app.posting.scheduler import scheduler, setup_posting_scheduler
 from app.telegram.admin_bot import cancel_admin_polling_task, start_admin_bot_polling, stop_admin_bot
@@ -65,6 +65,7 @@ API_V1_PREFIX = "/api/v1"
 app.include_router(auth.router, prefix=API_V1_PREFIX)
 app.include_router(health.router, prefix=API_V1_PREFIX)
 app.include_router(dashboard.router, prefix=API_V1_PREFIX)
+app.include_router(billing.router, prefix=API_V1_PREFIX)
 app.include_router(projects.router, prefix=API_V1_PREFIX)
 app.include_router(accounts.router, prefix=API_V1_PREFIX)
 app.include_router(tasks.router, prefix=API_V1_PREFIX)

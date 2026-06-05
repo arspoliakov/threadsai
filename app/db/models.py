@@ -128,10 +128,16 @@ class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True, nullable=False)
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, index=True, nullable=True)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     first_name: Mapped[str] = mapped_column(String(255), nullable=False)
     photo_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    subscription_status: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tariff_plan: Mapped[str] = mapped_column(String(32), default="none", nullable=False)
+    tariff_accounts_limit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tariff_posts_per_day: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tariff_projects_limit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tariff_queue_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     projects: Mapped[list[Project]] = relationship(back_populates="owner")
     accounts: Mapped[list[Account]] = relationship(back_populates="owner")

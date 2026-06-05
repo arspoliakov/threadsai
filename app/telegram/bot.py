@@ -3,9 +3,11 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+from aiogram.types import ChatMemberUpdated, InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 
 from app.core.config import settings
+from app.db.session import AsyncSessionLocal
+from app.services.subscriptions import activate_user_subscription, handle_user_left_tariff_chat
 
 
 dp = Dispatcher()
@@ -42,6 +44,45 @@ async def start_handler(message: Message) -> None:
         "Telegram передаст безопасные данные входа, а сайт выдаст вам сессию без пароля.",
         reply_markup=keyboard,
     )
+
+
+@dp.chat_member()
+async def tariff_chat_member_handler(event: ChatMemberUpdated, bot: Bot) -> None:
+    telegram_id = int(event.new_chat_member.user.id)
+    chat_id = int(event.chat.id)
+    old_active = _is_active_chat_member_status(event.old_chat_member)
+    new_active = _is_active_chat_member_status(event.new_chat_member)
+
+    if old_active == new_active:
+        return
+
+    async with AsyncSessionLocal() as session:
+        if new_active:
+            await activate_user_subscription(
+                telegram_id=telegram_id,
+                chat_id=chat_id,
+                session=session,
+            )
+            return
+
+        await handle_user_left_tariff_chat(
+            bot=bot,
+            telegram_id=telegram_id,
+            left_chat_id=chat_id,
+            session=session,
+        )
+
+
+def _is_active_chat_member_status(member: object) -> bool:
+    raw_status = getattr(member, "status", "")
+    status = str(getattr(raw_status, "value", raw_status))
+    if status in {"creator", "administrator", "member"}:
+        return True
+
+    if status == "restricted":
+        return bool(getattr(member, "is_member", False))
+
+    return False
 
 
 def get_bot() -> Bot | None:

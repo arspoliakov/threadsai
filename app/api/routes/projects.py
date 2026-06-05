@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id, get_db
+from app.api.deps import get_current_user_id, get_db, require_active_subscription
 from app.ai_engine.generators import generate_post
 from app.db.models import (
     Account,
@@ -21,6 +21,7 @@ from app.db.models import (
     ProjectOperationType,
     ProjectPrompt,
     SavedTrend,
+    User,
 )
 from app.db.repositories.projects import ProjectRepository
 from app.posting.scheduler import calculate_next_account_slot, schedule_project_queue_refill
@@ -84,7 +85,32 @@ async def create_project(
     payload: ProjectCreate,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(require_active_subscription),
 ) -> ProjectRead:
+    projects_count = await db.scalar(
+        select(func.count(Project.id)).where(Project.owner_id == current_user_id)
+    )
+    if (projects_count or 0) >= current_user.tariff_projects_limit:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "tariff_projects_limit_reached",
+                "message": "Current tariff project limit is reached.",
+                "limit": current_user.tariff_projects_limit,
+                "tariff_plan": current_user.tariff_plan,
+            },
+        )
+    if payload.posts_per_day > current_user.tariff_posts_per_day:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "tariff_posts_limit_reached",
+                "message": "Current tariff posts-per-day limit is reached.",
+                "limit": current_user.tariff_posts_per_day,
+                "tariff_plan": current_user.tariff_plan,
+            },
+        )
+
     repository = ProjectRepository(db)
     project = await repository.create_project(payload)
     project.owner_id = current_user_id
@@ -109,8 +135,20 @@ async def update_project(
     payload: ProjectUpdate,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(require_active_subscription),
 ) -> ProjectRead:
     project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
+
+    if payload.posts_per_day is not None and payload.posts_per_day > current_user.tariff_posts_per_day:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "tariff_posts_limit_reached",
+                "message": "Current tariff posts-per-day limit is reached.",
+                "limit": current_user.tariff_posts_per_day,
+                "tariff_plan": current_user.tariff_plan,
+            },
+        )
 
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(project, key, value)
@@ -127,8 +165,15 @@ async def replace_project(
     payload: ProjectUpdate,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(require_active_subscription),
 ) -> ProjectRead:
-    return await update_project(project_id=project_id, payload=payload, db=db, current_user_id=current_user_id)
+    return await update_project(
+        project_id=project_id,
+        payload=payload,
+        db=db,
+        current_user_id=current_user_id,
+        current_user=current_user,
+    )
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -239,6 +284,7 @@ async def trigger_project_scraping(
     project_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
+    _subscription: User = Depends(require_active_subscription),
 ) -> TriggerScrapingRead:
     project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
 
@@ -341,6 +387,7 @@ async def trigger_project_generation(
     project_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
+    _subscription: User = Depends(require_active_subscription),
 ) -> TriggerGenerationRead:
     project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
     account_id = await db.scalar(

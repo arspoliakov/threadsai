@@ -46,10 +46,16 @@ class TelegramAuthPayload(BaseModel):
 
 class CurrentUserResponse(BaseModel):
     id: int
-    telegram_id: int
+    telegram_id: int | None
     username: str | None
     first_name: str
     photo_url: str | None
+    subscription_status: bool
+    tariff_plan: str
+    tariff_accounts_limit: int
+    tariff_posts_per_day: int
+    tariff_projects_limit: int
+    tariff_queue_days: int
 
 
 class TelegramWebAppLoginRequest(BaseModel):
@@ -165,6 +171,12 @@ async def get_current_user_profile(
         username=user.username,
         first_name=user.first_name,
         photo_url=user.photo_url,
+        subscription_status=user.subscription_status,
+        tariff_plan=user.tariff_plan,
+        tariff_accounts_limit=user.tariff_accounts_limit,
+        tariff_posts_per_day=user.tariff_posts_per_day,
+        tariff_projects_limit=user.tariff_projects_limit,
+        tariff_queue_days=user.tariff_queue_days,
     )
 
 

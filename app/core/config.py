@@ -1,7 +1,15 @@
 from functools import lru_cache
+from typing import Any
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+DEFAULT_TARIFF_CHATS: dict[int, dict[str, Any]] = {
+    -1000000000001: {"name": "basic", "accounts": 1, "posts": 3, "projects": 1, "queue_days": 2},
+    -1000000000002: {"name": "pro", "accounts": 7, "posts": 5, "projects": 5, "queue_days": 3},
+    -1000000000003: {"name": "agency", "accounts": 30, "posts": 10, "projects": 15, "queue_days": 14},
+}
 
 
 class Settings(BaseSettings):
@@ -123,6 +131,22 @@ class Settings(BaseSettings):
         default="https://threadsgo.ru",
         validation_alias="PUBLIC_APP_URL",
     )
+    tariff_chats: dict[int, dict[str, Any]] = Field(
+        default_factory=lambda: DEFAULT_TARIFF_CHATS.copy(),
+        validation_alias="TARIFF_CHATS",
+    )
+    tribute_basic_url: str = Field(
+        default="",
+        validation_alias="TRIBUTE_BASIC_URL",
+    )
+    tribute_pro_url: str = Field(
+        default="",
+        validation_alias="TRIBUTE_PRO_URL",
+    )
+    tribute_agency_url: str = Field(
+        default="",
+        validation_alias="TRIBUTE_AGENCY_URL",
+    )
 
     def approved_telegram_id_set(self) -> set[int]:
         raw_ids = self.approved_telegram_ids.replace(";", ",").replace(" ", ",")
@@ -144,7 +168,11 @@ class Settings(BaseSettings):
         if telegram_id is None:
             return False
 
-        return telegram_id in self.approved_telegram_id_set()
+        approved_ids = self.approved_telegram_id_set()
+        if not approved_ids:
+            return True
+
+        return telegram_id in approved_ids
 
 
 @lru_cache

@@ -7,9 +7,9 @@ from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user_id, get_db
+from app.api.deps import get_current_user_id, get_db, require_active_subscription
 from app.ai_engine.generators import generate_post
-from app.db.models import Platform, PostingTask, PostingTaskStatus, Project
+from app.db.models import Platform, PostingTask, PostingTaskStatus, Project, User
 from app.posting.scheduler import schedule_account_queue_refill
 
 
@@ -107,6 +107,7 @@ async def update_task(
     payload: PostingTaskUpdate,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
+    _subscription: User = Depends(require_active_subscription),
 ) -> PostingTaskRead:
     task = await _get_owned_task(task_id, current_user_id, db)
 
@@ -147,6 +148,7 @@ async def regenerate_task(
     task_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
+    _subscription: User = Depends(require_active_subscription),
 ) -> PostingTaskRead:
     task = await _get_owned_task(task_id, current_user_id, db)
 
@@ -235,6 +237,7 @@ async def publish_task_now(
     task_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
+    _subscription: User = Depends(require_active_subscription),
 ) -> PublishNowRead:
     task = await _get_owned_task(task_id, current_user_id, db)
 

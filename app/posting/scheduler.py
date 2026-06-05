@@ -24,6 +24,7 @@ from app.db.models import (
     ProjectOperation,
     ProjectOperationStatus,
     ProjectOperationType,
+    User,
 )
 from app.db.session import AsyncSessionLocal
 from app.services.admin_notifier import send_admin_alert
@@ -217,7 +218,15 @@ async def analyze_daily_trends() -> None:
     async with AsyncSessionLocal() as session:
         projects = list(
             (
-                await session.scalars(select(Project).where(Project.is_active.is_(True)).order_by(Project.id.asc()))
+                await session.scalars(
+                    select(Project)
+                    .join(User, Project.owner_id == User.id)
+                    .where(
+                        Project.is_active.is_(True),
+                        User.subscription_status.is_(True),
+                    )
+                    .order_by(Project.id.asc())
+                )
             ).all()
         )
 
@@ -276,7 +285,13 @@ async def ensure_account_based_queue() -> None:
         projects = list(
             (
                 await session.scalars(
-                    select(Project).where(Project.is_active.is_(True)).order_by(Project.id.asc())
+                    select(Project)
+                    .join(User, Project.owner_id == User.id)
+                    .where(
+                        Project.is_active.is_(True),
+                        User.subscription_status.is_(True),
+                    )
+                    .order_by(Project.id.asc())
                 )
             ).all()
         )
@@ -309,6 +324,10 @@ async def ensure_project_queue(project_id: int, *, generation_budget: int = MAX_
         if project is None or not project.is_active:
             return 0
 
+        owner = await session.get(User, project.owner_id) if project.owner_id is not None else None
+        if owner is None or not owner.subscription_status:
+            return 0
+
         accounts = await _get_project_posting_accounts(project.id, session)
         for account in accounts:
             async with _get_account_queue_lock(account.id):
@@ -336,12 +355,18 @@ async def ensure_account_queue(
         if project is None or account is None:
             return 0
 
+        owner = await session.get(User, project.owner_id) if project.owner_id is not None else None
+        if owner is None or not owner.subscription_status:
+            return 0
+
         async with _get_account_queue_lock(account.id):
             return await _ensure_account_queue_for_project(
                 project=project,
                 account=account,
                 session=session,
-                remaining_generation_budget=generation_budget or _project_posts_per_day(project) * QUEUE_LOOKAHEAD_DAYS,
+                remaining_generation_budget=generation_budget
+                or _project_posts_per_day(project, owner.tariff_posts_per_day)
+                * _user_queue_days(owner),
             )
 
 
@@ -355,6 +380,10 @@ async def _ensure_account_queue_for_project(
     if remaining_generation_budget <= 0:
         return 0
 
+    owner = await session.get(User, project.owner_id) if project.owner_id is not None else None
+    if owner is None or not owner.subscription_status:
+        return 0
+
     if (
         not project.is_active
         or account.project_id != project.id
@@ -364,9 +393,10 @@ async def _ensure_account_queue_for_project(
     ):
         return 0
 
-    account_posts_limit = _project_posts_per_day(project)
-    account_queue_limit = account_posts_limit * QUEUE_LOOKAHEAD_DAYS
-    account_upcoming_tasks = await _count_account_upcoming_tasks(project, account.id, session)
+    queue_days = _user_queue_days(owner)
+    account_posts_limit = _project_posts_per_day(project, owner.tariff_posts_per_day)
+    account_queue_limit = account_posts_limit * queue_days
+    account_upcoming_tasks = await _count_account_upcoming_tasks(project, account.id, session, queue_days=queue_days)
     if account_upcoming_tasks >= account_queue_limit:
         return 0
 
@@ -534,20 +564,28 @@ def _is_slot_taken(candidate: datetime, slots: list[datetime | None]) -> bool:
 async def _get_project_posting_accounts(project_id: int, session: AsyncSession) -> list[Account]:
     stmt = (
         select(Account)
+        .join(User, Account.owner_id == User.id)
         .where(
             Account.project_id == project_id,
             Account.status == AccountStatus.ACTIVE,
             Account.platform == Platform.THREADS,
             Account.assigned_port.is_not(None),
+            User.subscription_status.is_(True),
         )
         .order_by(Account.last_used_at.asc().nulls_first(), Account.id.asc())
     )
     return list((await session.scalars(stmt)).all())
 
 
-async def _count_account_upcoming_tasks(project: Project, account_id: int, session: AsyncSession) -> int:
+async def _count_account_upcoming_tasks(
+    project: Project,
+    account_id: int,
+    session: AsyncSession,
+    *,
+    queue_days: int = QUEUE_LOOKAHEAD_DAYS,
+) -> int:
     start_at, _ = _project_day_bounds(project)
-    _, end_at = _project_day_bounds(project, datetime.now(UTC) + timedelta(days=QUEUE_LOOKAHEAD_DAYS - 1))
+    _, end_at = _project_day_bounds(project, datetime.now(UTC) + timedelta(days=queue_days - 1))
     lower_bound = max(datetime.now(UTC), start_at)
     count = await session.scalar(
         select(func.count(PostingTask.id)).where(
@@ -618,8 +656,16 @@ def _next_project_active_start(project: Project, reference_utc: datetime | None 
     return _project_active_window_bounds(project, reference + timedelta(days=1))[0]
 
 
-def _project_posts_per_day(project: Project) -> int:
-    return min(20, max(1, int(project.posts_per_day or 3)))
+def _project_posts_per_day(project: Project, tariff_limit: int | None = None) -> int:
+    project_limit = min(20, max(1, int(project.posts_per_day or 3)))
+    if tariff_limit is None or tariff_limit <= 0:
+        return project_limit
+
+    return min(project_limit, max(1, int(tariff_limit)))
+
+
+def _user_queue_days(user: User) -> int:
+    return max(1, int(user.tariff_queue_days or QUEUE_LOOKAHEAD_DAYS))
 
 
 def _project_timezone(project: Project) -> ZoneInfo:

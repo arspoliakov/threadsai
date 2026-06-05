@@ -893,7 +893,6 @@ def _find_generation_quality_issues(content: str) -> list[str]:
         issues.append("generic wisdom without a scene")
 
     reply_surface_markers = [
-        "?",
         "у вас",
         "у кого",
         "я одна",
@@ -906,8 +905,11 @@ def _find_generation_quality_issues(content: str) -> list[str]:
         "вот тут",
         "каждый раз",
         "отдельная часть профессии",
+        "мое правило",
+        "моё правило",
     ]
-    if not any(marker in lowered for marker in reply_surface_markers):
+    has_direct_question = lowered.rstrip().endswith("?")
+    if not has_direct_question and not any(marker in lowered for marker in reply_surface_markers):
         issues.append("closed post without a clear reply surface")
 
     product_resolution_markers = [

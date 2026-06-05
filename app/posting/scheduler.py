@@ -643,6 +643,7 @@ def _parse_project_time(value: str | None, *, fallback: time) -> time:
 def _build_account_topic(project: Project, account: Account, todays_count: int) -> str:
     project_context = project.global_context or project.description or "не указан"
     target_actions = ", ".join(project.target_actions or []) or "не заданы"
+    engagement_mode = _build_engagement_mode(project, account, todays_count)
     parts = [
         f"Проект: {project.name}",
         f"Глобальный контекст проекта: {project_context}",
@@ -652,6 +653,7 @@ def _build_account_topic(project: Project, account: Account, todays_count: int) 
         f"Tone of Voice: {project.tone_of_voice or 'не указан'}",
         f"Аккаунт публикации: @{account.username}",
         f"Это пост #{todays_count + 1} из {project.posts_per_day} на сегодня для этого проекта.",
+        f"Engagement mode for this exact post: {engagement_mode}",
         (
             "Сгенерируй самостоятельный Threads-пост для ближайшей публикации. "
             "Не повторяй предыдущие формулировки, опирайся на свежие тренды и описание проекта."
@@ -664,3 +666,33 @@ def _build_account_topic(project: Project, account: Account, todays_count: int) 
         "Do not blame the audience, customers, or users, and do not end with vague magic like 'now I just know'."
     )
     return "\n".join(parts)
+
+
+def _build_engagement_mode(project: Project, account: Account, todays_count: int) -> str:
+    modes = [
+        (
+            "discussion question: finish with a native question a tutor can answer from experience. "
+            "No generic 'agree?' bait. The question must be about a concrete daily situation."
+        ),
+        (
+            "tiny disagreement: make one slightly arguable statement about tutor admin work, "
+            "then leave room for people to push back."
+        ),
+        (
+            "useful micro-rule: give one small operational rule or boundary from tutor life. "
+            "It must be practical, not motivational."
+        ),
+        (
+            "relatable scene: show a small moment from the day and end with an unfinished thought "
+            "that invites 'same' replies."
+        ),
+        (
+            "anti-advice: start from something tutors are usually told to do, then gently question it "
+            "through a concrete example."
+        ),
+        (
+            "poll-like dilemma without poll UI: present two imperfect choices and ask how others handle it."
+        ),
+    ]
+    seed = (project.id * 17 + account.id * 7 + todays_count) % len(modes)
+    return modes[seed]

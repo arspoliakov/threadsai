@@ -256,6 +256,41 @@ End with an open loop, a question, or a quiet punchline unless a conversion hint
 """
 
 
+THREADS_ENGAGEMENT_RULES = """
+## Engagement-first rule
+
+For cold or low-reach accounts, the first job is replies, not profile clicks.
+The post must give a stranger a reason to react in the feed.
+
+Every post needs at least one reply surface:
+- a natural question people can answer from experience;
+- a small disagreement people may push back on;
+- a recognizable scene with unfinished tension;
+- a concrete micro-detail that makes readers say "same";
+- a useful tiny rule that other people can argue with.
+
+Avoid closed diary posts that only state a private feeling and end there.
+Avoid quiet one-person monologues where the reader has no obvious place to enter.
+Avoid making every post about payment reminders. Rotate between schedule chaos, no-shows,
+boundaries, parent/student communication, admin fatigue, client flow, money awkwardness,
+and the feeling of being both teacher and manager.
+
+At least half of generated posts should end with a native discussion door, but not a fake engagement-bait line.
+Good endings:
+- "у вас это тоже так работает?"
+- "я одна так делаю?"
+- "как вы это разруливаете?"
+- "кажется, это вообще отдельная часть профессии"
+- "и вот тут я каждый раз зависаю"
+
+Bad endings:
+- "пишите в комментарии";
+- "согласны?";
+- "ставьте лайк";
+- hard CTA to profile, pinned post, bio, service, CRM, base, or automation.
+"""
+
+
 async def generate_post(
     project_id: int,
     topic_or_context: str,
@@ -437,6 +472,14 @@ def _build_publication_memory_context(posts: list[dict[str, str]]) -> str:
             + ". Не используй их в новом посте."
         )
 
+    overused_topics = _detect_overused_topics(posts)
+    if overused_topics:
+        sections.append(
+            "Перегретые смысловые зоны, которые сейчас нужно временно отложить: "
+            + "; ".join(overused_topics)
+            + ". Новый пост обязан выбрать другую боль, сцену и социальный крючок."
+        )
+
     for index, post in enumerate(posts, start=1):
         sections.append(
             "\n".join(
@@ -464,6 +507,26 @@ def _detect_overused_openings(posts: list[dict[str, str]]) -> list[str]:
     for label, needles in patterns:
         count = sum(1 for text in recent_texts if any(needle in text for needle in needles))
         if count >= 2:
+            overheated.append(label)
+
+    return overheated
+
+
+def _detect_overused_topics(posts: list[dict[str, str]]) -> list[str]:
+    recent_texts = [post["content"].lower() for post in posts[:10] if post.get("content")]
+    patterns = [
+        ("оплата / долг / напоминание о деньгах", ("оплат", "долг", "деньг", "перевел", "перевести")),
+        ("отмена занятия в последний момент", ("отмен", "пустой слот", "освободился слот")),
+        ("хаос в расписании", ("расписан", "слот", "календар", "время занятия")),
+        ("ученик говорит / ученик забыл", ("ученик говорит", "ученик забыл", "человек вообще помнит")),
+        ("закреп / профиль / ссылка", ("закреп", "профил", "ссылка")),
+        ("база / система / автоматизация", ("база", "систем", "автомат")),
+    ]
+    overheated: list[str] = []
+
+    for label, needles in patterns:
+        count = sum(1 for text in recent_texts if any(needle in text for needle in needles))
+        if count >= 3:
             overheated.append(label)
 
     return overheated
@@ -604,6 +667,7 @@ def _build_generation_system_prompt(
             THREADS_VIBE_RULES,
             THREADS_LENGTH_RULES,
             THREADS_LIVE_FEED_RULES,
+            THREADS_ENGAGEMENT_RULES,
             project_stop_words,
             conversion_rule,
             target_actions_rule,
@@ -827,6 +891,36 @@ def _find_generation_quality_issues(content: str) -> list[str]:
     ]
     if any(pattern in lowered for pattern in generic_wisdom_patterns) and len(lowered) < 180:
         issues.append("generic wisdom without a scene")
+
+    reply_surface_markers = [
+        "?",
+        "у вас",
+        "у кого",
+        "я одна",
+        "вы как",
+        "как вы",
+        "почему",
+        "нормально ли",
+        "кажется",
+        "странно",
+        "вот тут",
+        "каждый раз",
+        "отдельная часть профессии",
+    ]
+    if not any(marker in lowered for marker in reply_surface_markers):
+        issues.append("closed post without a clear reply surface")
+
+    product_resolution_markers = [
+        "завела себе одну базу",
+        "завела базу",
+        "нашла сервис",
+        "стоит система",
+        "в закреп",
+        "в профиле",
+        "по ссылке",
+    ]
+    if any(marker in lowered for marker in product_resolution_markers):
+        issues.append("too direct product/profile resolution for a low-reach feed post")
 
     return issues
 

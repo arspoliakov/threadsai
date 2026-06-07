@@ -64,7 +64,7 @@ export default function ProjectOverviewPage() {
     if (operation?.status === "running") {
       setRunningAction("scraping");
       setError(null);
-      setStatusMessage(operation.message || "Анализ трендов выполняется в фоне.");
+      setStatusMessage(operation.message || "Система обновляет идеи в фоне.");
       return operation;
     }
 
@@ -75,13 +75,13 @@ export default function ProjectOverviewPage() {
       setError(null);
       setStatusMessage(
         typeof saved === "number"
-          ? `Анализ трендов завершен: сохранено ${saved}.`
-          : operation.message || "Анализ трендов завершен.",
+          ? `Подборка идей обновлена: сохранено ${saved}.`
+          : operation.message || "Подборка идей обновлена.",
       );
     }
 
     if (operation?.status === "failed") {
-      setError(operation.message || "Анализ трендов завершился ошибкой.");
+      setError(operation.message || "Не удалось обновить идеи.");
     }
 
     return operation;
@@ -119,13 +119,13 @@ export default function ProjectOverviewPage() {
 
     try {
       const result = await triggerScraping(projectId);
-      setStatusMessage(result.message || "Анализ трендов запущен в фоне.");
-      toast.success("Анализ трендов запущен в фоне");
+      setStatusMessage(result.message || "Сбор идей запущен в фоне.");
+      toast.success("Сбор идей запущен в фоне");
       await refreshScrapingOperation();
       await loadDashboard();
     } catch {
-      toast.error("Не удалось запустить анализ трендов");
-      setError("Не удалось запустить анализ трендов.");
+      toast.error("Не удалось запустить сбор идей");
+      setError("Не удалось запустить сбор идей.");
       setRunningAction(null);
     }
   }
@@ -137,8 +137,8 @@ export default function ProjectOverviewPage() {
 
     try {
       const result = await triggerGeneration(projectId);
-      setStatusMessage(`Пост готов и добавлен в контент-план: публикация #${result.task_id}.`);
-      toast.success(`Пост добавлен в контент-план: #${result.task_id}`);
+      setStatusMessage(`Пост готов и добавлен в расписание: публикация #${result.task_id}.`);
+      toast.success(`Пост добавлен в расписание: #${result.task_id}`);
       await loadDashboard();
     } catch {
       toast.error("Не удалось сгенерировать пост");
@@ -153,10 +153,10 @@ export default function ProjectOverviewPage() {
       <header className="grid gap-4 border border-[#c9c9c3] bg-white p-5 md:grid-cols-[1fr_auto] sm:p-6">
         <div>
           <h1 className="font-display text-4xl leading-none">
-            {dashboard?.project.name || "Сводка"}
+            {dashboard?.project.name || "Обзор проекта"}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Здесь вы управляете всем процессом. Проверьте: подключен ли аккаунт, собраны ли свежие идеи
+            Здесь вы управляете всем процессом. Проверьте: подключен ли профиль, собраны ли свежие идеи
             для постов и составлено ли расписание публикаций на ближайшие дни.
           </p>
         </div>
@@ -181,7 +181,7 @@ export default function ProjectOverviewPage() {
           onClick={() => void handleTriggerScraping()}
         />
         <ActionPanel
-          title="Создать пост"
+          title="Добавить пост"
           description="Нейросеть создаст новый пост, опираясь на вашу тему, выбранный стиль и актуальные идеи. Пост сразу добавится в расписание публикаций."
           buttonText="Добавить новый пост в план"
           isLoading={runningAction === "generation"}
@@ -309,7 +309,7 @@ function ReadinessChecklist({
     {
       title: "Опишите проект",
       done: Boolean(dashboard.project.description && dashboard.project.description.length >= 30),
-      hint: "Что продаете, кому, какая боль и как должен звучать аккаунт.",
+      hint: "Что предлагаете, кому это нужно и как должен звучать профиль.",
       to: `/app/projects/${projectId}/settings`,
     },
     {
@@ -400,7 +400,7 @@ function ContentFormulaNote() {
       }
     >
       Обычно это короткие заметки для ленты: мысль, сцена, вопрос или маленькое напряжение. Прямой увод в био или закреп
-      появляется не в каждом посте, чтобы аккаунт не выглядел как реклама.
+      появляется не в каждом посте, чтобы профиль не выглядел как реклама.
     </DismissibleTip>
   );
 }
@@ -441,7 +441,7 @@ function ActivityLog({
       <LogRow label="Публикации" value={formatTaskStatuses(dashboard.posting_tasks_by_status)} />
       <LogRow
         label="Последняя ошибка"
-        value={dashboard.recent_errors[0] || "Ошибок нет"}
+        value={dashboard.recent_errors[0] ? formatUserFacingError(dashboard.recent_errors[0]) : "Ошибок нет"}
         isError={dashboard.recent_errors.length > 0}
       />
     </div>
@@ -639,7 +639,7 @@ function Spinner() {
 
 function formatAccountStates(accounts: ProjectAccountState[]) {
   if (accounts.length === 0) {
-    return "Нет привязанных аккаунтов";
+    return "Нет подключенных профилей";
   }
 
   const statusLabels: Record<string, string> = {
@@ -652,9 +652,8 @@ function formatAccountStates(accounts: ProjectAccountState[]) {
 
   return accounts
     .map((account) => {
-      const lastError = account.last_error ? `, ошибка: ${account.last_error}` : "";
       const statusLabel = statusLabels[account.status] || account.status;
-      return `${account.username} / ${account.platform} / ${statusLabel}${lastError}`;
+      return `${account.username} / ${statusLabel}`;
     })
     .join("; ");
 }
@@ -707,7 +706,29 @@ function formatOperation(operation: ProjectOperation | null) {
     message = message.replace("Trend analysis failed:", "Ошибка сбора идей:");
   }
 
-  return `${status}; старт: ${started}; финиш: ${finished}. ${result} ${message}`.trim();
+  return `${status}; старт: ${started}; финиш: ${finished}. ${result} ${formatUserFacingError(message)}`.trim();
+}
+
+function formatUserFacingError(message: string) {
+  if (!message) {
+    return "";
+  }
+
+  const normalized = message.toLowerCase();
+  if (normalized.includes("proxy") || normalized.includes("ip polling") || normalized.includes("exit node")) {
+    return "Подключение временно недоступно. Система проверит его снова автоматически.";
+  }
+  if (normalized.includes("cookie") || normalized.includes("session")) {
+    return "Доступ к профилю нужно обновить в настройках проекта.";
+  }
+  if (normalized.includes("timeout") || normalized.includes("timed out")) {
+    return "Операция заняла слишком много времени. Система попробует снова.";
+  }
+  if (normalized.includes("selenium") || normalized.includes("webdriver") || normalized.includes("chrome")) {
+    return "Публикация временно не прошла. Система попробует снова.";
+  }
+
+  return message.length > 180 ? "Произошла техническая ошибка. Подробности уже отправлены администратору." : message;
 }
 
 function formatDate(value: string | null) {
@@ -740,7 +761,7 @@ function getProjectSystemStatus({
   if (runningOperation?.status === "queued") {
     return {
       title: "ждет своей очереди",
-      description: "Система запустит действие автоматически, когда аккаунт будет свободен.",
+      description: "Система запустит действие автоматически, когда профиль будет свободен.",
       dotClass: "bg-[#ffcb45]",
       pulse: true,
     };

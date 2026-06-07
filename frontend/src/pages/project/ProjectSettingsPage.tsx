@@ -111,7 +111,7 @@ export default function ProjectSettingsPage() {
 
   async function bindAccount() {
     if (!selectedAccountId) {
-      toast.error("Выберите свободный аккаунт");
+      toast.error("Выберите свободный профиль");
       return;
     }
 
@@ -119,9 +119,9 @@ export default function ProjectSettingsPage() {
 
     try {
       await toast.promise(updateAccount(Number(selectedAccountId), { project_id: projectId }), {
-        loading: "Привязываем аккаунт...",
-        success: "Аккаунт привязан к проекту",
-        error: "Не удалось привязать аккаунт",
+        loading: "Добавляем профиль...",
+        success: "Профиль добавлен в проект",
+        error: "Не удалось добавить профиль",
       });
       setSelectedAccountId("");
       await loadSettings({ silent: true });
@@ -173,9 +173,9 @@ export default function ProjectSettingsPage() {
     try {
       const savePromise = updateProject(project.id, { stop_words: normalizeStopWords(stopWords) });
       toast.promise(savePromise, {
-        loading: "Сохраняем стоп-слова...",
-        success: "Стоп-слова сохранены",
-        error: "Не удалось сохранить стоп-слова",
+        loading: "Сохраняем запрещенные слова...",
+        success: "Запрещенные слова сохранены",
+        error: "Не удалось сохранить запрещенные слова",
       });
       const savedProject = await savePromise;
       setProject(savedProject);
@@ -201,9 +201,9 @@ export default function ProjectSettingsPage() {
         timezone: normalizeTimezone(scheduleDraft.timezone),
       });
       toast.promise(savePromise, {
-        loading: "Сохраняем расписание...",
-        success: "Расписание сохранено",
-        error: "Не удалось сохранить расписание",
+        loading: "Сохраняем настройки публикаций...",
+        success: "Настройки публикаций сохранены",
+        error: "Не удалось сохранить настройки публикаций",
       });
       const savedProject = await savePromise;
       setProject(savedProject);
@@ -267,9 +267,9 @@ export default function ProjectSettingsPage() {
 
     try {
       await toast.promise(unlinkAccount(accountId), {
-        loading: "Отвязываем аккаунт...",
-        success: "Аккаунт отвязан от проекта",
-        error: "Не удалось отвязать аккаунт",
+        loading: "Отключаем профиль...",
+        success: "Профиль отключен от проекта",
+        error: "Не удалось отключить профиль",
       });
       await loadSettings({ silent: true });
     } finally {
@@ -282,7 +282,8 @@ export default function ProjectSettingsPage() {
       <header>
         <h1 className="font-display text-4xl leading-none">Настройки проекта</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-          Настраивается здесь: стоп-слова, расписание, аккаунты и описание конкретного продукта. Это помогает ИИ писать не абстрактно, а под задачу проекта.
+          Здесь задаются правила для системы: какие слова не использовать, когда публиковать посты,
+          с каких профилей вести работу и о чем рассказывать. Так нейросеть пишет точно под задачу проекта.
         </p>
       </header>
 
@@ -364,19 +365,19 @@ export default function ProjectSettingsPage() {
                   <span className="field-label">Куда вести интерес</span>
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     <ConversionModeButton
-                      label="Ссылка в био"
+                      label="Ссылка в описании профиля"
                       isActive={conversionMode === "bio_link"}
                       onClick={() => setConversionMode("bio_link")}
                       disabled={isLoading || isSavingContext}
                     />
                     <ConversionModeButton
-                      label="Закрепленный пост"
+                      label="На закрепленный пост"
                       isActive={conversionMode === "pinned_post"}
                       onClick={() => setConversionMode("pinned_post")}
                       disabled={isLoading || isSavingContext}
                     />
                     <ConversionModeButton
-                      label="Без увода"
+                      label="Оставаться в ленте"
                       isActive={conversionMode === "none"}
                       onClick={() => setConversionMode("none")}
                       disabled={isLoading || isSavingContext}
@@ -444,7 +445,7 @@ export default function ProjectSettingsPage() {
             <div>
               <h2 className="font-display text-3xl">Настройка публикаций</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-                Здесь задаем правила автопубликации: сколько постов в день выпускать на каждом аккаунте
+                Здесь задаем правила автопубликации: сколько постов в день выпускать на каждом профиле
                 и в какое время суток система может их публиковать.
               </p>
             </div>
@@ -469,7 +470,7 @@ export default function ProjectSettingsPage() {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className="field-label">С</span>
+                  <span className="field-label">Публиковать с</span>
                   <input
                     type="time"
                     value={scheduleDraft.active_hours_start}
@@ -484,7 +485,7 @@ export default function ProjectSettingsPage() {
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="field-label">До</span>
+                  <span className="field-label">Публиковать до</span>
                   <input
                     type="time"
                     value={scheduleDraft.active_hours_end}
@@ -660,7 +661,7 @@ function AccountCard({
 
       {proxyPaused ? (
         <div className="mt-4 rounded-2xl border border-[#f1d19a] bg-[#fff8e8] px-4 py-3 text-sm leading-6 text-[#6f4300]">
-          Прокси-порт временно не отвечает. Система сама перепроверяет подключение и вернет аккаунт в работу, когда порт оживет. Cookies обновлять не нужно.
+          Подключение временно недоступно. Система сама продолжит проверку и вернет профиль в работу. Обновлять cookies не нужно.
         </div>
       ) : null}
 

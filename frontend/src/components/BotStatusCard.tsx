@@ -53,11 +53,15 @@ export function formatDateTime(value: string | null | undefined) {
     return "не запланировано";
   }
 
-  return new Date(value).toLocaleString("ru-RU", {
+  const date = new Date(value);
+  const day = date.toLocaleDateString("ru-RU", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+  });
+  const time = date.toLocaleTimeString("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
   });
+  return `${day} в ${time}`;
 }

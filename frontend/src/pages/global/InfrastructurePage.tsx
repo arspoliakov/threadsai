@@ -32,7 +32,7 @@ export default function InfrastructurePage() {
     try {
       setAccounts(await getAccounts());
     } catch {
-      toast.error("Не удалось загрузить аккаунты");
+      toast.error("Не удалось загрузить профили");
     } finally {
       setIsLoading(false);
     }
@@ -48,7 +48,7 @@ export default function InfrastructurePage() {
     try {
       const promise = checkAccountSession(accountId);
       toast.promise(promise, {
-        loading: "Проверяем cookies-сессию...",
+        loading: "Проверяем доступ...",
         success: (result) => result.message,
         error: "Не удалось проверить сессию",
       });
@@ -64,9 +64,9 @@ export default function InfrastructurePage() {
 
     try {
       await toast.promise(unlinkAccount(accountId), {
-        loading: "Отвязываем аккаунт от проекта...",
-        success: "Аккаунт вернулся в общий пул",
-        error: "Не удалось отвязать аккаунт",
+        loading: "Отключаем профиль от проекта...",
+        success: "Профиль снова доступен для других проектов",
+        error: "Не удалось отключить профиль",
       });
       await loadAccounts();
     } finally {
@@ -75,7 +75,7 @@ export default function InfrastructurePage() {
   }
 
   async function handleDelete(accountId: number) {
-    const confirmed = window.confirm("Удалить аккаунт из пула? Cookies и настройки аккаунта будут удалены.");
+    const confirmed = window.confirm("Удалить профиль? Данные доступа и настройки профиля будут удалены.");
     if (!confirmed) {
       return;
     }
@@ -84,9 +84,9 @@ export default function InfrastructurePage() {
 
     try {
       await toast.promise(deleteAccount(accountId), {
-        loading: "Удаляем аккаунт...",
-        success: "Аккаунт удален",
-        error: "Не удалось удалить аккаунт",
+        loading: "Удаляем профиль...",
+        success: "Профиль удален",
+        error: "Не удалось удалить профиль",
       });
       await loadAccounts();
     } finally {
@@ -98,10 +98,10 @@ export default function InfrastructurePage() {
     <section className="space-y-5">
       <header className="grid gap-4 border-b border-[#c9c9c3] pb-5 md:grid-cols-[1fr_auto]">
         <div>
-          <h1 className="font-display text-4xl leading-none">Аккаунты</h1>
+          <h1 className="font-display text-4xl leading-none">Профили Threads</h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Здесь хранится общий пул Threads-профилей. Аккаунт можно держать свободным,
-            привязать к проекту, проверить cookies-сессию или удалить из системы.
+            Здесь хранятся профили Threads. Свободный профиль можно добавить в любой проект,
+            проверить его доступ или удалить из системы.
           </p>
         </div>
         <div className="grid gap-3 self-end sm:flex">
@@ -117,7 +117,7 @@ export default function InfrastructurePage() {
             onClick={() => setIsCreateOpen(true)}
             className="h-11 rounded-2xl border border-[#151515] bg-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515]"
           >
-            Добавить аккаунт
+            Добавить профиль
           </button>
         </div>
       </header>
@@ -130,14 +130,14 @@ export default function InfrastructurePage() {
             </span>
             <div>
               <p className="text-sm font-medium">Пул профилей</p>
-              <p className="mt-1 text-xs text-white/45">cookies и здоровье сессий</p>
+              <p className="mt-1 text-xs text-white/45">доступ и состояние профилей</p>
             </div>
           </div>
           <h2 className="mt-5 max-w-xl font-display text-3xl leading-none tracking-[-0.035em] sm:text-4xl">
-            Аккаунты
+            Профили
           </h2>
           <p className="mt-4 max-w-xl text-sm leading-6 text-white/58">
-            Каждый Threads-профиль живет отдельно: свой статус cookies и своя привязка к проекту.
+            Каждый Threads-профиль работает отдельно и может быть подключен только к одному проекту.
             Если сессия слетит, система остановит публикации и покажет проблему здесь.
           </p>
         </div>
@@ -150,7 +150,7 @@ export default function InfrastructurePage() {
       <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-4">
           <div>
-            <h2 className="font-display text-3xl">Пул аккаунтов</h2>
+            <h2 className="font-display text-3xl">Все профили</h2>
           </div>
         </div>
 
@@ -159,8 +159,8 @@ export default function InfrastructurePage() {
             <AccountSkeleton />
           ) : accounts.length === 0 ? (
             <EmptyState
-              title="Пока нет аккаунтов"
-              description="Добавьте Threads-профиль через cookies. После проверки система сама определит username."
+              title="Профилей пока нет"
+              description="Добавьте Threads-профиль. После проверки система сама определит его имя."
             />
           ) : (
             accounts.map((account) => (
@@ -238,11 +238,11 @@ function AccountCard({
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton onClick={onCheck} disabled={checking || unlinking || deleting}>
-            {checking ? "проверка..." : "проверить cookies"}
+            {checking ? "проверка..." : "Проверить доступ"}
           </ActionButton>
           {account.project_id !== null ? (
             <ActionButton onClick={onUnlink} disabled={checking || unlinking || deleting}>
-              {unlinking ? "отвязка..." : "отвязать"}
+              {unlinking ? "отключаем..." : "Отключить от проекта"}
             </ActionButton>
           ) : null}
           <ActionButton danger onClick={onDelete} disabled={checking || unlinking || deleting}>
@@ -287,10 +287,10 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
         cookies_encrypted: cookiesPayload,
         status: "active",
       });
-      toast.success("Аккаунт добавлен");
+      toast.success("Профиль добавлен");
       await onCreated();
     } catch (submitError) {
-      toast.error("Аккаунт не создан");
+      toast.error("Профиль не добавлен");
       setError(
         submitError instanceof Error
           ? submitError.message
@@ -306,7 +306,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
       <aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-black bg-[#f6f6f2]">
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
-            <h2 className="font-display text-3xl">Добавить аккаунт</h2>
+            <h2 className="font-display text-3xl">Добавить профиль</h2>
           </div>
           <button
             type="button"
@@ -369,7 +369,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
               disabled={isSubmitting}
               className="w-full rounded-2xl border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {isSubmitting ? "Создание..." : "Добавить аккаунт"}
+              {isSubmitting ? "Добавляем..." : "Добавить профиль"}
             </button>
           </div>
         </form>
@@ -392,14 +392,14 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
     try {
       items = parseBulkAccounts(rawInput);
     } catch (parseError) {
-      const message = parseError instanceof Error ? parseError.message : "Не удалось разобрать список аккаунтов.";
+      const message = parseError instanceof Error ? parseError.message : "Не удалось разобрать список профилей.";
       setError(message);
       toast.error(message);
       return;
     }
 
     if (items.length === 0) {
-      toast.error("Вставьте хотя бы один аккаунт для импорта");
+      toast.error("Вставьте хотя бы один профиль для импорта");
       return;
     }
 
@@ -439,7 +439,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
       return;
     }
 
-    toast.success(`Импортировано аккаунтов: ${created}`);
+    toast.success(`Импортировано профилей: ${created}`);
     await onImported();
   }
 
@@ -448,7 +448,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
       <aside className="ml-auto flex h-full w-full max-w-2xl flex-col border-l border-black bg-[#f6f6f2]">
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
-            <h2 className="font-display text-3xl">Массовый импорт аккаунтов</h2>
+            <h2 className="font-display text-3xl">Массовый импорт профилей</h2>
           </div>
           <button
             type="button"
@@ -513,7 +513,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
               className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isImporting ? <Spinner /> : null}
-              {isImporting ? "Импортируем..." : "Импортировать аккаунты"}
+              {isImporting ? "Импортируем..." : "Импортировать профили"}
             </button>
           </div>
         </form>

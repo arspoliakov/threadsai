@@ -120,7 +120,7 @@ export default function Dashboard() {
         <BotStatusCard
           nextTrendCheck={nextProject?.next_post_time ?? summary?.next_trend_check ?? null}
           currentAction={getCurrentAction(summary, isLoading)}
-          nextActionLabel={nextProject ? `Следующий пост: «${nextProject.name}»` : "следующий сбор идей"}
+          nextActionLabel={nextProject ? `Следующий пост: «${nextProject.name}» → выйдет` : "следующий сбор идей"}
           compact
           className="lg:col-span-2"
         />
@@ -331,7 +331,7 @@ function ProjectCard({
           <Link to={`/app/projects/${project.id}`} className="min-w-0 flex-1">
             <h2 className="font-display text-3xl leading-none tracking-[-0.035em] text-[#111]">{project.name}</h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
-              Нажмите, чтобы зайти в проект и управлять очередью публикаций, трендами и настройками.
+              Нажмите, чтобы зайти в проект и управлять очередью публикаций, актуальными идеями и настройками.
             </p>
           </Link>
           <div className="flex shrink-0 items-center gap-2">
@@ -356,8 +356,8 @@ function ProjectCard({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Metric icon={<SendIcon />} label="Вышло постов" value={String(project.published_count)} />
-          <Metric icon={<ClockIcon />} label="Следующий пост" value={formatDateTime(project.next_post_time)} />
+          <Metric icon={<SendIcon />} label={formatProjectPublishedLabel(project.published_count)} />
+          <Metric icon={<ClockIcon />} label="Следующий пост:" value={formatDateTime(project.next_post_time)} />
         </div>
       </div>
     </article>
@@ -370,14 +370,14 @@ function handleDeleteClick(event: MouseEvent<HTMLButtonElement>, onDelete: () =>
   onDelete();
 }
 
-function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function Metric({ icon, label, value }: { icon: ReactNode; label: string; value?: string }) {
   return (
     <div className="rounded-2xl border border-[#e2e6df] bg-white/70 p-4">
       <div className="flex items-center gap-2 text-[#5e675e]">
         {icon}
         <span className="text-sm">{label}</span>
       </div>
-      <p className="mt-2 text-sm leading-5 text-[#252a25]">{value}</p>
+      {value ? <p className="mt-2 text-sm leading-5 text-[#252a25]">{value}</p> : null}
     </div>
   );
 }
@@ -453,18 +453,36 @@ function formatPublishedCountLabel(count: number) {
   return "постов опубликовано";
 }
 
+function formatProjectPublishedLabel(count: number) {
+  const remainder100 = count % 100;
+  const remainder10 = count % 10;
+  const word =
+    remainder100 >= 11 && remainder100 <= 14
+      ? "постов"
+      : remainder10 === 1
+        ? "пост"
+        : remainder10 >= 2 && remainder10 <= 4
+          ? "поста"
+          : "постов";
+  return `Вышло ${count} ${word}`;
+}
+
 function formatDateTime(value: string | null | undefined) {
   if (!value) {
     return "Не запланировано";
   }
 
-  return new Date(value).toLocaleString("ru-RU", {
+  const date = new Date(value);
+  const day = date.toLocaleDateString("ru-RU", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+  });
+  const time = date.toLocaleTimeString("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
   });
+  return `${day} в ${time}`;
 }
 
 function Spinner() {

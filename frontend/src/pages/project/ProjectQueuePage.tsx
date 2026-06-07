@@ -143,7 +143,7 @@ export default function ProjectQueuePage() {
       <header>
         <h1 className="font-display text-4xl leading-none">Расписание будущих постов</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-          Здесь собраны посты, которые выйдут в ближайшее время. Можно проверить текст, аккаунт и время выхода,
+          Здесь собраны посты, которые выйдут в ближайшее время. Можно посмотреть текст, профиль и время выхода,
           быстро отредактировать публикацию или попросить систему переписать её заново.
         </p>
       </header>
@@ -473,13 +473,17 @@ function formatDate(value: string | null) {
     return "не запланировано";
   }
 
-  return new Date(value).toLocaleString("ru-RU", {
+  const date = new Date(value);
+  const day = date.toLocaleDateString("ru-RU", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+  });
+  const time = date.toLocaleTimeString("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
   });
+  return `в ${time} ${day}`;
 }
 
 function isTaskAccountSessionDead(task: PostingTask, accountStates: ProjectAccountState[]) {
@@ -497,5 +501,5 @@ function getAccountBlockMessage(task: PostingTask, accountStates: ProjectAccount
     return "Публикация на паузе: прокси временно не отвечает. Система сама перепроверит порт.";
   }
 
-  return "Публикация недоступна: сессия аккаунта Threads истекла или аккаунт заблокирован.";
+  return "Публикация недоступна: доступ к профилю Threads истек или профиль заблокирован.";
 }

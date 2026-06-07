@@ -143,7 +143,7 @@ async def start_admin_bot_polling() -> None:
         return
 
     try:
-        await admin_dp.start_polling(bot)
+        await admin_dp.start_polling(bot, handle_signals=False)
     except TelegramAPIError:
         return
     except Exception:

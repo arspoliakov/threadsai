@@ -104,7 +104,7 @@ async def start_bot_polling() -> None:
         return
 
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, handle_signals=False)
     except TelegramAPIError:
         return
     except Exception:

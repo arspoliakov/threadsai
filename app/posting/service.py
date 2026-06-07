@@ -89,6 +89,7 @@ async def execute_posting_task(
             account.username = publish_result.detected_username
 
         task.status = PostingTaskStatus.SUCCESS
+        task.external_post_url = publish_result.external_post_url
         task.finished_at = datetime.now(UTC)
         task.error_message = None
         account.last_used_at = task.finished_at

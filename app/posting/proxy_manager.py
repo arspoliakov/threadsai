@@ -95,11 +95,22 @@ class ProxyManager:
         self._stop_event.set()
 
         tasks = [task for task in [self._manager_task, *self._worker_tasks.values()] if task is not None]
-        for task in tasks:
-            task.cancel()
-
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            logger.info(
+                "Account proxy manager is stopping gracefully; waiting for %s task(s) to finish.",
+                len(tasks),
+            )
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=SELENIUM_DEADLINE_SECONDS + 20,
+                )
+            except TimeoutError:
+                logger.warning("Graceful proxy manager shutdown timed out; cancelling remaining workers.")
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
 
         self._manager_task = None
         self._worker_tasks.clear()

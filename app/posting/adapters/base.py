@@ -8,6 +8,7 @@ from app.db.models import Account, PostingTask
 class PublishResult:
     success: bool
     detected_username: str | None = None
+    external_post_url: str | None = None
 
 
 class BasePostingAdapter(ABC):

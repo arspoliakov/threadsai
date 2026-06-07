@@ -185,8 +185,23 @@ class ThreadsAdapter(BasePostingAdapter):
                 self._raise_if_proxy_ip_changed(ip_watchdog)
                 self._share_posts_chain(driver, _normalize_posts_chain(task), task.media_url)
                 self._raise_if_deadline_exceeded(deadline_at)
-                logger.info("Threads publish flow completed for task #%s", task.id)
-                return PublishResult(success=True, detected_username=detected_username)
+                published_post_url = self._verify_published_post(
+                    driver,
+                    username=detected_username or account.username,
+                    expected_text=_normalize_posts_chain(task)[0],
+                    deadline_at=deadline_at,
+                    ip_watchdog=ip_watchdog,
+                )
+                logger.info(
+                    "Threads publish flow completed and verified for task #%s: %s",
+                    task.id,
+                    published_post_url,
+                )
+                return PublishResult(
+                    success=True,
+                    detected_username=detected_username,
+                    external_post_url=published_post_url,
+                )
             except (PostingDeadlineExceeded, ProxyNetworkException, SessionExpiredException, ThreadChainPartialSuccess):
                 raise
             except Exception as exc:
@@ -835,6 +850,79 @@ class ThreadsAdapter(BasePostingAdapter):
             logger.info("Threads publish submit acknowledged by UI")
         except TimeoutException:
             raise TimeoutException("Threads UI did not confirm publication after submit.")
+
+    def _verify_published_post(
+        self,
+        driver: WebDriver,
+        *,
+        username: str | None,
+        expected_text: str,
+        deadline_at: float | None,
+        ip_watchdog: ProxyIpWatchdog | None,
+    ) -> str:
+        normalized_username = (username or "").strip().lstrip("@")
+        if not normalized_username:
+            raise RuntimeError("Threads publication could not be verified because the account username is unknown.")
+
+        expected_normalized = _normalize_verification_text(expected_text)
+        if not expected_normalized:
+            raise RuntimeError("Threads publication could not be verified because the post text is empty.")
+
+        profile_url = f"{self.BASE_URL.rstrip('/')}/@{normalized_username}"
+        for attempt in range(4):
+            self._raise_if_deadline_exceeded(deadline_at)
+            self._raise_if_proxy_ip_changed(ip_watchdog)
+            driver.get(profile_url)
+            self._wait_for_dom(driver)
+
+            post_url = self._find_matching_post_url(driver, expected_normalized)
+            if post_url:
+                return post_url
+
+            if attempt < 3:
+                time.sleep(4)
+
+        raise RuntimeError(
+            "Threads did not show the published post in the account profile. "
+            "The task was not marked successful to avoid a false success."
+        )
+
+    def _find_matching_post_url(self, driver: WebDriver, expected_normalized: str) -> str | None:
+        containers: list[WebElement] = []
+        seen_ids: set[str] = set()
+        for selector in (
+            'div[role="article"]',
+            "article",
+            '[data-pressable-container="true"]',
+            'div:has(a[href*="/post/"])',
+        ):
+            try:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+            except WebDriverException:
+                continue
+
+            for element in elements[:20]:
+                if element.id in seen_ids:
+                    continue
+                seen_ids.add(element.id)
+                containers.append(element)
+
+        expected_prefix = expected_normalized[:160]
+        for container in containers:
+            try:
+                container_text = _normalize_verification_text(container.text)
+                if expected_prefix not in container_text and container_text[:160] not in expected_normalized:
+                    continue
+                links = container.find_elements(By.CSS_SELECTOR, 'a[href*="/post/"]')
+            except (StaleElementReferenceException, WebDriverException):
+                continue
+
+            for link in links:
+                href = link.get_attribute("href") or ""
+                if "/post/" in href:
+                    return href
+
+        return None
 
     def _has_visible_composer_editor(self, driver: WebDriver) -> bool:
         for by, selector in self.COMPOSER_EDITOR_LOCATORS:
@@ -1610,3 +1698,7 @@ def _get_directory_size(path: Path) -> int:
             continue
 
     return total_size
+
+
+def _normalize_verification_text(value: str) -> str:
+    return " ".join(value.casefold().split())

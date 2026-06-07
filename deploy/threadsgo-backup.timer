@@ -1,0 +1,11 @@
+[Unit]
+Description=Run ThreadsGo database backup daily
+
+[Timer]
+OnCalendar=*-*-* 02:20:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target
+

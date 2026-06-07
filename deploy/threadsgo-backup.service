@@ -1,0 +1,8 @@
+[Unit]
+Description=Backup ThreadsGo SQLite database
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/threadsai/deploy/backup_database.sh
+

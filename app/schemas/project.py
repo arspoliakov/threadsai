@@ -16,6 +16,7 @@ class ProjectBase(BaseModel):
     product_context: str | None = None
     conversion_mode: str = Field(default="bio_link", pattern=r"^(bio_link|pinned_post|none)$")
     conversion_target: str | None = None
+    conversion_intensity: int = Field(default=25, ge=0, le=100)
     stop_words: list[str] = Field(default_factory=list)
     posts_per_day: int = Field(default=3, ge=1, le=20)
     active_hours_start: str = Field(default="09:00", pattern=r"^\d{2}:\d{2}$")
@@ -50,6 +51,7 @@ class ProjectUpdate(BaseModel):
     product_context: str | None = None
     conversion_mode: str | None = Field(default=None, pattern=r"^(bio_link|pinned_post|none)$")
     conversion_target: str | None = None
+    conversion_intensity: int | None = Field(default=None, ge=0, le=100)
     stop_words: list[str] | None = None
     posts_per_day: int | None = Field(default=None, ge=1, le=20)
     active_hours_start: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")

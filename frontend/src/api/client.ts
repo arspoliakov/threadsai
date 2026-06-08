@@ -139,6 +139,7 @@ export type Project = {
   product_context: string | null;
   conversion_mode: ConversionMode;
   conversion_target: string | null;
+  conversion_intensity: number;
   stop_words: string[];
   posts_per_day: number;
   active_hours_start: string;
@@ -159,6 +160,7 @@ export type ProjectCreatePayload = {
   target_actions?: string[];
   conversion_mode?: ConversionMode;
   conversion_target?: string | null;
+  conversion_intensity?: number;
   stop_words?: string[];
   is_active?: boolean;
 };

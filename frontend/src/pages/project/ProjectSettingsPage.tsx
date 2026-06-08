@@ -46,6 +46,7 @@ export default function ProjectSettingsPage() {
   const [targetActions, setTargetActions] = useState<string[]>([]);
   const [conversionMode, setConversionMode] = useState<ConversionMode>("bio_link");
   const [conversionTarget, setConversionTarget] = useState("");
+  const [conversionIntensity, setConversionIntensity] = useState(25);
   const [stopWords, setStopWords] = useState<string[]>([]);
   const [scheduleDraft, setScheduleDraft] = useState({
     posts_per_day: 3,
@@ -77,6 +78,7 @@ export default function ProjectSettingsPage() {
       setTargetActions(normalizeTargetActions(dashboardResult.project.target_actions ?? []));
       setConversionMode(dashboardResult.project.conversion_mode ?? "bio_link");
       setConversionTarget(dashboardResult.project.conversion_target ?? "");
+      setConversionIntensity(dashboardResult.project.conversion_intensity ?? 25);
       setStopWords(dashboardResult.project.stop_words ?? []);
       setScheduleDraft({
         posts_per_day: dashboardResult.project.posts_per_day ?? 3,
@@ -145,6 +147,7 @@ export default function ProjectSettingsPage() {
         target_actions: normalizedActions,
         conversion_mode: conversionMode,
         conversion_target: conversionTarget.trim() || null,
+        conversion_intensity: conversionIntensity,
       });
       toast.promise(savePromise, {
         loading: "Сохраняем настройки проекта...",
@@ -157,6 +160,7 @@ export default function ProjectSettingsPage() {
       setTargetActions(normalizeTargetActions(savedProject.target_actions ?? []));
       setConversionMode(savedProject.conversion_mode ?? "bio_link");
       setConversionTarget(savedProject.conversion_target ?? "");
+      setConversionIntensity(savedProject.conversion_intensity ?? 25);
     } finally {
       setIsSavingContext(false);
     }
@@ -386,20 +390,46 @@ export default function ProjectSettingsPage() {
                 </div>
 
                 {conversionMode !== "none" ? (
-                  <label className="grid gap-2">
-                    <span className="field-label">
-                      {conversionMode === "bio_link" ? "Что указано в описании профиля" : "Что указано в закрепленном посте"}
-                    </span>
-                    <textarea
-                      value={conversionTarget}
-                      onChange={(event) => setConversionTarget(event.target.value)}
-                      disabled={isLoading || isSavingContext}
-                      rows={4}
-                      placeholder="Например: бесплатный разбор, форма заявки, подробная инструкция, кейс, каталог услуг."
-                      className="field-control resize-y leading-6 disabled:opacity-50"
-                    />
-                  </label>
+                    <label className="grid gap-2">
+                      <span className="field-label">
+                        {conversionMode === "bio_link" ? "Что указано в описании профиля" : "Что указано в закрепленном посте"}
+                      </span>
+                      <textarea
+                        value={conversionTarget}
+                        onChange={(event) => setConversionTarget(event.target.value)}
+                        disabled={isLoading || isSavingContext}
+                        rows={4}
+                        placeholder="Например: бесплатный разбор, форма заявки, подробная инструкция, кейс, каталог услуг."
+                        className="field-control resize-y leading-6 disabled:opacity-50"
+                      />
+                    </label>
                 ) : null}
+
+                <label className="grid gap-3 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <span className="field-label">Как часто вести к целевому действию</span>
+                      <p className="mt-2 text-sm leading-5 text-[#66645d]">
+                        {getConversionIntensityDescription(conversionIntensity)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 font-display text-3xl">{conversionIntensity}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="25"
+                    value={conversionIntensity}
+                    onChange={(event) => setConversionIntensity(Number(event.target.value))}
+                    disabled={isLoading || isSavingContext}
+                    className="h-2 w-full cursor-pointer accent-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+                  />
+                  <div className="flex justify-between text-xs text-[#77766f]">
+                    <span>без перехода к действию</span>
+                    <span>в каждом посте</span>
+                  </div>
+                </label>
               </div>
 
               <button
@@ -870,6 +900,22 @@ function normalizeStopWords(words: string[]) {
 
 function normalizeTargetActions(actions: string[]) {
   return Array.from(new Set(actions.map((action) => action.trim()).filter(Boolean)));
+}
+
+function getConversionIntensityDescription(value: number) {
+  if (value <= 0) {
+    return "Посты работают на охваты и обсуждения без перехода к целевому действию.";
+  }
+  if (value <= 25) {
+    return "Бот ведет к действию редко и только когда это звучит естественно.";
+  }
+  if (value <= 50) {
+    return "Примерно половина постов мягко ведет к выбранному действию.";
+  }
+  if (value <= 75) {
+    return "Большинство постов подводят читателя к выбранному действию.";
+  }
+  return "Каждый пост мягко ведет к выбранному действию.";
 }
 
 function clampPostsPerDay(value: number) {

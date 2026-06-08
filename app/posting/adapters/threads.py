@@ -886,8 +886,12 @@ class ThreadsAdapter(BasePostingAdapter):
                 expected_normalized,
                 excluded_urls=existing_post_urls,
             )
-            if post_url:
-                return post_url
+            if post_url and self._post_url_matches_expected_text(
+                driver,
+                post_url=post_url,
+                expected_normalized=expected_normalized,
+            ):
+                return _normalize_threads_post_url(post_url)
 
             if attempt < 3:
                 time.sleep(4)
@@ -914,7 +918,7 @@ class ThreadsAdapter(BasePostingAdapter):
                     """
                 )
                 return {
-                    str(url)
+                    _normalize_threads_post_url(str(url))
                     for url in (raw_urls or [])
                     if "/post/" in str(url)
                 }
@@ -954,6 +958,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 containers.append(element)
 
         expected_prefix = expected_normalized[:160]
+        normalized_excluded_urls = {_normalize_threads_post_url(url) for url in excluded_urls}
         for container in containers:
             try:
                 container_text = _normalize_verification_text(container.text)
@@ -965,10 +970,30 @@ class ThreadsAdapter(BasePostingAdapter):
 
             for link in links:
                 href = link.get_attribute("href") or ""
-                if "/post/" in href and href not in excluded_urls:
+                if "/post/" in href and _normalize_threads_post_url(href) not in normalized_excluded_urls:
                     return href
 
         return None
+
+    def _post_url_matches_expected_text(
+        self,
+        driver: WebDriver,
+        *,
+        post_url: str,
+        expected_normalized: str,
+    ) -> bool:
+        try:
+            driver.get(post_url)
+            self._wait_for_dom(driver)
+            expected_prefix = expected_normalized[:160]
+            return bool(
+                WebDriverWait(driver, 10).until(
+                    lambda current_driver: expected_prefix
+                    in _normalize_verification_text(current_driver.find_element(By.TAG_NAME, "body").text)
+                )
+            )
+        except (StaleElementReferenceException, TimeoutException, WebDriverException):
+            return False
 
     def _has_visible_composer_editor(self, driver: WebDriver) -> bool:
         for by, selector in self.COMPOSER_EDITOR_LOCATORS:
@@ -1748,3 +1773,11 @@ def _get_directory_size(path: Path) -> int:
 
 def _normalize_verification_text(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+def _normalize_threads_post_url(value: str) -> str:
+    parsed = urlparse(value.strip())
+    if not parsed.netloc or "/post/" not in parsed.path:
+        return value.strip()
+
+    return f"https://www.threads.com{parsed.path.rstrip('/')}"

@@ -183,12 +183,17 @@ class ThreadsAdapter(BasePostingAdapter):
                 detected_username = self._extract_authenticated_username(driver)
                 self._raise_if_deadline_exceeded(deadline_at)
                 self._raise_if_proxy_ip_changed(ip_watchdog)
+                existing_post_urls = self._get_profile_post_urls(
+                    driver,
+                    username=detected_username or account.username,
+                )
                 self._share_posts_chain(driver, _normalize_posts_chain(task), task.media_url)
                 self._raise_if_deadline_exceeded(deadline_at)
                 published_post_url = self._verify_published_post(
                     driver,
                     username=detected_username or account.username,
                     expected_text=_normalize_posts_chain(task)[0],
+                    existing_post_urls=existing_post_urls,
                     deadline_at=deadline_at,
                     ip_watchdog=ip_watchdog,
                 )
@@ -857,6 +862,7 @@ class ThreadsAdapter(BasePostingAdapter):
         *,
         username: str | None,
         expected_text: str,
+        existing_post_urls: set[str],
         deadline_at: float | None,
         ip_watchdog: ProxyIpWatchdog | None,
     ) -> str:
@@ -875,7 +881,11 @@ class ThreadsAdapter(BasePostingAdapter):
             driver.get(profile_url)
             self._wait_for_dom(driver)
 
-            post_url = self._find_matching_post_url(driver, expected_normalized)
+            post_url = self._find_matching_post_url(
+                driver,
+                expected_normalized,
+                excluded_urls=existing_post_urls,
+            )
             if post_url:
                 return post_url
 
@@ -887,7 +897,31 @@ class ThreadsAdapter(BasePostingAdapter):
             "The task was not marked successful to avoid a false success."
         )
 
-    def _find_matching_post_url(self, driver: WebDriver, expected_normalized: str) -> str | None:
+    def _get_profile_post_urls(self, driver: WebDriver, *, username: str | None) -> set[str]:
+        normalized_username = (username or "").strip().lstrip("@")
+        if not normalized_username:
+            return set()
+
+        driver.get(f"{self.BASE_URL.rstrip('/')}/@{normalized_username}")
+        self._wait_for_dom(driver)
+        try:
+            links = driver.find_elements(By.CSS_SELECTOR, 'a[href*="/post/"]')
+        except WebDriverException:
+            return set()
+
+        return {
+            href
+            for link in links
+            if (href := (link.get_attribute("href") or "")) and "/post/" in href
+        }
+
+    def _find_matching_post_url(
+        self,
+        driver: WebDriver,
+        expected_normalized: str,
+        *,
+        excluded_urls: set[str],
+    ) -> str | None:
         containers: list[WebElement] = []
         seen_ids: set[str] = set()
         for selector in (
@@ -911,7 +945,7 @@ class ThreadsAdapter(BasePostingAdapter):
         for container in containers:
             try:
                 container_text = _normalize_verification_text(container.text)
-                if expected_prefix not in container_text and container_text[:160] not in expected_normalized:
+                if len(container_text) < 20 or expected_prefix not in container_text:
                     continue
                 links = container.find_elements(By.CSS_SELECTOR, 'a[href*="/post/"]')
             except (StaleElementReferenceException, WebDriverException):
@@ -919,7 +953,7 @@ class ThreadsAdapter(BasePostingAdapter):
 
             for link in links:
                 href = link.get_attribute("href") or ""
-                if "/post/" in href:
+                if "/post/" in href and href not in excluded_urls:
                     return href
 
         return None

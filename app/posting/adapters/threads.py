@@ -904,16 +904,28 @@ class ThreadsAdapter(BasePostingAdapter):
 
         driver.get(f"{self.BASE_URL.rstrip('/')}/@{normalized_username}")
         self._wait_for_dom(driver)
-        try:
-            links = driver.find_elements(By.CSS_SELECTOR, 'a[href*="/post/"]')
-        except WebDriverException:
-            return set()
+        for attempt in range(3):
+            try:
+                raw_urls = driver.execute_script(
+                    """
+                    return Array.from(document.querySelectorAll('a[href*="/post/"]'))
+                      .map((link) => link.href)
+                      .filter(Boolean);
+                    """
+                )
+                return {
+                    str(url)
+                    for url in (raw_urls or [])
+                    if "/post/" in str(url)
+                }
+            except (StaleElementReferenceException, WebDriverException) as exc:
+                if attempt >= 2:
+                    raise RetryablePostingException(
+                        "Threads profile changed while preparing publication. The task will retry automatically."
+                    ) from exc
+                time.sleep(1)
 
-        return {
-            href
-            for link in links
-            if (href := (link.get_attribute("href") or "")) and "/post/" in href
-        }
+        return set()
 
     def _find_matching_post_url(
         self,

@@ -698,7 +698,7 @@ function AccountCard({
       {sessionNeedsUpdate ? (
         <div className="mt-4 border-t border-[#d88a35]/30 pt-4">
           <p className="text-sm leading-6 text-[#4a2b08]">
-            Если сессия слетела, вставьте свежий Export JSON из Cookie-Editor и сохраните.
+            Быстрее всего обновить доступ через расширение на странице «Аккаунты». Ниже остается ручной способ через Export JSON.
           </p>
           <textarea
             value={cookiesDraft}

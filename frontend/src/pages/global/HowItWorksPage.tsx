@@ -56,7 +56,7 @@ export default function HowItWorksPage() {
           />
           <SmallCard
             title="Аккаунт"
-            text="Укажите профиль Threads. Не нужен пароль — только cookies для доступа к публикации."
+            text="Откройте профиль Threads в браузере и подключите его расширением ThreadsGo. Пароль вводить не нужно."
           />
         </div>
       </section>

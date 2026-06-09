@@ -1,7 +1,4 @@
-from datetime import datetime
-from typing import Any
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +10,6 @@ from app.posting.exceptions import SessionExpiredException
 from app.posting.scheduler import schedule_account_queue_refill
 from app.posting.session_checker import check_session_in_subprocess
 from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
-from app.services.account_extension_links import consume_extension_link, create_extension_link
 from app.services.proxy_pool import prepare_account_create, prepare_account_update
 
 
@@ -30,59 +26,6 @@ class AccountSessionCheckRead(BaseModel):
     status: AccountStatus
     message: str
     detected_username: str | None = None
-
-
-class AccountExtensionLinkCreate(BaseModel):
-    project_id: int | None = None
-    account_id: int | None = None
-
-
-class AccountExtensionLinkRead(BaseModel):
-    token: str
-    expires_at: datetime
-
-
-class AccountExtensionLinkConsume(BaseModel):
-    token: str = Field(min_length=32, max_length=256)
-    cookies: list[dict[str, Any]] = Field(min_length=1, max_length=100)
-
-
-@router.post(
-    "/extension-links",
-    response_model=AccountExtensionLinkRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_account_extension_link(
-    payload: AccountExtensionLinkCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_active_subscription),
-) -> AccountExtensionLinkRead:
-    token, expires_at = await create_extension_link(
-        owner=current_user,
-        session=db,
-        project_id=payload.project_id,
-        account_id=payload.account_id,
-    )
-    return AccountExtensionLinkRead(token=token, expires_at=expires_at)
-
-
-@router.post(
-    "/extension-links/consume",
-    response_model=AccountRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def consume_account_extension_link(
-    payload: AccountExtensionLinkConsume,
-    db: AsyncSession = Depends(get_db),
-) -> AccountRead:
-    account = await consume_extension_link(
-        raw_token=payload.token,
-        raw_cookies=payload.cookies,
-        session=db,
-    )
-    if account.project_id is not None and account.status == AccountStatus.ACTIVE:
-        schedule_account_queue_refill(account.project_id, account.id)
-    return account
 
 
 @router.post("/", response_model=AccountRead, status_code=status.HTTP_201_CREATED)

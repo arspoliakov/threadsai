@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import {
   checkAccountSession,
   createAccount,
-  createAccountExtensionLink,
   deleteAccount,
   getAccounts,
   unlinkAccount,
@@ -26,8 +25,6 @@ export default function InfrastructurePage() {
   const [checkingId, setCheckingId] = useState<number | null>(null);
   const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [extensionReady, setExtensionReady] = useState(false);
-  const [extensionConnectingId, setExtensionConnectingId] = useState<number | "new" | null>(null);
 
   async function loadAccounts() {
     setIsLoading(true);
@@ -44,37 +41,6 @@ export default function InfrastructurePage() {
   useEffect(() => {
     void loadAccounts();
   }, []);
-
-  useEffect(() => {
-    function handleExtensionMessage(event: MessageEvent) {
-      if (event.source === window && event.data?.source === "threadsgo-extension" && event.data?.type === "THREADSGO_EXTENSION_READY") {
-        setExtensionReady(true);
-      }
-    }
-
-    window.addEventListener("message", handleExtensionMessage);
-    window.postMessage({ source: "threadsgo-web", type: "THREADSGO_EXTENSION_PING" }, window.location.origin);
-    return () => window.removeEventListener("message", handleExtensionMessage);
-  }, []);
-
-  async function handleExtensionConnect(accountId?: number) {
-    const connectionId = accountId ?? "new";
-    setExtensionConnectingId(connectionId);
-
-    try {
-      const link = await createAccountExtensionLink(accountId ? { account_id: accountId } : {});
-      const account = await requestThreadsExtensionConnection(link.token);
-      toast.success(accountId ? "Cookies профиля обновлены" : `Профиль ${formatUsername(account.username)} подключен`);
-      await loadAccounts();
-      return account;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Не удалось подключить профиль через расширение.";
-      toast.error(message);
-      return undefined;
-    } finally {
-      setExtensionConnectingId(null);
-    }
-  }
 
   async function handleCheckSession(accountId: number) {
     setCheckingId(accountId);
@@ -204,10 +170,7 @@ export default function InfrastructurePage() {
                 checking={checkingId === account.id}
                 unlinking={unlinkingId === account.id}
                 deleting={deletingId === account.id}
-                extensionReady={extensionReady}
-                extensionConnecting={extensionConnectingId === account.id}
                 onCheck={() => void handleCheckSession(account.id)}
-                onExtensionConnect={() => void handleExtensionConnect(account.id)}
                 onUnlink={() => void handleUnlink(account.id)}
                 onDelete={() => void handleDelete(account.id)}
               />
@@ -219,9 +182,6 @@ export default function InfrastructurePage() {
       {isCreateOpen ? (
         <CreateAccountPanel
           onClose={() => setIsCreateOpen(false)}
-          extensionReady={extensionReady}
-          extensionConnecting={extensionConnectingId === "new"}
-          onExtensionConnect={() => handleExtensionConnect()}
           onCreated={async () => {
             setIsCreateOpen(false);
             await loadAccounts();
@@ -247,10 +207,7 @@ function AccountCard({
   checking,
   unlinking,
   deleting,
-  extensionReady,
-  extensionConnecting,
   onCheck,
-  onExtensionConnect,
   onUnlink,
   onDelete,
 }: {
@@ -258,10 +215,7 @@ function AccountCard({
   checking: boolean;
   unlinking: boolean;
   deleting: boolean;
-  extensionReady: boolean;
-  extensionConnecting: boolean;
   onCheck: () => void;
-  onExtensionConnect: () => void;
   onUnlink: () => void;
   onDelete: () => void;
 }) {
@@ -283,9 +237,6 @@ function AccountCard({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ActionButton onClick={onExtensionConnect} disabled={!extensionReady || extensionConnecting || checking || deleting}>
-            {extensionConnecting ? "обновляем..." : "обновить через расширение"}
-          </ActionButton>
           <ActionButton onClick={onCheck} disabled={checking || unlinking || deleting}>
             {checking ? "проверка..." : "Проверить доступ"}
           </ActionButton>
@@ -309,19 +260,7 @@ function AccountCard({
   );
 }
 
-function CreateAccountPanel({
-  onClose,
-  onCreated,
-  extensionReady,
-  extensionConnecting,
-  onExtensionConnect,
-}: {
-  onClose: () => void;
-  onCreated: () => Promise<void>;
-  extensionReady: boolean;
-  extensionConnecting: boolean;
-  onExtensionConnect: () => Promise<Account | undefined>;
-}) {
+function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCreated: () => Promise<void> }) {
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode>("cookies");
   const [cookiesInput, setCookiesInput] = useState("");
@@ -379,32 +318,6 @@ function CreateAccountPanel({
         </header>
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-y-auto px-7 py-8">
-          <div className="rounded-2xl border border-[#151515] bg-[#07100e] p-5 text-white">
-            <h3 className="text-lg font-medium">Подключить в один клик</h3>
-            <p className="mt-2 text-sm leading-6 text-white/65">
-              Откройте Threads в этом браузере и войдите в нужный профиль. Расширение передаст только cookies Threads.
-            </p>
-            <button
-              type="button"
-              onClick={() => void onExtensionConnect().then((account) => account && onCreated())}
-              disabled={!extensionReady || extensionConnecting}
-              className="mt-4 w-full rounded-2xl border border-white bg-white px-4 py-3 text-sm font-medium text-[#07100e] transition hover:bg-transparent hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              {extensionConnecting ? "Подключаем профиль..." : extensionReady ? "Подключить открытый профиль Threads" : "Расширение ThreadsGo не найдено"}
-            </button>
-            {!extensionReady ? (
-              <p className="mt-3 text-xs leading-5 text-white/50">
-                Установите расширение ThreadsGo и перезагрузите эту страницу. Ручное добавление доступно ниже.
-              </p>
-            ) : null}
-          </div>
-
-          <div className="my-7 flex items-center gap-3 text-xs text-[#77766f]">
-            <span className="h-px flex-1 bg-[#d4d4ce]" />
-            или вручную
-            <span className="h-px flex-1 bg-[#d4d4ce]" />
-          </div>
-
           <label className="grid gap-2">
             <span className="field-label">Платформа</span>
             <select value={THREADS_PLATFORM} disabled className="field-control opacity-70">
@@ -737,35 +650,6 @@ function normalizeCookies(value: string) {
   } catch {
     return JSON.stringify(trimmedValue);
   }
-}
-
-function requestThreadsExtensionConnection(token: string): Promise<Account> {
-  return new Promise((resolve, reject) => {
-    const timeoutId = window.setTimeout(() => {
-      window.removeEventListener("message", handleResult);
-      reject(new Error("Расширение не ответило. Перезагрузите страницу и попробуйте снова."));
-    }, 30_000);
-
-    function handleResult(event: MessageEvent) {
-      if (event.source !== window || event.data?.source !== "threadsgo-extension" || event.data?.type !== "THREADSGO_CONNECT_RESULT") {
-        return;
-      }
-
-      window.clearTimeout(timeoutId);
-      window.removeEventListener("message", handleResult);
-      if (event.data.ok && event.data.account) {
-        resolve(event.data.account as Account);
-      } else {
-        reject(new Error(event.data.error || "Расширение не смогло подключить профиль."));
-      }
-    }
-
-    window.addEventListener("message", handleResult);
-    window.postMessage(
-      { source: "threadsgo-web", type: "THREADSGO_CONNECT_THREADS", token },
-      window.location.origin,
-    );
-  });
 }
 
 type BulkAccountDraft = {

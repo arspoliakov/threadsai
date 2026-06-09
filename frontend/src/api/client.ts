@@ -254,11 +254,6 @@ export type AccountSessionCheckResult = {
   detected_username: string | null;
 };
 
-export type AccountExtensionLink = {
-  token: string;
-  expires_at: string;
-};
-
 export type PostingTaskStatus =
   | "draft"
   | "queued"
@@ -579,14 +574,6 @@ export async function getAccounts(): Promise<Account[]> {
 
 export async function createAccount(data: AccountCreatePayload): Promise<Account> {
   const response = await apiClient.post<Account>("/api/v1/accounts/", data);
-  return response.data;
-}
-
-export async function createAccountExtensionLink(data: {
-  project_id?: number | null;
-  account_id?: number | null;
-} = {}): Promise<AccountExtensionLink> {
-  const response = await apiClient.post<AccountExtensionLink>("/api/v1/accounts/extension-links", data);
   return response.data;
 }
 

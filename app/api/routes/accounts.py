@@ -2,12 +2,11 @@ from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db, require_active_subscription
-from app.api.auth import limiter
 from app.db.models import Account, AccountStatus, PostingTask, Project, User
 from app.db.repositories.accounts import AccountRepository
 from app.posting.exceptions import SessionExpiredException
@@ -53,9 +52,7 @@ class AccountExtensionLinkConsume(BaseModel):
     response_model=AccountExtensionLinkRead,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("30/minute")
 async def create_account_extension_link(
-    request: Request,
     payload: AccountExtensionLinkCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_active_subscription),
@@ -74,9 +71,7 @@ async def create_account_extension_link(
     response_model=AccountRead,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("30/minute")
 async def consume_account_extension_link(
-    request: Request,
     payload: AccountExtensionLinkConsume,
     db: AsyncSession = Depends(get_db),
 ) -> AccountRead:

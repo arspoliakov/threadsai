@@ -204,10 +204,17 @@ async def check_queue_health() -> None:
     async with AsyncSessionLocal() as session:
         oldest_task = await session.scalar(
             select(PostingTask)
+            .join(Account, PostingTask.account_id == Account.id)
+            .join(Project, PostingTask.project_id == Project.id)
+            .join(User, Account.owner_id == User.id)
             .where(
                 PostingTask.status == PostingTaskStatus.QUEUED,
                 PostingTask.scheduled_at.is_not(None),
                 PostingTask.scheduled_at <= now,
+                Account.status == AccountStatus.ACTIVE,
+                Account.assigned_port.is_not(None),
+                Project.is_active.is_(True),
+                User.subscription_status.is_(True),
             )
             .order_by(PostingTask.scheduled_at.asc(), PostingTask.id.asc())
             .limit(1)
@@ -230,9 +237,9 @@ async def check_queue_health() -> None:
             return
 
     text = (
-        "⚠️ Внимание: Очередь прокси перегружена! "
-        f"Самый старый пост задерживается на {delay_minutes} минут. "
-        "Пора добавить новые порты."
+        "⚠️ Внимание: очередь публикаций отстаёт. "
+        f"Самая старая доступная к выполнению задача задерживается на {delay_minutes} минут. "
+        "Проверь доступность прокси, лимит одновременных браузеров и состояние воркеров."
     )
     await send_admin_alert(text)
     last_queue_alert_sent_at = now

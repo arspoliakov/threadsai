@@ -45,6 +45,7 @@ SCREENSHOTS_DIR = Path("./data/screenshots")
 PROXY_EXTENSIONS_DIR = Path(settings.proxy_extensions_dir)
 CHROME_PROFILES_DIR = Path(settings.chrome_profiles_dir)
 CHROME_PROFILE_CACHE_LIMIT_MB = int(os.getenv("CHROME_PROFILE_CACHE_LIMIT_MB", "20"))
+SESSION_EXPIRY_CONFIRMATION_ATTEMPTS = 3
 PROFILE_LOCKS: dict[int, Any] = {}
 PROFILE_LOCKS_GUARD = threading.Lock()
 logger = logging.getLogger(__name__)
@@ -613,14 +614,37 @@ class ThreadsAdapter(BasePostingAdapter):
         self._assert_authenticated_session(driver)
 
     def _assert_authenticated_session(self, driver: WebDriver) -> None:
-        current_path = urlparse(driver.current_url).path.casefold()
-        if current_path.startswith("/login"):
-            raise SessionExpiredException("Threads cookies expired: redirected to login page.")
+        last_reason = "login page detected"
 
-        if self._has_login_markers(driver):
-            raise SessionExpiredException("Threads cookies expired: login form detected.")
+        for attempt in range(SESSION_EXPIRY_CONFIRMATION_ATTEMPTS):
+            current_path = urlparse(driver.current_url).path.casefold()
+            redirected_to_login = current_path.startswith("/login")
+            login_form_detected = self._has_login_markers(driver)
 
-        logger.info("Threads authenticated session check passed")
+            if not redirected_to_login and not login_form_detected:
+                logger.info(
+                    "Threads authenticated session check passed on attempt %s/%s",
+                    attempt + 1,
+                    SESSION_EXPIRY_CONFIRMATION_ATTEMPTS,
+                )
+                return
+
+            last_reason = "redirected to login page" if redirected_to_login else "login password form detected"
+            logger.warning(
+                "Threads session may be logged out (%s), confirmation %s/%s",
+                last_reason,
+                attempt + 1,
+                SESSION_EXPIRY_CONFIRMATION_ATTEMPTS,
+            )
+
+            if attempt < SESSION_EXPIRY_CONFIRMATION_ATTEMPTS - 1:
+                time.sleep(2)
+                driver.get(self.BASE_URL)
+                self._wait_for_dom(driver)
+
+        raise SessionExpiredException(
+            f"Threads cookies expired after {SESSION_EXPIRY_CONFIRMATION_ATTEMPTS} confirmations: {last_reason}."
+        )
 
     def _has_login_markers(self, driver: WebDriver) -> bool:
         login_locators = [
@@ -630,7 +654,9 @@ class ThreadsAdapter(BasePostingAdapter):
             (By.XPATH, "//*[contains(text(), 'Забыли пароль') or contains(text(), 'Forgot password')]"),
         ]
 
-        for by, selector in login_locators:
+        # Generic "Log in" text may be rendered in an authenticated Threads shell.
+        # Only a visible password input is strong enough evidence of a logged-out session.
+        for by, selector in login_locators[:2]:
             try:
                 elements = driver.find_elements(by, selector)
             except WebDriverException:
@@ -728,9 +754,11 @@ class ThreadsAdapter(BasePostingAdapter):
                 last_error = exc
 
         if last_error is not None:
-            raise TimeoutException(f"Could not open Threads composer: {last_error}") from last_error
+            raise RetryablePostingException(
+                f"Could not open Threads composer: {last_error}"
+            ) from last_error
 
-        raise TimeoutException("Could not open Threads composer.")
+        raise RetryablePostingException("Could not open Threads composer.")
 
     def _is_composer_editor_present(self, driver: WebDriver) -> bool:
         return self._wait_for_composer_editor(driver, timeout_seconds=4) is not None

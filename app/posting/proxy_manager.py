@@ -42,6 +42,7 @@ IP_CHECK_URL = "https://api.ipify.org"
 ACCOUNT_POLL_SECONDS = 5
 ACCOUNT_DISCOVERY_INTERVAL_SECONDS = 30
 PROXY_FAILURE_RETRY_DELAY_SECONDS = 3 * 60
+TASK_RETRY_DELAY_SECONDS = 30
 SELENIUM_DEADLINE_SECONDS = settings.selenium_deadline_seconds
 MAX_CONCURRENT_BROWSERS = max(1, settings.max_concurrent_browsers)
 PROXY_FAILURE_THRESHOLD = max(1, settings.proxy_failure_threshold)
@@ -215,9 +216,20 @@ async def run_account_worker(account_id: int, proxy_url: str, stop_event: asynci
                         account_id,
                         exc,
                     )
-                else:
+                elif _is_proxy_failure_message(str(exc)):
                     await record_proxy_failure(account_id, str(exc))
-                await _sleep_or_stop(stop_event, PROXY_FAILURE_RETRY_DELAY_SECONDS)
+                else:
+                    logger.warning(
+                        "Account #%s task will retry after a transient browser/UI error: %s",
+                        account_id,
+                        exc,
+                    )
+                retry_delay = (
+                    PROXY_FAILURE_RETRY_DELAY_SECONDS
+                    if _is_proxy_failure_message(str(exc))
+                    else TASK_RETRY_DELAY_SECONDS
+                )
+                await _sleep_or_stop(stop_event, retry_delay)
             except Exception:
                 logger.exception("Account worker failed while executing %s task #%s.", task.kind, task.task_id)
             finally:
@@ -251,6 +263,8 @@ async def _run_claimed_task(task: BrowserTaskClaim, proxy_url: str, expected_ip:
 
         if _is_proxy_failure_message(posting_task.error_message):
             raise RetryablePostingException(posting_task.error_message or "Posting proxy failure.")
+        if posting_task.status == PostingTaskStatus.QUEUED and posting_task.error_message:
+            raise RetryablePostingException(posting_task.error_message)
         return
 
     if task.kind == "scraping":

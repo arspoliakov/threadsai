@@ -640,10 +640,15 @@ def parse_compact_count(value: str) -> int | None:
 
 
 def _parse_localized_number(value: str) -> float | None:
-    clean_value = value.replace(" ", "").replace(",", ".")
+    clean_value = value.replace(" ", "")
+    separators = clean_value.count(".") + clean_value.count(",")
 
-    if clean_value.count(".") > 1:
-        clean_value = clean_value.replace(".", "")
+    if separators == 1 and re.search(r"[,.]\d{3}$", clean_value):
+        clean_value = clean_value.replace(".", "").replace(",", "")
+    elif separators > 1:
+        clean_value = clean_value.replace(".", "").replace(",", "")
+    else:
+        clean_value = clean_value.replace(",", ".")
 
     try:
         return float(clean_value)

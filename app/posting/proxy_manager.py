@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.core.config import settings
 from app.db.models import (
@@ -378,12 +378,22 @@ async def claim_oldest_scraping_operation_for_account(account_id: int) -> int | 
         )
 
         for operation, account, _project in candidate_rows:
-            if operation.status != ProjectOperationStatus.QUEUED:
+            claim_result = await session.execute(
+                update(ProjectOperation)
+                .where(
+                    ProjectOperation.id == operation.id,
+                    ProjectOperation.status == ProjectOperationStatus.QUEUED,
+                )
+                .values(
+                    status=ProjectOperationStatus.RUNNING,
+                    message=f"Trend scraping is running on account #{account.id}.",
+                    finished_at=None,
+                )
+            )
+            if claim_result.rowcount != 1:
+                await session.commit()
                 continue
 
-            operation.status = ProjectOperationStatus.RUNNING
-            operation.message = f"Trend scraping is running on account #{account.id}."
-            operation.finished_at = None
             account.last_used_at = datetime.now(UTC)
             await session.commit()
             return operation.id

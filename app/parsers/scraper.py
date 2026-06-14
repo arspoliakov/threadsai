@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_THREADS_FEED_URL = "https://www.threads.net/"
 MAX_SCRAPED_POSTS = 30
-MAX_ACCEPTED_POSTS = 10
+MAX_ACCEPTED_POSTS = 5
 MAX_DOM_CONTAINERS_TO_PARSE = 50
 MIN_TEXT_LENGTH = 20
 MIN_LIKES_THRESHOLD = 10
@@ -196,6 +196,14 @@ class ThreadsTrendScraper:
             except StaleElementReferenceException:
                 logger.info("Вердикт: Отклонен (DOM устарел во время поиска лайков)")
                 continue
+            except (TypeError, ValueError, WebDriverException) as exc:
+                # One unusual engagement block must not abort the whole daily scrape.
+                logger.warning(
+                    "Лайки не удалось разобрать, пост сохранен по дефолту (%s): %s",
+                    preview,
+                    exc,
+                )
+                likes = None
 
             logger.info("Лайки: %s", likes if likes is not None else "не найдено")
 
@@ -601,11 +609,13 @@ def parse_likes_count(value: str) -> int | None:
 
 
 def parse_compact_count(value: str) -> int | None:
-    normalized_value = value.casefold().replace("\xa0", " ")
+    # Threads may expose several engagement counters in one block, e.g.
+    # "464\n26\n1". Newlines must not become part of a single number.
+    normalized_value = re.sub(r"[\r\n]+", " | ", value.casefold().replace("\xa0", " "))
     patterns = [
         r"(\d+(?:[,.]\d+)?)\s*(тыс\.?|тысяч|k)",
         r"(\d+(?:[,.]\d+)?)\s*(млн\.?|million|m)",
-        r"(?<![\w@])(\d[\d\s,.]*)(?![\w@])",
+        r"(?<![\w@])(\d[\d \t,.]*)(?![\w@])",
     ]
 
     for pattern in patterns:
@@ -614,6 +624,8 @@ def parse_compact_count(value: str) -> int | None:
             continue
 
         number = _parse_localized_number(match.group(1))
+        if number is None:
+            continue
         suffix = match.group(2) if len(match.groups()) > 1 else ""
 
         if suffix.startswith(("тыс", "k")):
@@ -627,13 +639,16 @@ def parse_compact_count(value: str) -> int | None:
     return None
 
 
-def _parse_localized_number(value: str) -> float:
+def _parse_localized_number(value: str) -> float | None:
     clean_value = value.replace(" ", "").replace(",", ".")
 
     if clean_value.count(".") > 1:
         clean_value = clean_value.replace(".", "")
 
-    return float(clean_value)
+    try:
+        return float(clean_value)
+    except ValueError:
+        return None
 
 
 def _sleep_with_deadline(seconds: float, deadline_at: float | None, adapter: ThreadsAdapter) -> None:

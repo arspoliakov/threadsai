@@ -1,7 +1,7 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const counterId = process.env.VITE_YANDEX_METRIKA_ID;
+const counterId = process.env.VITE_YANDEX_METRIKA_ID || await readEnvValue("VITE_YANDEX_METRIKA_ID");
 const dist = join(process.cwd(), "dist");
 
 if (!counterId) {
@@ -48,4 +48,17 @@ async function findHtmlFiles(dir) {
     else if (entry.isFile() && entry.name.endsWith(".html")) files.push(path);
   }
   return files;
+}
+
+async function readEnvValue(key) {
+  try {
+    const env = await readFile(join(process.cwd(), ".env"), "utf8");
+    const line = env
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .find((item) => item.startsWith(`${key}=`));
+    return line?.slice(key.length + 1).replace(/^["']|["']$/g, "");
+  } catch {
+    return undefined;
+  }
 }

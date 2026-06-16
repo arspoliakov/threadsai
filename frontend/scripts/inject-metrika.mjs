@@ -16,20 +16,20 @@ const headSnippet = `<!-- Yandex.Metrika counter -->
         m[i].l=1*new Date();
         for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
         k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=${counterId}', 'ym');
+    })(window, document,'script','https://mc.yandex.com/metrika/tag.js?id=${counterId}', 'ym');
 
     ym(${counterId}, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
 </script>
 <!-- /Yandex.Metrika counter -->`;
 
-const bodySnippet = `<noscript><div><img src="https://mc.yandex.ru/watch/${counterId}" style="position:absolute; left:-9999px;" alt="" /></div></noscript>`;
+const bodySnippet = `<noscript><div><img src="https://mc.yandex.com/watch/${counterId}" style="position:absolute; left:-9999px;" alt="" /></div></noscript>`;
 
 const htmlFiles = await findHtmlFiles(dist);
 let injected = 0;
 
 for (const file of htmlFiles) {
   let html = await readFile(file, "utf8");
-  if (html.includes(`mc.yandex.ru/metrika/tag.js?id=${counterId}`)) continue;
+  if (html.includes(`mc.yandex.com/metrika/tag.js?id=${counterId}`)) continue;
 
   html = html.replace("</head>", `${headSnippet}\n  </head>`);
   html = html.replace("<body>", `<body>\n    ${bodySnippet}`);

@@ -11,6 +11,7 @@ import {
   type AccountStatus,
   type Platform,
 } from "../../api/client";
+import { trackSeoEvent } from "../../components/SeoAnalytics";
 
 const THREADS_PLATFORM: Platform = "threads";
 const SESSION_USERNAME_PLACEHOLDER = "pending_from_session";
@@ -288,6 +289,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
         status: "active",
       });
       toast.success("Профиль добавлен");
+      trackSeoEvent("threads_connected", { method: authMode });
       await onCreated();
     } catch (submitError) {
       toast.error("Профиль не добавлен");
@@ -423,6 +425,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
           status: "active",
         });
         created += 1;
+        trackSeoEvent("threads_connected", { method: "bulk_cookies" });
       } catch (importError) {
         failed.push(`#${index + 1}: ${importError instanceof Error ? importError.message : "ошибка API"}`);
       } finally {

@@ -14,6 +14,7 @@ import {
   type ProjectAccountState,
 } from "../../api/client";
 import { DismissibleTip } from "../../components/DismissibleTip";
+import { trackSeoEvent } from "../../components/SeoAnalytics";
 
 const terminalStatuses: PostingTaskStatus[] = ["success", "partial_success", "failed", "cancelled"];
 
@@ -97,6 +98,7 @@ export default function ProjectQueuePage() {
         success: "Публикация запущена",
         error: "Не удалось запустить публикацию сейчас",
       });
+      trackSeoEvent("publication_requested", { project_id: projectId, task_id: taskId });
       await loadTasks({ silent: true });
     } finally {
       setPublishingId(null);
@@ -114,6 +116,7 @@ export default function ProjectQueuePage() {
         error: "Не удалось сохранить текст",
       });
       const updatedTask = await updatePromise;
+      trackSeoEvent("draft_approved", { project_id: projectId, task_id: taskId });
       setTasks((current) => sortTasks(current.map((task) => (task.id === taskId ? updatedTask : task))));
     } finally {
       setSavingId(null);
@@ -131,6 +134,7 @@ export default function ProjectQueuePage() {
         error: "Не удалось переписать пост",
       });
       const regeneratedTask = await regeneratePromise;
+      trackSeoEvent("draft_regenerated", { project_id: projectId, task_id: taskId });
       setTasks((current) => sortTasks(current.map((task) => (task.id === taskId ? regeneratedTask : task))));
       setExpandedTaskIds((current) => new Set(current).add(taskId));
     } finally {

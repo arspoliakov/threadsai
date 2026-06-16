@@ -16,6 +16,7 @@ import {
   type ProjectOperation,
 } from "../../api/client";
 import { DismissibleTip } from "../../components/DismissibleTip";
+import { trackSeoEvent } from "../../components/SeoAnalytics";
 
 type RunningAction = "scraping" | "generation" | null;
 
@@ -137,6 +138,7 @@ export default function ProjectOverviewPage() {
 
     try {
       const result = await triggerGeneration(projectId);
+      trackSeoEvent("draft_created", { project_id: projectId, task_id: result.task_id });
       setStatusMessage(`Пост готов и добавлен в расписание: публикация #${result.task_id}.`);
       toast.success(`Пост добавлен в расписание: #${result.task_id}`);
       await loadDashboard();

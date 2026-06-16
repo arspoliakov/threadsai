@@ -12,6 +12,7 @@ import {
 } from "../api/client";
 import { BotStatusCard } from "../components/BotStatusCard";
 import { DismissibleTip } from "../components/DismissibleTip";
+import { trackSeoEvent } from "../components/SeoAnalytics";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -54,6 +55,7 @@ export default function Dashboard() {
     );
 
     setIsCreateOpen(false);
+    trackSeoEvent("project_created", { source: "dashboard" });
     await loadSummary({ silent: true });
   }
 

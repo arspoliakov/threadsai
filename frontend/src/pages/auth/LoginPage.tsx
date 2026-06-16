@@ -10,6 +10,7 @@ import {
   setStoredAuthToken,
 } from "../../api/client";
 import { isAuthenticated } from "../../auth";
+import { getSeoAttribution, trackSeoEvent } from "../../components/SeoAnalytics";
 
 type LocationState = {
   from?: string;
@@ -44,10 +45,10 @@ export default function LoginPage() {
   const [widgetKey, setWidgetKey] = useState(0);
   const [widgetStatus, setWidgetStatus] = useState<"loading" | "ready" | "failed">("loading");
   const [termsAccepted, setTermsAccepted] = useState(
-    () => window.localStorage.getItem(TERMS_ACCEPTED_STORAGE_KEY) === "true",
+    () => typeof window !== "undefined" && window.localStorage.getItem(TERMS_ACCEPTED_STORAGE_KEY) === "true",
   );
   const [metaNoticeAccepted, setMetaNoticeAccepted] = useState(
-    () => window.localStorage.getItem(META_NOTICE_ACCEPTED_STORAGE_KEY) === "true",
+    () => typeof window !== "undefined" && window.localStorage.getItem(META_NOTICE_ACCEPTED_STORAGE_KEY) === "true",
   );
   const canLogin = termsAccepted && metaNoticeAccepted;
 
@@ -59,6 +60,7 @@ export default function LoginPage() {
       try {
         const response = await loginWithTelegram(user);
         setStoredAuthToken(response.access_token);
+        trackSeoEvent("registration_complete", getSeoAttribution());
         toast.success("Вход через Telegram выполнен");
         navigate(state?.from || "/app", { replace: true });
       } catch (telegramError) {
@@ -97,6 +99,7 @@ export default function LoginPage() {
         webApp?.expand?.();
         const response = await loginWithTelegramWebApp(initData);
         setStoredAuthToken(response.access_token);
+        trackSeoEvent("registration_complete", getSeoAttribution());
         toast.success("Вход через Telegram выполнен");
         navigate(state?.from || "/app", { replace: true });
         return true;

@@ -1,25 +1,36 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 
-import GlobalLayout from "./layouts/GlobalLayout";
-import ProjectLayout from "./layouts/ProjectLayout";
+import SeoAnalytics from "./components/SeoAnalytics";
 import ProtectedRoute from "./ProtectedRoute";
-import Dashboard from "./pages/Dashboard";
-import BillingPage from "./pages/BillingPage";
 import LandingPage from "./pages/LandingPage";
 import TermsPage from "./pages/TermsPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import LoginPage from "./pages/auth/LoginPage";
-import InfrastructurePage from "./pages/global/InfrastructurePage";
-import GlobalSettingsPage from "./pages/global/GlobalSettingsPage";
-import HowItWorksPage from "./pages/global/HowItWorksPage";
-import ProjectOverviewPage from "./pages/project/ProjectOverviewPage";
-import ProjectQueuePage from "./pages/project/ProjectQueuePage";
-import ProjectTrendsPage from "./pages/project/ProjectTrendsPage";
-import ProjectSettingsPage from "./pages/project/ProjectSettingsPage";
+import { seoLandingRoutePaths } from "./seo/routes";
+
+const SeoHead = lazy(() => import("./components/SeoHead"));
+const SeoLandingPage = lazy(() => import("./pages/seo/SeoLandingPage"));
+const ArticlePage = lazy(() => import("./pages/seo/ArticlePage"));
+const GlobalLayout = lazy(() => import("./layouts/GlobalLayout"));
+const ProjectLayout = lazy(() => import("./layouts/ProjectLayout"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const BillingPage = lazy(() => import("./pages/BillingPage"));
+const InfrastructurePage = lazy(() => import("./pages/global/InfrastructurePage"));
+const GlobalSettingsPage = lazy(() => import("./pages/global/GlobalSettingsPage"));
+const HowItWorksPage = lazy(() => import("./pages/global/HowItWorksPage"));
+const ProjectOverviewPage = lazy(() => import("./pages/project/ProjectOverviewPage"));
+const ProjectQueuePage = lazy(() => import("./pages/project/ProjectQueuePage"));
+const ProjectTrendsPage = lazy(() => import("./pages/project/ProjectTrendsPage"));
+const ProjectSettingsPage = lazy(() => import("./pages/project/ProjectSettingsPage"));
 
 export default function App() {
   return (
     <>
+      <Suspense fallback={null}><SeoHead /></Suspense>
+      <SeoAnalytics />
       <Toaster
         position="top-right"
         richColors
@@ -28,10 +39,16 @@ export default function App() {
             "rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] text-[#151515] shadow-sm",
         }}
       />
-      <Routes>
+      <Suspense fallback={<div className="min-h-screen bg-[#f5f6f1]" />}>
+        <Routes>
         <Route index element={<LandingPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="terms" element={<TermsPage />} />
+        <Route path="privacy" element={<PrivacyPage />} />
+        {seoLandingRoutePaths.map((path) => (
+          <Route key={path} path={path} element={<SeoLandingPage />} />
+        ))}
+        <Route path="blog/*" element={<ArticlePage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="app" element={<GlobalLayout />}>
@@ -53,8 +70,9 @@ export default function App() {
         <Route path="infrastructure" element={<Navigate to="/app/infrastructure" replace />} />
         <Route path="settings" element={<Navigate to="/app/settings" replace />} />
         <Route path="projects/:id/*" element={<Navigate to="/app" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }

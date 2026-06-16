@@ -9,6 +9,7 @@ export const apiClient = axios.create({
 });
 
 export function getStoredAuthToken() {
+  if (typeof window === "undefined") return null;
   return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 }
 

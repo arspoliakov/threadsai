@@ -14,6 +14,10 @@ class ProxyNetworkException(RetryablePostingException):
     """Raised when proxy/network transport fails during a browser task."""
 
 
+class PublicationVerificationPending(RuntimeError):
+    """Raised when Threads likely accepted a post, but profile verification timed out."""
+
+
 class ThreadChainPartialSuccess(RuntimeError):
     """Raised when a thread chain published at least one item but failed later."""
 

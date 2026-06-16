@@ -7,7 +7,12 @@ from sqlalchemy.orm import joinedload
 from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project
 from app.posting.adapters.base import BasePostingAdapter
 from app.posting.adapters.threads import ThreadsAdapter
-from app.posting.exceptions import RetryablePostingException, SessionExpiredException, ThreadChainPartialSuccess
+from app.posting.exceptions import (
+    PublicationVerificationPending,
+    RetryablePostingException,
+    SessionExpiredException,
+    ThreadChainPartialSuccess,
+)
 from app.posting.scheduler import schedule_account_queue_refill
 from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.telegram.notifications import send_user_notification
@@ -106,6 +111,10 @@ async def execute_posting_task(
     except ThreadChainPartialSuccess as exc:
         error_message = str(exc)
         await _mark_partial_success(session, task, account, error_message, exc.published_count)
+        return task
+    except PublicationVerificationPending as exc:
+        error_message = str(exc)
+        await _mark_partial_success(session, task, account, error_message, 1)
         return task
     except RetryablePostingException as exc:
         error_message = str(exc)

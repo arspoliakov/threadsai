@@ -10,6 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from app.api import auth
 from app.api.auth import limiter
+from app.core.config import settings
 from app.api.middleware.error_reporting import ErrorReportingMiddleware
 from app.api.routes import accounts, billing, dashboard, health, projects, prompts, tasks, trends
 from app.posting.proxy_manager import ProxyManager
@@ -24,7 +25,9 @@ proxy_manager = ProxyManager()
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
     polling_task: asyncio.Task[None] | None = asyncio.create_task(start_bot_polling())
-    admin_polling_task: asyncio.Task[None] | None = asyncio.create_task(start_admin_bot_polling())
+    admin_polling_task: asyncio.Task[None] | None = None
+    if settings.enable_admin_bot_polling:
+        admin_polling_task = asyncio.create_task(start_admin_bot_polling())
     setup_posting_scheduler()
     scheduler.start()
     proxy_manager.start()

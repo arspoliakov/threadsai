@@ -43,6 +43,10 @@ class Settings(BaseSettings):
         default="",
         validation_alias="ADMIN_BOT_TOKEN",
     )
+    enable_admin_bot_polling: bool = Field(
+        default=False,
+        validation_alias="ENABLE_ADMIN_BOT_POLLING",
+    )
     admin_tg_id: int | None = Field(
         default=None,
         validation_alias="ADMIN_TG_ID",

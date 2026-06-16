@@ -33,6 +33,7 @@ from app.db.models import Account, PostingTask
 from app.core.config import settings
 from app.posting.adapters.base import BasePostingAdapter, PublishResult
 from app.posting.exceptions import (
+    PublicationVerificationPending,
     PostingDeadlineExceeded,
     ProxyNetworkException,
     SessionExpiredException,
@@ -208,7 +209,13 @@ class ThreadsAdapter(BasePostingAdapter):
                     detected_username=detected_username,
                     external_post_url=published_post_url,
                 )
-            except (PostingDeadlineExceeded, ProxyNetworkException, SessionExpiredException, ThreadChainPartialSuccess):
+            except (
+                PostingDeadlineExceeded,
+                ProxyNetworkException,
+                PublicationVerificationPending,
+                SessionExpiredException,
+                ThreadChainPartialSuccess,
+            ):
                 raise
             except Exception as exc:
                 self._raise_if_proxy_ip_changed(ip_watchdog)
@@ -903,7 +910,7 @@ class ThreadsAdapter(BasePostingAdapter):
             raise RuntimeError("Threads publication could not be verified because the post text is empty.")
 
         profile_url = f"{self.BASE_URL.rstrip('/')}/@{normalized_username}"
-        for attempt in range(4):
+        for attempt in range(5):
             self._raise_if_deadline_exceeded(deadline_at)
             self._raise_if_proxy_ip_changed(ip_watchdog)
             driver.get(profile_url)
@@ -921,12 +928,12 @@ class ThreadsAdapter(BasePostingAdapter):
             ):
                 return _normalize_threads_post_url(post_url)
 
-            if attempt < 3:
-                time.sleep(4)
+            if attempt < 4:
+                time.sleep(5)
 
-        raise RuntimeError(
-            "Threads did not show the published post in the account profile. "
-            "The task was not marked successful to avoid a false success."
+        raise PublicationVerificationPending(
+            "Threads принял отправку поста, но не показал его в профиле до истечения окна проверки. "
+            "Задача помечена как частично успешная, чтобы не создавать ложный failed и не дублировать публикацию."
         )
 
     def _get_profile_post_urls(self, driver: WebDriver, *, username: str | None) -> set[str]:
@@ -1221,8 +1228,8 @@ class ThreadsAdapter(BasePostingAdapter):
         action_name: str,
         action: Callable[[], T],
         *,
-        retries: int = 3,
-        retry_delay_seconds: float = 0.35,
+        retries: int = 5,
+        retry_delay_seconds: float = 0.5,
     ) -> T:
         last_error: Exception | None = None
 

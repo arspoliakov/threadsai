@@ -89,6 +89,8 @@ function mountYandexMetrika() {
   if (!YANDEX_METRIKA_ID || typeof document === "undefined") return;
   const counterId = getYandexCounterId();
   if (!counterId) return;
+  const existingScript = document.querySelector(`script[src="https://mc.yandex.ru/metrika/tag.js?id=${counterId}"]`);
+  if (existingScript) return;
 
   window.ym =
     window.ym ||

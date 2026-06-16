@@ -14,6 +14,7 @@ import { seoLandingRoutePaths } from "./seo/routes";
 const SeoHead = lazy(() => import("./components/SeoHead"));
 const SeoLandingPage = lazy(() => import("./pages/seo/SeoLandingPage"));
 const ArticlePage = lazy(() => import("./pages/seo/ArticlePage"));
+const ResourcesPage = lazy(() => import("./pages/seo/ResourcesPage"));
 const GlobalLayout = lazy(() => import("./layouts/GlobalLayout"));
 const ProjectLayout = lazy(() => import("./layouts/ProjectLayout"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="login" element={<LoginPage />} />
         <Route path="terms" element={<TermsPage />} />
         <Route path="privacy" element={<PrivacyPage />} />
+        <Route path="resources/" element={<ResourcesPage />} />
         {seoLandingRoutePaths.map((path) => (
           <Route key={path} path={path} element={<SeoLandingPage />} />
         ))}

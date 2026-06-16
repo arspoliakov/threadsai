@@ -241,6 +241,18 @@ export const seoPages: SeoPage[] = [
     updatedAt: "2026-06-14",
   },
   {
+    path: "/resources/",
+    title: "Ресурсы ThreadsGo: инструменты, статьи и страницы по Threads",
+    description:
+      "Все SEO-материалы ThreadsGo в одном месте: бесплатные инструменты, статьи про Threads, страницы по нишам, автопостинг, тренды и личный бренд.",
+    h1: "Все материалы и инструменты ThreadsGo",
+    lead:
+      "Один хаб для бесплатных инструментов, гайдов, нишевых страниц и разборов того, как вести Threads регулярнее и понятнее.",
+    kind: "hub",
+    index: true,
+    updatedAt: "2026-06-17",
+  },
+  {
     path: "/blog/",
     title: "Блог о ведении и продвижении Threads | ThreadsGo",
     description:

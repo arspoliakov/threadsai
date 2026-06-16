@@ -13,7 +13,10 @@ export default function ArticlePage() {
       <header className="border-b border-[#d9ddd4] bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 sm:px-8">
           <Link to="/" className="flex items-center gap-3 font-display text-2xl"><img src="/threadsgo-logo.png" alt="" className="h-9 w-9" />ThreadsGo</Link>
-          <Link to="/threads-ideas-generator/" className="rounded-full bg-[#07100e] px-5 py-3 text-sm text-white">Найти идеи</Link>
+          <div className="flex items-center gap-4 text-sm">
+            <Link to="/resources/" className="hidden text-[#526056] hover:text-[#07100e] sm:block">Ресурсы</Link>
+            <Link to="/threads-ideas-generator/" className="rounded-full bg-[#07100e] px-5 py-3 text-white">Найти идеи</Link>
+          </div>
         </div>
       </header>
 

@@ -16,6 +16,7 @@ const requiredPaths = [
   "/threads-scheduler/",
   "/threads-hook-analyzer/",
   "/personal-brand-strategy-generator/",
+  "/resources/",
   "/personal-brand/",
   "/personal-brand-for-experts/",
   "/for-smm/",

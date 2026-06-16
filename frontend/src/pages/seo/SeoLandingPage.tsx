@@ -28,6 +28,9 @@ export default function SeoLandingPage() {
             <Link to="/blog/" className="hidden text-[#526056] hover:text-[#07100e] sm:block">
               Блог
             </Link>
+            <Link to="/resources/" className="hidden text-[#526056] hover:text-[#07100e] sm:block">
+              Ресурсы
+            </Link>
             <Link to="/login" className="rounded-full bg-[#07100e] px-5 py-3 text-white hover:bg-[#17382b]">
               Начать
             </Link>

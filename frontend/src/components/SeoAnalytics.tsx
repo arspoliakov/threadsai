@@ -97,7 +97,11 @@ function mountYandexMetrika() {
     };
   window.ym.l = Date.now();
   window.ym(counterId, "init", {
+    ssr: true,
     clickmap: true,
+    ecommerce: "dataLayer",
+    referrer: document.referrer,
+    url: window.location.href,
     trackLinks: true,
     accurateTrackBounce: true,
     webvisor: true,
@@ -105,7 +109,7 @@ function mountYandexMetrika() {
 
   const script = document.createElement("script");
   script.async = true;
-  script.src = "https://mc.yandex.ru/metrika/tag.js";
+  script.src = `https://mc.yandex.ru/metrika/tag.js?id=${counterId}`;
   document.head.appendChild(script);
 }
 

@@ -28,6 +28,8 @@ const htmlFiles = await findHtmlFiles(dist);
 let injected = 0;
 
 for (const file of htmlFiles) {
+  if (/[/\\]yandex_[^/\\]+\.html$/.test(file)) continue;
+
   let html = await readFile(file, "utf8");
   if (html.includes(`mc.yandex.com/metrika/tag.js?id=${counterId}`)) continue;
 

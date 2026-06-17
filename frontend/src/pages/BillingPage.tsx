@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getBillingStatus, type BillingStatus } from "../api/client";
+import { trackSeoEvent } from "../components/SeoAnalytics";
 
 const planCopy = {
   basic: {
@@ -34,6 +35,7 @@ export default function BillingPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    trackSeoEvent("billing_view", { source: "billing_page" });
     void getBillingStatus()
       .then(setBilling)
       .finally(() => setIsLoading(false));
@@ -96,6 +98,7 @@ export default function BillingPage() {
                   href={plan.tribute_url}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => trackSeoEvent("tribute_click", { plan: plan.name, source: "billing_page" })}
                   className="mt-6 flex h-12 items-center justify-center rounded-full bg-[#111] px-5 text-sm font-semibold text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
                 >
                   Перейти в Tribute

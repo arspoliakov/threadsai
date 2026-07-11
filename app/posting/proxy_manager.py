@@ -386,7 +386,7 @@ async def claim_oldest_scraping_operation_for_account(account_id: int) -> int | 
                 )
                 .values(
                     status=ProjectOperationStatus.RUNNING,
-                    message=f"Trend scraping is running on account #{account.id}.",
+                    message="Система изучает ленту Threads и отбирает идеи.",
                     finished_at=None,
                 )
             )
@@ -418,7 +418,7 @@ async def release_claimed_task(task: BrowserTaskClaim, error_message: str) -> No
             if operation is not None and operation.status == ProjectOperationStatus.RUNNING:
                 operation.status = ProjectOperationStatus.QUEUED
                 operation.finished_at = None
-                operation.message = error_message
+                operation.message = "Сбор идей временно отложен и будет продолжен автоматически."
                 await session.commit()
 
 
@@ -453,8 +453,8 @@ async def execute_scraping_operation(
             )
             operation.status = ProjectOperationStatus.SUCCESS
             operation.message = (
-                f"Trend analysis completed: collected {len(scrape_result.raw_posts)}, "
-                f"saved {len(saved_trends)}."
+                f"Подборка обновлена: изучено {len(scrape_result.raw_posts)}, "
+                f"сохранено идей — {len(saved_trends)}."
             )
             operation.result_json = {
                 "collected_posts_count": len(scrape_result.raw_posts),
@@ -469,7 +469,7 @@ async def execute_scraping_operation(
             retry_operation = await session.get(ProjectOperation, operation_id)
             if retry_operation is not None:
                 retry_operation.status = ProjectOperationStatus.QUEUED
-                retry_operation.message = f"Retryable browser/proxy error during trend scraping: {exc}"
+                retry_operation.message = "Сбор идей временно отложен и продолжится автоматически."
                 retry_operation.result_json = {"error": str(exc), "retryable": True}
                 retry_operation.finished_at = None
                 await session.commit()
@@ -481,7 +481,7 @@ async def execute_scraping_operation(
 
             if failed_operation is not None:
                 failed_operation.status = ProjectOperationStatus.FAILED
-                failed_operation.message = f"Trend analysis failed: {exc}"
+                failed_operation.message = "Подборку не удалось обновить. Ошибка уже отправлена команде."
                 failed_operation.result_json = {"error": str(exc)}
                 failed_operation.finished_at = datetime.now(UTC)
                 await session.commit()

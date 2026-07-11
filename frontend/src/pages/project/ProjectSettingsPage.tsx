@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import {
   checkAccountSession,
+  getApiErrorMessage,
   getAccounts,
   getProjectDashboard,
   unlinkAccount,
@@ -63,9 +64,11 @@ export default function ProjectSettingsPage() {
   const [savingCookiesId, setSavingCookiesId] = useState<number | null>(null);
   const [checkingAccountId, setCheckingAccountId] = useState<number | null>(null);
   const [unlinkingAccountId, setUnlinkingAccountId] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function loadSettings({ silent = false }: { silent?: boolean } = {}) {
     setIsLoading(true);
+    setLoadError(null);
 
     try {
       const [accountsResult, dashboardResult] = await Promise.all([
@@ -89,8 +92,10 @@ export default function ProjectSettingsPage() {
       if (!silent) {
         toast.success("Настройки обновлены");
       }
-    } catch {
-      toast.error("Не удалось загрузить настройки проекта");
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Не удалось загрузить настройки проекта.");
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -123,7 +128,7 @@ export default function ProjectSettingsPage() {
       await toast.promise(updateAccount(Number(selectedAccountId), { project_id: projectId }), {
         loading: "Добавляем профиль...",
         success: "Профиль добавлен в проект",
-        error: "Не удалось добавить профиль",
+        error: (error) => getApiErrorMessage(error, "Не удалось добавить профиль."),
       });
       setSelectedAccountId("");
       await loadSettings({ silent: true });
@@ -152,7 +157,7 @@ export default function ProjectSettingsPage() {
       toast.promise(savePromise, {
         loading: "Сохраняем настройки проекта...",
         success: "Контекст проекта сохранен",
-        error: "Не удалось сохранить контекст проекта",
+        error: (error) => getApiErrorMessage(error, "Не удалось сохранить описание проекта."),
       });
       const savedProject = await savePromise;
       setProject(savedProject);
@@ -179,7 +184,7 @@ export default function ProjectSettingsPage() {
       toast.promise(savePromise, {
         loading: "Сохраняем запрещенные слова...",
         success: "Запрещенные слова сохранены",
-        error: "Не удалось сохранить запрещенные слова",
+        error: (error) => getApiErrorMessage(error, "Не удалось сохранить запрещённые слова."),
       });
       const savedProject = await savePromise;
       setProject(savedProject);
@@ -207,7 +212,7 @@ export default function ProjectSettingsPage() {
       toast.promise(savePromise, {
         loading: "Сохраняем настройки публикаций...",
         success: "Настройки публикаций сохранены",
-        error: "Не удалось сохранить настройки публикаций",
+        error: (error) => getApiErrorMessage(error, "Не удалось сохранить расписание публикаций."),
       });
       const savedProject = await savePromise;
       setProject(savedProject);
@@ -238,9 +243,9 @@ export default function ProjectSettingsPage() {
         last_error: null,
       });
       toast.promise(savePromise, {
-        loading: "Обновляем cookies...",
-        success: "Cookies обновлены",
-        error: "Не удалось обновить cookies",
+        loading: "Обновляем данные входа...",
+        success: "Данные входа обновлены",
+        error: (error) => getApiErrorMessage(error, "Не удалось обновить данные входа."),
       });
       await savePromise;
       await loadSettings({ silent: true });
@@ -255,9 +260,9 @@ export default function ProjectSettingsPage() {
     try {
       const checkPromise = checkAccountSession(accountId);
       toast.promise(checkPromise, {
-        loading: "Проверяем сессию Threads...",
+        loading: "Проверяем доступ к Threads...",
         success: (result) => result.message,
-        error: "Не удалось проверить сессию. Попробуйте ещё раз или обновите cookies.",
+        error: (error) => getApiErrorMessage(error, "Не удалось проверить доступ. Попробуйте ещё раз или обновите данные входа."),
       });
       await checkPromise;
       await loadSettings({ silent: true });
@@ -273,7 +278,7 @@ export default function ProjectSettingsPage() {
       await toast.promise(unlinkAccount(accountId), {
         loading: "Отключаем профиль...",
         success: "Профиль отключен от проекта",
-        error: "Не удалось отключить профиль",
+        error: (error) => getApiErrorMessage(error, "Не удалось отключить профиль."),
       });
       await loadSettings({ silent: true });
     } finally {
@@ -291,7 +296,21 @@ export default function ProjectSettingsPage() {
         </p>
       </header>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      {loadError ? (
+        <div className="rounded-[24px] border border-[#e8c7c2] bg-[#fff7f5] p-6 shadow-sm">
+          <h2 className="font-display text-3xl text-[#111]">Настройки пока не загрузились</h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-[#665d5a]">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => void loadSettings({ silent: true })}
+            className="mt-5 h-11 rounded-full bg-[#151515] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
+          >
+            Попробовать снова
+          </button>
+        </div>
+      ) : null}
+
+      <div className={`${loadError && !project ? "hidden" : "grid"} gap-4 xl:grid-cols-[1.2fr_0.8fr]`}>
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <div className="grid gap-5 lg:grid-cols-[1fr_480px]">
             <div>
@@ -682,7 +701,7 @@ function AccountCard({
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton onClick={onCheckSession} disabled={isChecking || isUnlinking}>
-            {isChecking ? "проверяем..." : sessionNeedsUpdate ? "Проверить и возобновить" : "Проверить сессию"}
+            {isChecking ? "проверяем..." : sessionNeedsUpdate ? "Проверить и возобновить" : "Проверить доступ"}
           </ActionButton>
           <ActionButton danger onClick={onUnlink} disabled={isChecking || isUnlinking}>
             {isUnlinking ? "отключаем..." : "Отвязать от проекта"}
@@ -691,9 +710,10 @@ function AccountCard({
       </div>
 
       {account.last_error ? (
-        <p className="mt-4 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
-          {account.last_error}
-        </p>
+        <details className="mt-4 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-xs leading-5 text-[#7a625f]">
+          <summary className="cursor-pointer font-medium text-[#8a2d25]">Показать техническую информацию для поддержки</summary>
+          <p className="mt-2 break-words">{account.last_error}</p>
+        </details>
       ) : null}
 
       {proxyPaused ? (
@@ -708,14 +728,14 @@ function AccountCard({
           <div className="rounded-2xl border border-[#d88a35]/40 bg-white/70 p-4 text-sm leading-6 text-[#4a2b08]">
             <p className="font-semibold text-[#24231f]">Публикации по этому профилю поставлены на паузу.</p>
             <p className="mt-2">
-              Это защитный режим: Threads мог показать экран проверки, composer мог не открыться,
-              или cookies могли устареть. Мы не делаем бесконечные ретраи, чтобы не ухудшать состояние аккаунта.
+              Это защитный режим: Threads мог показать экран проверки, окно публикации могло не открыться
+              или данные входа могли устареть. Мы не повторяем попытки бесконечно, чтобы не ухудшать состояние аккаунта.
             </p>
             <ol className="mt-3 list-decimal space-y-1 pl-5">
               <li>Откройте Threads вручную в этом профиле и убедитесь, что аккаунт живой.</li>
               <li>Если Meta просит проверку или вход, пройдите её руками.</li>
               <li>Если проверка прошла, нажмите «Проверить и возобновить».</li>
-              <li>Если не помогло, экспортируйте свежие cookies и сохраните их ниже.</li>
+              <li>Если не помогло, экспортируйте свежие cookies и обновите данные входа ниже.</li>
             </ol>
           </div>
           <textarea
@@ -733,7 +753,7 @@ function AccountCard({
               className="flex items-center gap-2 rounded-2xl border border-[#4a2b08] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#4a2b08] transition hover:bg-[#4a2b08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSavingCookies ? <Spinner /> : null}
-              Обновить cookies
+              Обновить данные входа
             </button>
             <button
               type="button"
@@ -910,13 +930,13 @@ function TagInput({
 }
 
 const statusLabels: Record<AccountStatus, string> = {
-  active: "Подключено",
-  disabled: "выключен",
-  error: "ошибка",
-  warming_up: "прогрев",
-  cookies_expired: "cookies истекли",
-  blocked: "заблокирован",
-  proxy_error: "техническая пауза",
+  active: "Готов к работе",
+  disabled: "Приостановлен",
+  error: "Нужна проверка",
+  warming_up: "Подготавливается",
+  cookies_expired: "Нужен повторный вход",
+  blocked: "Недоступен в Threads",
+  proxy_error: "Автопауза: проверяем прокси",
 };
 
 function formatUsername(username: string) {

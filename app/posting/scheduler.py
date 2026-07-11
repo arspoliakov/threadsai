@@ -293,7 +293,7 @@ async def analyze_daily_trends() -> None:
                         owner_id=project.owner_id,
                         action_type=ProjectOperationType.SCRAPING,
                         status=ProjectOperationStatus.QUEUED,
-                        message="Scheduled trend scraping queued for the next safe browser window.",
+                        message="Плановый сбор идей поставлен в очередь.",
                     )
                 )
                 await session.commit()

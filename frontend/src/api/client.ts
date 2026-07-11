@@ -72,12 +72,8 @@ apiClient.interceptors.response.use(
     }
 
     if (error?.response?.status >= 500) {
-      const detail = error?.response?.data?.detail;
       const errorId = error?.response?.data?.error_id;
-      const message =
-        typeof detail === "string"
-          ? detail
-          : "Произошла ошибка на сервере. Лог уже отправлен админу, мы разбираемся.";
+      const message = "Что-то пошло не так. Ошибка уже отправлена команде, мы разбираемся.";
 
       toast.error(errorId ? `${message} Код: ${errorId}` : message, {
         id: errorId ? `api-error-${errorId}` : "api-error-reported",
@@ -94,9 +90,26 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
     return fallback;
   }
 
+  if (!error.response) {
+    return "Не удалось связаться с ThreadsGo. Проверьте интернет и попробуйте ещё раз.";
+  }
+
+  if (error.response.status >= 500) {
+    const errorId = error.response.data?.error_id;
+    return errorId
+      ? `Ошибка уже отправлена команде. Код обращения: ${errorId}.`
+      : "Ошибка уже отправлена команде. Попробуйте ещё раз немного позже.";
+  }
+
   const detail = error.response?.data?.detail;
   if (typeof detail === "string" && detail.trim()) {
-    return detail;
+    const safeMessages: Record<string, string> = {
+      "Project not found": "Проект не найден или уже удалён.",
+      "Account not found": "Профиль Threads не найден или уже удалён.",
+      "Posting task not found": "Публикация не найдена или уже удалена.",
+      "Telegram user is not approved yet": "Доступ к кабинету ещё не одобрен. Напишите в поддержку.",
+    };
+    return safeMessages[detail] || fallback;
   }
 
   if (detail && typeof detail === "object") {
@@ -250,6 +263,8 @@ export type DashboardProjectSummary = {
   name: string;
   published_count: number;
   next_post_time: string | null;
+  active_accounts_count: number;
+  paused_accounts_count: number;
   avg_engagement: number | null;
 };
 

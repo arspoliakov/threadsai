@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
+  getApiErrorMessage,
   getActiveGlobalPrompts,
   getLatestProjectOperation,
   getProjectDashboard,
@@ -49,9 +50,10 @@ export default function ProjectOverviewPage() {
       setDashboard(dashboardResult);
       setOperations(operationsResult);
       setHasGlobalPrompt(promptsResult.some((prompt) => prompt.is_active && prompt.body.trim().length > 0));
-    } catch {
-      toast.error("Не удалось загрузить сводку проекта");
-      setError("Не удалось загрузить сводку проекта.");
+    } catch (loadError) {
+      const message = getApiErrorMessage(loadError, "Не удалось загрузить проект. Попробуйте ещё раз.");
+      toast.error(message);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -124,9 +126,10 @@ export default function ProjectOverviewPage() {
       toast.success("Сбор идей запущен в фоне");
       await refreshScrapingOperation();
       await loadDashboard();
-    } catch {
-      toast.error("Не удалось запустить сбор идей");
-      setError("Не удалось запустить сбор идей.");
+    } catch (scrapingError) {
+      const message = getApiErrorMessage(scrapingError, "Не удалось запустить сбор идей.");
+      toast.error(message);
+      setError(message);
       setRunningAction(null);
     }
   }
@@ -142,9 +145,10 @@ export default function ProjectOverviewPage() {
       setStatusMessage(`Пост готов и добавлен в расписание: публикация #${result.task_id}.`);
       toast.success(`Пост добавлен в расписание: #${result.task_id}`);
       await loadDashboard();
-    } catch {
-      toast.error("Не удалось сгенерировать пост");
-      setError("Не удалось сгенерировать пост.");
+    } catch (generationError) {
+      const message = getApiErrorMessage(generationError, "Не удалось подготовить пост.");
+      toast.error(message);
+      setError(message);
     } finally {
       setRunningAction(null);
     }
@@ -152,7 +156,7 @@ export default function ProjectOverviewPage() {
 
   return (
     <section className="space-y-5">
-      <header className="grid gap-4 border border-[#c9c9c3] bg-white p-5 md:grid-cols-[1fr_auto] sm:p-6">
+      <header className="grid gap-4 rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm md:grid-cols-[1fr_auto] sm:p-6">
         <div>
           <h1 className="font-display text-4xl leading-none">
             {dashboard?.project.name || "Обзор проекта"}
@@ -166,20 +170,21 @@ export default function ProjectOverviewPage() {
           <button
             type="button"
             onClick={() => setIsEditOpen(true)}
-            className="h-11 self-end border border-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] transition hover:bg-[#151515] hover:text-white"
+            className="h-11 self-end rounded-full border border-[#151515] px-5 text-sm transition hover:bg-[#151515] hover:text-white"
           >
             Редактировать проект
           </button>
         ) : null}
       </header>
 
-      <div className="grid gap-px border border-[#c9c9c3] bg-[#c9c9c3] md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <ActionPanel
           title="Обновить идеи для постов"
           description="Нейросеть изучит, о чем сейчас говорят в ленте Threads, и подберет актуальные темы. На их основе мы будем создавать ваши посты."
           buttonText="Обновить идеи для постов"
           isLoading={runningAction === "scraping"}
-          isDisabled={runningAction !== null || isLoading}
+          isDisabled={runningAction !== null || isLoading || !hasActiveAccount(dashboard)}
+          disabledReason={!hasActiveAccount(dashboard) ? "Сначала подключите рабочий профиль Threads" : undefined}
           onClick={() => void handleTriggerScraping()}
         />
         <ActionPanel
@@ -187,7 +192,8 @@ export default function ProjectOverviewPage() {
           description="Нейросеть создаст новый пост, опираясь на вашу тему, выбранный стиль и актуальные идеи. Пост сразу добавится в расписание публикаций."
           buttonText="Добавить новый пост в план"
           isLoading={runningAction === "generation"}
-          isDisabled={runningAction !== null || isLoading}
+          isDisabled={runningAction !== null || isLoading || !hasActiveAccount(dashboard)}
+          disabledReason={!hasActiveAccount(dashboard) ? "Сначала подключите рабочий профиль Threads" : undefined}
           onClick={() => void handleTriggerGeneration()}
         />
       </div>
@@ -481,6 +487,7 @@ function ActionPanel({
   buttonText,
   isLoading,
   isDisabled,
+  disabledReason,
   onClick,
 }: {
   title: string;
@@ -488,21 +495,25 @@ function ActionPanel({
   buttonText: string;
   isLoading: boolean;
   isDisabled: boolean;
+  disabledReason?: string;
   onClick: () => void;
 }) {
   return (
-    <article className="bg-white p-5">
+    <article className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm sm:p-6">
       <h2 className="font-display text-3xl">{title}</h2>
       <p className="mt-3 text-sm leading-6 text-[#66645d]">{description}</p>
       <button
         type="button"
         onClick={onClick}
         disabled={isDisabled}
-        className="mt-5 flex w-full items-center justify-center gap-3 border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition-all duration-200 ease-in-out hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+        className="mt-5 flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-[#151515] bg-[#151515] px-5 py-3 text-sm text-white transition-all duration-200 ease-in-out hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isLoading ? <Spinner /> : null}
         {isLoading ? "Идет" : buttonText}
       </button>
+      {disabledReason ? (
+        <p className="mt-3 text-center text-xs leading-5 text-[#7a8179]">{disabledReason}</p>
+      ) : null}
     </article>
   );
 }
@@ -533,17 +544,18 @@ function EditProjectPanel({
       });
       toast.success("Проект сохранен");
       await onSaved();
-    } catch {
-      toast.error("Не удалось сохранить проект");
-      setError("Не удалось сохранить проект.");
+    } catch (saveError) {
+      const message = getApiErrorMessage(saveError, "Не удалось сохранить проект.");
+      toast.error(message);
+      setError(message);
     } finally {
       setIsSaving(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/45">
-      <aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-black bg-[#f6f6f2]">
+    <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm">
+      <aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-[#dfe4dc] bg-[#f6f6f2] shadow-[0_0_80px_rgba(0,0,0,0.22)]">
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
             <h2 className="font-display text-3xl">Редактировать проект</h2>
@@ -551,7 +563,7 @@ function EditProjectPanel({
           <button
             type="button"
             onClick={onClose}
-            className="border border-[#151515] px-3 py-2 font-mono text-xs uppercase transition hover:bg-[#151515] hover:text-white"
+            className="rounded-full border border-[#151515] px-4 py-2 text-xs transition hover:bg-[#151515] hover:text-white"
           >
             Закрыть
           </button>
@@ -585,7 +597,7 @@ function EditProjectPanel({
             <button
               type="submit"
               disabled={isSaving}
-              className="flex w-full items-center justify-center gap-3 border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition-all duration-200 ease-in-out hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex w-full items-center justify-center gap-3 rounded-full border border-[#151515] bg-[#151515] px-5 py-4 text-sm text-white transition-all duration-200 ease-in-out hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isSaving ? <Spinner /> : null}
               {isSaving ? "Сохранение" : "Сохранить"}
@@ -711,6 +723,10 @@ function formatOperation(operation: ProjectOperation | null) {
   return `${status}; старт: ${started}; финиш: ${finished}. ${result} ${formatUserFacingError(message)}`.trim();
 }
 
+function hasActiveAccount(dashboard: ProjectDashboard | null) {
+  return dashboard?.account_states.some((account) => account.status === "active") ?? false;
+}
+
 function formatUserFacingError(message: string) {
   if (!message) {
     return "";
@@ -785,7 +801,7 @@ function getProjectSystemStatus({
     return {
       title: "нужно проверить профиль",
       description:
-        "Откройте настройки проекта и посмотрите статус профиля. Если cookies истекли — обновите их. Если техническая пауза — система попробует вернуть профиль сама.",
+        "Откройте настройки проекта и посмотрите статус профиля. Если нужен повторный вход — обновите данные доступа. После сетевой автопаузы система попробует вернуть профиль сама.",
       dotClass: "bg-[#ffb020]",
       pulse: true,
     };

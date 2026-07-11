@@ -46,7 +46,9 @@ export function ProfileMenu() {
 
   const displayName = user?.first_name || user?.username || "Профиль";
   const handle = user?.username ? `@${user.username}` : user?.telegram_id ? `id ${user.telegram_id}` : "telegram";
-  const subscriptionLabel = user?.subscription_status ? `Тариф ${user.tariff_plan}` : "Подписка не активна";
+  const subscriptionLabel = user?.subscription_status
+    ? `Тариф ${formatTariffName(user.tariff_plan)}`
+    : "Подписка пока не активна";
 
   return (
     <div ref={rootRef} className="relative">
@@ -117,6 +119,15 @@ export function ProfileMenu() {
       ) : null}
     </div>
   );
+}
+
+function formatTariffName(value: string) {
+  const names: Record<string, string> = {
+    basic: "Basic",
+    pro: "Pro",
+    agency: "Agency",
+  };
+  return names[value.toLowerCase()] || value;
 }
 function Avatar({ user, sizeClass }: { user: CurrentUser | null; sizeClass: string }) {
   if (user?.photo_url) {

@@ -50,7 +50,7 @@ export function BotStatusCard({
 
 export function formatDateTime(value: string | null | undefined) {
   if (!value) {
-    return "не запланировано";
+    return "Появится после настройки проекта";
   }
 
   const date = new Date(value);

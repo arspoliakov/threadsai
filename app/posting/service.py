@@ -221,8 +221,8 @@ async def _mark_account_needs_review(
     task.finished_at = None
     task.scheduled_at = None
     task.error_message = (
-        "Публикация остановлена: Threads показал подозрительный экран, composer не открылся "
-        "или потребовалась ручная проверка. Аккаунт поставлен на паузу до ручной диагностики."
+        "Публикация остановлена: Threads показал экран проверки или не открыл окно публикации. "
+        "Профиль поставлен на защитную паузу до ручной проверки."
     )
     task.retry_count += 1
     await session.commit()

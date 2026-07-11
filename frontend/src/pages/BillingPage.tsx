@@ -99,9 +99,15 @@ export default function BillingPage() {
       <section className="grid gap-4 lg:grid-cols-3">
         {(billing?.plans || []).map((plan) => {
           const copy = planCopy[plan.name as keyof typeof planCopy] || planCopy.basic;
+          const isCurrentPlan = billing?.subscription_status && billing.tariff_plan === plan.name;
           return (
-            <article key={plan.name} className={`rounded-[20px] border p-5 shadow-sm ${copy.tone}`}>
-              <h2 className="font-display text-3xl text-[#111]">{copy.title}</h2>
+            <article key={plan.name} className={`relative rounded-[20px] border p-5 shadow-sm ${copy.tone} ${isCurrentPlan ? "ring-2 ring-[#07100e] ring-offset-2" : ""}`}>
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="font-display text-3xl text-[#111]">{copy.title}</h2>
+                {isCurrentPlan ? (
+                  <span className="rounded-full bg-[#07100e] px-3 py-1 text-xs text-white">Ваш тариф</span>
+                ) : null}
+              </div>
               <p className="mt-2 text-sm font-medium text-[#343b34]">{copy.subtitle}</p>
               <p className="mt-4 text-sm leading-6 text-[#5f675f]">{copy.body}</p>
               <p className="mt-5 text-base font-semibold text-[#111]">{copy.price}</p>
@@ -133,7 +139,7 @@ export default function BillingPage() {
                   onClick={() => trackSeoEvent("tribute_click", { plan: plan.name, source: "billing_page" })}
                   className="mt-6 flex h-12 items-center justify-center rounded-full bg-[#111] px-5 text-sm font-semibold text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
                 >
-                  Перейти в Tribute
+                  {isCurrentPlan ? "Управлять подпиской" : `Выбрать ${copy.title}`}
                 </a>
               ) : (
                 <button
@@ -163,6 +169,19 @@ export default function BillingPage() {
             <p className="mt-2 text-sm leading-6 text-[#5f675f]">
               Проекты, стиль и тексты останутся. Мы просто остановим генерацию, парсинг и автопубликацию до новой
               подписки.
+            </p>
+          </div>
+          <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
+            <h3 className="text-base font-semibold text-[#111]">Когда включится доступ после оплаты?</h3>
+            <p className="mt-2 text-sm leading-6 text-[#5f675f]">
+              Обычно сразу после вступления в закрытый Telegram-канал тарифа. Если кабинет уже открыт, обновите
+              страницу через минуту.
+            </p>
+          </div>
+          <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
+            <h3 className="text-base font-semibold text-[#111]">Куда писать, если доступ не появился?</h3>
+            <p className="mt-2 text-sm leading-6 text-[#5f675f]">
+              Напишите в <a href="https://t.me/cuartenlol" target="_blank" rel="noreferrer" className="underline underline-offset-4">поддержку Telegram</a>. Проекты и тексты при этом остаются в безопасности.
             </p>
           </div>
         </div>

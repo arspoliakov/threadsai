@@ -33,20 +33,27 @@ Brand safety:
 export default function GlobalSettingsPage() {
   const [prompt, setPrompt] = useState<GlobalPrompt | null>(null);
   const [body, setBody] = useState(DEFAULT_GLOBAL_PROMPT);
+  const [savedBody, setSavedBody] = useState(DEFAULT_GLOBAL_PROMPT);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPrompt() {
       setIsLoading(true);
+      setLoadError(null);
 
       try {
         const prompts = await getActiveGlobalPrompts();
         const activePrompt = prompts[0] ?? null;
         setPrompt(activePrompt);
-        setBody(activePrompt?.body || DEFAULT_GLOBAL_PROMPT);
+        const loadedBody = activePrompt?.body || DEFAULT_GLOBAL_PROMPT;
+        setBody(loadedBody);
+        setSavedBody(loadedBody);
       } catch {
-        toast.error("Не удалось загрузить настройки стиля");
+        const message = "Не удалось загрузить текущий стиль. Мы не будем перезаписывать его, пока данные не появятся.";
+        setLoadError(message);
+        toast.error(message);
       } finally {
         setIsLoading(false);
       }
@@ -54,6 +61,21 @@ export default function GlobalSettingsPage() {
 
     void loadPrompt();
   }, []);
+
+  const isDirty = body !== savedBody;
+
+  useEffect(() => {
+    function warnAboutUnsavedChanges(event: BeforeUnloadEvent) {
+      if (!isDirty) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", warnAboutUnsavedChanges);
+    return () => window.removeEventListener("beforeunload", warnAboutUnsavedChanges);
+  }, [isDirty]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,6 +97,7 @@ export default function GlobalSettingsPage() {
           });
 
       setPrompt(savedPrompt);
+      setSavedBody(savedPrompt.body);
       toast.success("Настройки стиля сохранены");
     } catch {
       toast.error("Не удалось сохранить настройки стиля");
@@ -85,7 +108,7 @@ export default function GlobalSettingsPage() {
 
   function resetToDefault() {
     setBody(DEFAULT_GLOBAL_PROMPT);
-    toast.success("Стандартный стиль вернулся в редактор");
+    toast.info("Стандартный стиль загружен. Нажмите «Сохранить», чтобы применить его.");
   }
 
   return (
@@ -134,7 +157,17 @@ export default function GlobalSettingsPage() {
         проектов лучше прописать внутри самих проектов.
       </DismissibleTip>
 
-      <form onSubmit={handleSubmit} className="overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-white shadow-sm">
+      {loadError ? (
+        <div className="rounded-[24px] border border-[#e8c7c2] bg-[#fff7f5] p-6 shadow-sm">
+          <h2 className="font-display text-3xl text-[#111]">Стиль пока не загрузился</h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-[#665d5a]">{loadError}</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-5 h-11 rounded-full bg-[#151515] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">
+            Попробовать снова
+          </button>
+        </div>
+      ) : null}
+
+      <form onSubmit={handleSubmit} className={`${loadError ? "hidden" : "block"} overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-white shadow-sm`}>
         <header className="flex flex-col gap-4 border-b border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
             <h2 className="font-display text-3xl leading-none tracking-[-0.04em] text-[#111]">
@@ -182,15 +215,17 @@ export default function GlobalSettingsPage() {
 
         <footer className="flex flex-col gap-3 border-t border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <p className="text-sm leading-6 text-[#667066]">
-            Изменения начнут применяться к новым генерациям после сохранения.
+            {isDirty
+              ? "Есть несохранённые изменения. Они не повлияют на новые посты, пока вы не сохраните их."
+              : "Все изменения сохранены и применяются к новым публикациям."}
           </p>
           <button
             type="submit"
-            disabled={isLoading || isSaving}
+            disabled={isLoading || isSaving || !isDirty || !body.trim()}
             className="inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? <Spinner /> : null}
-            {isSaving ? "Сохраняем" : "Применить настройки стиля"}
+            {isSaving ? "Сохраняем" : isDirty ? "Сохранить стиль" : "Стиль сохранён"}
           </button>
         </footer>
       </form>

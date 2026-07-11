@@ -343,7 +343,7 @@ async def trigger_project_scraping(
         owner_id=current_user_id,
         action_type=ProjectOperationType.SCRAPING,
         status=ProjectOperationStatus.QUEUED,
-        message="Trend scraping queued and will start in the next safe browser window.",
+        message="Сбор идей поставлен в очередь и начнётся в ближайшее безопасное окно.",
     )
     db.add(operation)
     await db.commit()
@@ -469,7 +469,7 @@ async def trigger_project_generation(
         await db.refresh(posting_task)
     except Exception as exc:
         operation.status = ProjectOperationStatus.FAILED
-        operation.message = f"Генерация завершилась ошибкой: {exc}"
+        operation.message = "Не удалось подготовить пост. Ошибка уже отправлена команде."
         operation.result_json = {"error": str(exc)}
         operation.finished_at = datetime.now(UTC)
         await db.commit()

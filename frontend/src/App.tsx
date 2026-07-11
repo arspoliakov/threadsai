@@ -33,8 +33,11 @@ export default function App() {
       <Suspense fallback={null}><SeoHead /></Suspense>
       <SeoAnalytics />
       <Toaster
-        position="top-right"
+        position="top-center"
         richColors
+        closeButton
+        visibleToasts={3}
+        duration={4500}
         toastOptions={{
           className:
             "rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] text-[#151515] shadow-sm",

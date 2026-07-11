@@ -5,6 +5,7 @@ import {
   checkAccountSession,
   createAccount,
   deleteAccount,
+  getApiErrorMessage,
   getAccounts,
   unlinkAccount,
   type Account,
@@ -26,14 +27,19 @@ export default function InfrastructurePage() {
   const [checkingId, setCheckingId] = useState<number | null>(null);
   const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function loadAccounts() {
     setIsLoading(true);
+    setLoadError(null);
 
     try {
       setAccounts(await getAccounts());
-    } catch {
-      toast.error("Не удалось загрузить профили");
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Не удалось загрузить профили.");
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -51,7 +57,7 @@ export default function InfrastructurePage() {
       toast.promise(promise, {
         loading: "Проверяем доступ...",
         success: (result) => result.message,
-        error: "Не удалось проверить сессию",
+        error: (error) => getApiErrorMessage(error, "Не удалось проверить доступ к профилю."),
       });
       await promise;
       await loadAccounts();
@@ -67,7 +73,7 @@ export default function InfrastructurePage() {
       await toast.promise(unlinkAccount(accountId), {
         loading: "Отключаем профиль от проекта...",
         success: "Профиль снова доступен для других проектов",
-        error: "Не удалось отключить профиль",
+        error: (error) => getApiErrorMessage(error, "Не удалось отключить профиль от проекта."),
       });
       await loadAccounts();
     } finally {
@@ -76,19 +82,15 @@ export default function InfrastructurePage() {
   }
 
   async function handleDelete(accountId: number) {
-    const confirmed = window.confirm("Удалить профиль? Данные доступа и настройки профиля будут удалены.");
-    if (!confirmed) {
-      return;
-    }
-
     setDeletingId(accountId);
 
     try {
       await toast.promise(deleteAccount(accountId), {
         loading: "Удаляем профиль...",
         success: "Профиль удален",
-        error: "Не удалось удалить профиль",
+        error: (error) => getApiErrorMessage(error, "Не удалось удалить профиль."),
       });
+      setAccountToDelete(null);
       await loadAccounts();
     } finally {
       setDeletingId(null);
@@ -158,6 +160,13 @@ export default function InfrastructurePage() {
         <div className="mt-5 grid gap-3">
           {isLoading ? (
             <AccountSkeleton />
+          ) : loadError ? (
+            <EmptyState
+              title="Профили пока не загрузились"
+              description={loadError}
+              actionLabel="Попробовать снова"
+              onAction={() => void loadAccounts()}
+            />
           ) : accounts.length === 0 ? (
             <EmptyState
               title="Профилей пока нет"
@@ -173,7 +182,7 @@ export default function InfrastructurePage() {
                 deleting={deletingId === account.id}
                 onCheck={() => void handleCheckSession(account.id)}
                 onUnlink={() => void handleUnlink(account.id)}
-                onDelete={() => void handleDelete(account.id)}
+                onDelete={() => setAccountToDelete(account)}
               />
             ))
           )}
@@ -197,6 +206,15 @@ export default function InfrastructurePage() {
             setIsBulkOpen(false);
             await loadAccounts();
           }}
+        />
+      ) : null}
+
+      {accountToDelete ? (
+        <DeleteAccountDialog
+          account={accountToDelete}
+          isDeleting={deletingId === accountToDelete.id}
+          onClose={() => setAccountToDelete(null)}
+          onConfirm={() => void handleDelete(accountToDelete.id)}
         />
       ) : null}
     </section>
@@ -253,9 +271,14 @@ function AccountCard({
       </div>
 
       {account.last_error ? (
-        <p className="mt-4 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
-          {account.last_error}
-        </p>
+        <div className="mt-4 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
+          <p className="font-medium">Профиль сейчас не готов к публикации.</p>
+          <p className="mt-1 text-[#8a4a44]">Нажмите «Проверить доступ». Если проблема останется, она уже видна поддержке.</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[#7a625f]">Техническая информация</summary>
+            <p className="mt-2 break-words text-[#7a625f]">{account.last_error}</p>
+          </details>
+        </div>
       ) : null}
     </article>
   );
@@ -606,20 +629,73 @@ function StatusBadge({ status }: { status: AccountStatus }) {
 }
 
 const statusLabels: Record<AccountStatus, string> = {
-  active: "активен",
-  disabled: "выключен",
-  error: "ошибка",
-  warming_up: "прогрев",
-  cookies_expired: "cookies истекли",
-  blocked: "заблокирован",
-  proxy_error: "техническая пауза",
+  active: "готов к работе",
+  disabled: "приостановлен",
+  error: "нужна проверка",
+  warming_up: "подготавливается",
+  cookies_expired: "нужен повторный вход",
+  blocked: "недоступен в Threads",
+  proxy_error: "автопауза: проверяем прокси",
 };
 
-function EmptyState({ title, description }: { title: string; description: string }) {
+function DeleteAccountDialog({
+  account,
+  isDeleting,
+  onClose,
+  onConfirm,
+}: {
+  account: Account;
+  isDeleting: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-end bg-[#070909]/55 p-3 backdrop-blur-sm sm:place-items-center sm:p-5">
+      <section className="w-full max-w-lg rounded-[28px] border border-[#e3d5d1] bg-[#fbfcf7] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.30)] sm:p-7">
+        <h2 className="font-display text-4xl leading-none text-[#111]">Удалить {formatUsername(account.username)}?</h2>
+        <p className="mt-4 text-sm leading-6 text-[#667066]">
+          Данные доступа будут удалены из ThreadsGo. Публикации этого профиля остановятся, но сам аккаунт Threads
+          удалён не будет.
+        </p>
+        {account.project_id !== null ? (
+          <p className="mt-3 rounded-2xl bg-[#fff4df] p-3 text-sm leading-6 text-[#7a4a12]">
+            Профиль подключён к проекту. Если нужно только освободить его, сначала выберите «Отключить от проекта».
+          </p>
+        ) : null}
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={onClose} disabled={isDeleting} className="h-12 rounded-full border border-[#cfd5cc] bg-white px-5 text-sm disabled:opacity-50">
+            Оставить профиль
+          </button>
+          <button type="button" onClick={onConfirm} disabled={isDeleting} className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#9c3329] px-5 text-sm text-white disabled:opacity-50">
+            {isDeleting ? <Spinner /> : null}
+            {isDeleting ? "Удаляем" : "Удалить данные"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function EmptyState({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
   return (
     <div className="rounded-[24px] border border-dashed border-[#c9c9c3] bg-white/70 px-5 py-10 text-center shadow-sm">
       <p className="font-display text-3xl leading-none text-[#151515]">{title}</p>
       <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d]">{description}</p>
+      {actionLabel && onAction ? (
+        <button type="button" onClick={onAction} className="mt-5 h-11 rounded-full bg-[#151515] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   );
 }

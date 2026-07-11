@@ -23,7 +23,7 @@ export default function ProjectLayout() {
       .catch(() => setDashboard(null));
   }, [id]);
 
-  const projectTitle = dashboard?.project.name || `Проект #${id}`;
+  const projectTitle = dashboard?.project.name || "Загружаем проект";
   const hasSessionProblem =
     dashboard?.account_states.some(
       (account) => account.status === "cookies_expired" || account.status === "blocked" || account.status === "error",
@@ -32,7 +32,7 @@ export default function ProjectLayout() {
 
   const navigation: FloatingDockItem[] = [
     {
-      label: "Все проекты",
+      label: "Проекты",
       to: "/app",
       icon: "home",
     },
@@ -43,12 +43,12 @@ export default function ProjectLayout() {
       end: true,
     },
     {
-      label: "Расписание постов",
+      label: "Посты",
       to: `${projectBasePath}/queue`,
       icon: "queue",
     },
     {
-      label: "Актуальные темы",
+      label: "Идеи",
       to: `${projectBasePath}/trends`,
       icon: "trends",
     },
@@ -131,9 +131,9 @@ function SessionWarningBanner({ projectBasePath }: { projectBasePath: string }) 
         <div className="flex gap-3">
           <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-[#ffb020]" />
           <div>
-            <p className="text-base font-medium text-[#3b2a08]">Сессия Threads истекла</p>
+            <p className="text-base font-medium text-[#3b2a08]">Профилю нужен повторный вход</p>
             <p className="mt-1 text-sm leading-6 text-[#7a5b22]">
-              Генерация работает, но публикация остановлена до обновления доступа.
+              Тексты и расписание сохранены. Публикации продолжатся после проверки доступа.
             </p>
           </div>
         </div>
@@ -157,7 +157,7 @@ function ProxyWarningBanner({ projectBasePath }: { projectBasePath: string }) {
           <div>
             <p className="text-base font-medium text-[#3b2a08]">Прокси временно не отвечает</p>
             <p className="mt-1 text-sm leading-6 text-[#7a5b22]">
-              Cookies не слетели. Система сама перепроверяет порт и вернет профиль в работу, когда прокси снова начнет отдавать IP.
+              Данные входа в порядке. Система сама проверяет соединение и вернёт профиль в работу, когда оно стабилизируется.
             </p>
           </div>
         </div>

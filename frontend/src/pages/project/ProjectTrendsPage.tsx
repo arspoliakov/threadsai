@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { getProjectTrends, triggerScraping, type SavedTrend } from "../../api/client";
+import {
+  getApiErrorMessage,
+  getLatestProjectOperation,
+  getProjectTrends,
+  triggerScraping,
+  type ProjectOperation,
+  type SavedTrend,
+} from "../../api/client";
 import { DismissibleTip } from "../../components/DismissibleTip";
 
 export default function ProjectTrendsPage() {
@@ -11,17 +18,24 @@ export default function ProjectTrendsPage() {
   const [trends, setTrends] = useState<SavedTrend[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCollecting, setIsCollecting] = useState(false);
+  const [collectionOperation, setCollectionOperation] = useState<ProjectOperation | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function loadTrends({ silent = false }: { silent?: boolean } = {}) {
-    setIsLoading(true);
+    if (trends.length === 0) {
+      setIsLoading(true);
+    }
+    setLoadError(null);
 
     try {
       setTrends(await getProjectTrends(projectId));
       if (!silent) {
         toast.success("Подборка идей обновлена");
       }
-    } catch {
-      toast.error("Не удалось загрузить актуальные идеи проекта");
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Не удалось загрузить актуальные идеи проекта.");
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -30,19 +44,57 @@ export default function ProjectTrendsPage() {
   useEffect(() => {
     if (Number.isFinite(projectId)) {
       void loadTrends({ silent: true });
+      void refreshCollectionStatus();
     }
   }, [projectId]);
+
+  useEffect(() => {
+    if (collectionOperation?.status !== "queued" && collectionOperation?.status !== "running") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => void refreshCollectionStatus(), 3500);
+    return () => window.clearInterval(intervalId);
+  }, [collectionOperation?.status, projectId]);
+
+  async function refreshCollectionStatus() {
+    try {
+      const operation = await getLatestProjectOperation(projectId, "scraping");
+      const wasRunning = isCollecting || collectionOperation?.status === "queued" || collectionOperation?.status === "running";
+      setCollectionOperation(operation);
+      const running = operation?.status === "queued" || operation?.status === "running";
+      setIsCollecting(Boolean(running));
+
+      if (wasRunning && operation?.status === "success") {
+        await loadTrends({ silent: true });
+        toast.success("Новая подборка идей готова");
+      } else if (wasRunning && operation?.status === "failed") {
+        toast.error("Подборка не обновилась. Ошибка уже отправлена команде.");
+      }
+    } catch {
+      // Existing ideas remain available even if status polling is temporarily unavailable.
+    }
+  }
 
   async function handleCollectTrends() {
     setIsCollecting(true);
 
     try {
-      await triggerScraping(projectId);
-      toast.success("Сбор идей запущен");
-      await loadTrends({ silent: true });
-    } catch {
-      toast.error("Не удалось запустить сбор идей");
-    } finally {
+      const result = await triggerScraping(projectId);
+      setCollectionOperation({
+        id: result.operation_id,
+        project_id: result.project_id,
+        action_type: "scraping",
+        status: result.status,
+        message: result.message,
+        result_json: null,
+        started_at: new Date().toISOString(),
+        finished_at: null,
+      });
+      toast.success("Сбор идей запущен. Можно перейти в другой раздел.");
+      void refreshCollectionStatus();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Не удалось запустить сбор идей."));
       setIsCollecting(false);
     }
   }
@@ -62,12 +114,22 @@ export default function ProjectTrendsPage() {
           type="button"
           onClick={() => void handleCollectTrends()}
           disabled={isLoading || isCollecting}
-          className="flex h-11 w-fit items-center gap-3 rounded-2xl border border-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#151515] bg-white px-5 text-sm transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 md:w-fit"
         >
           {isCollecting ? <Spinner /> : null}
-          Обновить подборку идей
+          {isCollecting ? "Собираем идеи" : "Обновить подборку идей"}
         </button>
       </header>
+
+      {isCollecting ? (
+        <div className="flex items-start gap-3 rounded-[20px] border border-[#b9d5ee] bg-[#f1f8ff] p-4 text-sm leading-6 text-[#31516d]">
+          <Spinner />
+          <p>
+            Система изучает ленту Threads в фоне. Обычно это занимает несколько минут. Можно спокойно перейти в
+            другой раздел или закрыть страницу — работа не остановится.
+          </p>
+        </div>
+      ) : null}
 
       <DismissibleTip storageKey="threadsgo.trends-tip" title="Идеи — это не темы для копирования">
         Система смотрит, как устроены живые посты: с чего они начинаются, где возникает напряжение и какой у них
@@ -76,10 +138,13 @@ export default function ProjectTrendsPage() {
 
       <div className="grid gap-3 md:grid-cols-2">
         <MetricCard label="Найдено свежих идей" value={isLoading ? "..." : String(trends.length)} />
+        <MetricCard label="Последнее обновление" value={getLatestTrendDate(trends)} />
       </div>
 
       {isLoading ? (
         <TrendSkeleton />
+      ) : loadError && trends.length === 0 ? (
+        <EmptyState title="Идеи пока не загрузились" description={loadError} />
       ) : trends.length === 0 ? (
         <EmptyState
           title="Актуальные идеи еще не собраны"
@@ -178,4 +243,19 @@ function formatDate(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function getLatestTrendDate(trends: SavedTrend[]) {
+  if (trends.length === 0) {
+    return "Ещё не было";
+  }
+
+  const latest = [...trends].sort(
+    (first, second) => new Date(second.created_at).getTime() - new Date(first.created_at).getTime(),
+  )[0];
+  const date = new Date(latest.created_at);
+  const today = new Date();
+  const day = date.toLocaleDateString("ru-RU", { day: "2-digit", month: "long" });
+  const time = date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return date.toDateString() === today.toDateString() ? `Сегодня в ${time}` : `${day} в ${time}`;
 }

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import {
   cancelTask,
+  getApiErrorMessage,
   getProjectDashboard,
   getProjectTasks,
   publishTaskNow,
@@ -29,9 +30,11 @@ export default function ProjectQueuePage() {
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [accountStates, setAccountStates] = useState<ProjectAccountState[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function loadTasks({ silent = false }: { silent?: boolean } = {}) {
     setIsLoading(true);
+    setLoadError(null);
 
     try {
       const [tasksResult, dashboardResult] = await Promise.all([
@@ -43,8 +46,10 @@ export default function ProjectQueuePage() {
       if (!silent) {
         toast.success("Расписание постов обновлено");
       }
-    } catch {
-      toast.error("Не удалось загрузить расписание постов");
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Не удалось загрузить расписание постов.");
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +80,7 @@ export default function ProjectQueuePage() {
       await toast.promise(cancelTask(taskId), {
         loading: "Отменяем публикацию...",
         success: "Публикация отменена",
-        error: "Не удалось отменить публикацию",
+        error: (error) => getApiErrorMessage(error, "Не удалось отменить публикацию."),
       });
       await loadTasks({ silent: true });
     } finally {
@@ -96,7 +101,7 @@ export default function ProjectQueuePage() {
       await toast.promise(publishTaskNow(taskId), {
         loading: "Запускаем публикацию...",
         success: "Публикация запущена",
-        error: "Не удалось запустить публикацию сейчас",
+        error: (error) => getApiErrorMessage(error, "Не удалось запустить публикацию сейчас."),
       });
       trackSeoEvent("publication_requested", { project_id: projectId, task_id: taskId });
       await loadTasks({ silent: true });
@@ -113,7 +118,7 @@ export default function ProjectQueuePage() {
       toast.promise(updatePromise, {
         loading: "Сохраняем текст...",
         success: "Текст публикации сохранен",
-        error: "Не удалось сохранить текст",
+        error: (error) => getApiErrorMessage(error, "Не удалось сохранить текст."),
       });
       const updatedTask = await updatePromise;
       trackSeoEvent("draft_approved", { project_id: projectId, task_id: taskId });
@@ -131,7 +136,7 @@ export default function ProjectQueuePage() {
       toast.promise(regeneratePromise, {
         loading: "Переписываем пост...",
         success: "Пост переписан",
-        error: "Не удалось переписать пост",
+        error: (error) => getApiErrorMessage(error, "Не удалось переписать пост."),
       });
       const regeneratedTask = await regeneratePromise;
       trackSeoEvent("draft_regenerated", { project_id: projectId, task_id: taskId });
@@ -159,6 +164,13 @@ export default function ProjectQueuePage() {
 
       {isLoading ? (
         <TaskSkeleton />
+      ) : loadError ? (
+        <EmptyState
+          title="Расписание пока не загрузилось"
+          description={loadError}
+          actionLabel="Попробовать снова"
+          onAction={() => void loadTasks({ silent: true })}
+        />
       ) : tasks.length === 0 ? (
         <EmptyState
           title="Публикаций пока нет"
@@ -260,8 +272,8 @@ function TaskCard({
           ) : null}
         </div>
         <div className="rounded-2xl border border-[#d8d8d2] px-3 py-2 text-right">
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">Выйдет</p>
-          <p className="mt-1 text-sm text-[#24231f]">{formatDate(task.scheduled_at)}</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">{getScheduleLabel(task.status)}</p>
+          <p className="mt-1 text-sm text-[#24231f]">{formatDate(task.finished_at || task.scheduled_at)}</p>
         </div>
       </div>
 
@@ -296,7 +308,12 @@ function TaskCard({
 
       {task.error_message ? (
         <div className="mt-5 rounded-2xl border border-[#e0b4ae] bg-[#fff8f6] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
-          {truncate(task.error_message, 260)}
+          <p className="font-medium">Публикация не прошла, но текст сохранён.</p>
+          <p className="mt-1 text-[#8a4a44]">Проверьте состояние профиля в настройках проекта и повторите публикацию.</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[#7a625f]">Техническая информация для поддержки</summary>
+            <p className="mt-2 break-words text-[#7a625f]">{truncate(task.error_message, 500)}</p>
+          </details>
         </div>
       ) : null}
 
@@ -323,7 +340,19 @@ function TaskCard({
             </ActionButton>
           </>
         ) : (
-          <span className="text-xs text-[#77766f]">{terminalStatuses.includes(task.status) ? "закрыто" : "заблокировано"}</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs leading-5 text-[#77766f]">{getClosedTaskHint(task.status)}</span>
+            {task.external_post_url ? (
+              <a
+                href={task.external_post_url}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-[#151515] px-4 py-2 text-xs text-[#151515] transition hover:bg-[#151515] hover:text-white"
+              >
+                Открыть в Threads
+              </a>
+            ) : null}
+          </div>
         )}
       </div>
     </article>
@@ -421,13 +450,28 @@ function TaskSkeleton() {
   );
 }
 
-function EmptyState({ title, description }: { title: string; description: string }) {
+function EmptyState({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
   return (
     <div className="overflow-hidden rounded-[24px] border border-dashed border-[#c9c9c3] bg-white/70 shadow-sm">
       <div className="grid items-center gap-5 p-5 text-center sm:p-6 lg:grid-cols-[1fr_20rem] lg:text-left">
         <div>
           <p className="font-display text-3xl leading-none text-[#151515]">{title}</p>
           <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d] lg:mx-0">{description}</p>
+          {actionLabel && onAction ? (
+            <button type="button" onClick={onAction} className="mt-5 h-11 rounded-full bg-[#151515] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">
+              {actionLabel}
+            </button>
+          ) : null}
         </div>
         <img src="/interface/empty-queue.webp" alt="" className="hidden w-full rounded-[2rem] object-cover lg:block" />
       </div>
@@ -462,10 +506,10 @@ function formatStatus(status: PostingTaskStatus) {
   const labels: Record<PostingTaskStatus, string> = {
     draft: "черновик",
     queued: "ждет своей очереди",
-    running: "в работе",
-    success: "готово",
-    partial_success: "частично готово",
-    failed: "ошибка",
+    running: "публикуется",
+    success: "опубликован",
+    partial_success: "частично опубликован",
+    failed: "не опубликован",
     cancelled: "отменено",
   };
 
@@ -497,6 +541,26 @@ function isTaskAccountSessionDead(task: PostingTask, accountStates: ProjectAccou
 
   const account = accountStates.find((item) => item.id === task.account_id);
   return account?.status === "cookies_expired" || account?.status === "blocked" || account?.status === "error" || account?.status === "proxy_error";
+}
+
+function getScheduleLabel(status: PostingTaskStatus) {
+  if (status === "success" || status === "partial_success") {
+    return "Опубликован";
+  }
+  if (status === "failed" || status === "cancelled") {
+    return "Был запланирован";
+  }
+  return "Выйдет";
+}
+
+function getClosedTaskHint(status: PostingTaskStatus) {
+  const hints: Partial<Record<PostingTaskStatus, string>> = {
+    success: "Публикация завершена",
+    partial_success: "Опубликована часть цепочки; остальной текст сохранён",
+    failed: "Текст сохранён — проблему можно исправить без потери черновика",
+    cancelled: "Убрано из расписания",
+  };
+  return hints[status] || "Система завершает действие";
 }
 
 function getAccountBlockMessage(task: PostingTask, accountStates: ProjectAccountState[]) {

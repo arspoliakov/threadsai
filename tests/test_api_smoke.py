@@ -113,6 +113,14 @@ class ApiSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([account["id"] for account in response.json()], [1])
 
+    async def test_dashboard_reports_only_owned_project_health(self) -> None:
+        response = await self.client.get("/api/v1/dashboard/summary")
+        self.assertEqual(response.status_code, 200, response.text)
+        projects = response.json()["projects"]
+        self.assertEqual([project["id"] for project in projects], [1])
+        self.assertEqual(projects[0]["active_accounts_count"], 1)
+        self.assertEqual(projects[0]["paused_accounts_count"], 0)
+
     async def test_active_subscriber_can_create_project(self) -> None:
         response = await self.client.post(
             "/api/v1/projects/",

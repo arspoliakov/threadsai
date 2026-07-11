@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db
-from app.db.models import PostingTask, PostingTaskStatus, Project
+from app.db.models import Account, AccountStatus, PostingTask, PostingTaskStatus, Project
 from app.posting.scheduler import scheduler
 
 
@@ -20,6 +20,8 @@ class DashboardProjectSummary(BaseModel):
     name: str
     published_count: int
     next_post_time: datetime | None
+    active_accounts_count: int
+    paused_accounts_count: int
     avg_engagement: float | None = None
 
 
@@ -60,6 +62,15 @@ async def get_dashboard_summary(
                 PostingTask.scheduled_at.is_not(None),
             )
         )
+        accounts_count = await db.scalar(
+            select(func.count(Account.id)).where(Account.project_id == project.id)
+        )
+        active_accounts_count = await db.scalar(
+            select(func.count(Account.id)).where(
+                Account.project_id == project.id,
+                Account.status == AccountStatus.ACTIVE,
+            )
+        )
 
         summaries.append(
             DashboardProjectSummary(
@@ -67,6 +78,8 @@ async def get_dashboard_summary(
                 name=project.name,
                 published_count=published_count or 0,
                 next_post_time=next_post_time,
+                active_accounts_count=active_accounts_count or 0,
+                paused_accounts_count=max(0, (accounts_count or 0) - (active_accounts_count or 0)),
                 avg_engagement=None,
             )
         )

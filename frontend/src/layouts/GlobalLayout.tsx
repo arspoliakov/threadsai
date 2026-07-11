@@ -6,7 +6,7 @@ import { ProfileMenu } from "../components/ProfileMenu";
 
 const navigation: FloatingDockItem[] = [
   {
-    label: "Мои проекты",
+    label: "Проекты",
     to: "/app",
     icon: "home",
     end: true,
@@ -17,7 +17,7 @@ const navigation: FloatingDockItem[] = [
     icon: "accounts",
   },
   {
-    label: "Настройки стиля",
+    label: "Стиль",
     to: "/app/settings",
     icon: "style",
   },

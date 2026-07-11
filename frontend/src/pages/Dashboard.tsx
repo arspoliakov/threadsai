@@ -19,18 +19,23 @@ export default function Dashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<DashboardProjectSummary | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
 
   async function loadSummary({ silent = false }: { silent?: boolean } = {}) {
     setIsLoading(true);
+    setLoadError(null);
 
     try {
       setSummary(await getDashboardSummary());
       if (!silent) {
         toast.success("Данные обновлены");
       }
-    } catch {
-      toast.error("Не удалось загрузить кабинет. Проверьте backend и авторизацию.");
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Не удалось загрузить проекты. Попробуйте ещё раз.");
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -61,22 +66,15 @@ export default function Dashboard() {
   }
 
   async function handleDeleteProject(project: DashboardProjectSummary) {
-    const confirmed = window.confirm(
-      `Удалить проект «${project.name}»?\n\nОчередь, тренды и настройки проекта будут удалены. Аккаунты Threads останутся в общем пуле.`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setDeletingProjectId(project.id);
 
     try {
       await toast.promise(deleteProject(project.id), {
         loading: "Удаляем проект...",
         success: "Проект удален. Аккаунты вернулись в общий пул.",
-        error: "Не удалось удалить проект.",
+        error: (error) => getApiErrorMessage(error, "Не удалось удалить проект."),
       });
+      setProjectToDelete(null);
       await loadSummary({ silent: true });
     } finally {
       setDeletingProjectId(null);
@@ -158,6 +156,8 @@ export default function Dashboard() {
       <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
         {isLoading ? (
           <SkeletonProjects />
+        ) : loadError ? (
+          <LoadError message={loadError} onRetry={() => void loadSummary({ silent: true })} />
         ) : !summary || summary.projects.length === 0 ? (
           <EmptyProjects onCreate={() => setIsCreateOpen(true)} />
         ) : (
@@ -166,7 +166,7 @@ export default function Dashboard() {
               key={project.id}
               project={project}
               isDeleting={deletingProjectId === project.id}
-              onDelete={() => void handleDeleteProject(project)}
+              onDelete={() => setProjectToDelete(project)}
             />
           ))
         )}
@@ -174,6 +174,15 @@ export default function Dashboard() {
 
       {isCreateOpen ? (
         <CreateProjectModal onClose={() => setIsCreateOpen(false)} onSubmit={handleCreateProject} />
+      ) : null}
+
+      {projectToDelete ? (
+        <DeleteProjectDialog
+          project={projectToDelete}
+          isDeleting={deletingProjectId === projectToDelete.id}
+          onClose={() => setProjectToDelete(null)}
+          onConfirm={() => void handleDeleteProject(projectToDelete)}
+        />
       ) : null}
     </section>
   );
@@ -203,7 +212,22 @@ function getCurrentAction(summary: DashboardSummary | null, isLoading: boolean) 
     return "Ждем первый проект";
   }
 
-  return "Автопостинг активен";
+  const activeAccounts = summary.projects.reduce((sum, project) => sum + project.active_accounts_count, 0);
+  const pausedAccounts = summary.projects.reduce((sum, project) => sum + project.paused_accounts_count, 0);
+
+  if (activeAccounts === 0) {
+    return "Ждем подключения профиля";
+  }
+
+  if (pausedAccounts > 0) {
+    return "Часть профилей на паузе";
+  }
+
+  if (!summary.projects.some((project) => project.next_post_time)) {
+    return "Готовим расписание";
+  }
+
+  return "Следим за публикациями";
 }
 
 function CreateProjectModal({
@@ -362,6 +386,18 @@ function ProjectCard({
           <Metric icon={<SendIcon />} label={formatProjectPublishedLabel(project.published_count)} />
           <Metric icon={<ClockIcon />} label="Следующий пост:" value={formatDateTime(project.next_post_time)} />
         </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className={`rounded-full px-3 py-1.5 ${project.active_accounts_count > 0 ? "bg-[#edf8e8] text-[#25551f]" : "bg-[#fff4df] text-[#8a4b00]"}`}>
+            {project.active_accounts_count > 0
+              ? `Рабочих профилей: ${project.active_accounts_count}`
+              : "Нет рабочего профиля"}
+          </span>
+          {project.paused_accounts_count > 0 ? (
+            <span className="rounded-full bg-[#fff4df] px-3 py-1.5 text-[#8a4b00]">
+              На паузе: {project.paused_accounts_count}
+            </span>
+          ) : null}
+        </div>
       </div>
     </article>
   );
@@ -426,6 +462,68 @@ function EmptyProjects({ onCreate }: { onCreate: () => void }) {
           className="mx-auto hidden w-full max-w-sm rounded-[2rem] object-cover opacity-95 lg:block"
         />
       </div>
+    </div>
+  );
+}
+
+function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-[24px] border border-[#e8c7c2] bg-[#fff7f5] p-6 lg:col-span-2 2xl:col-span-3">
+      <p className="font-display text-3xl text-[#111]">Проекты пока не загрузились</p>
+      <p className="mt-3 max-w-xl text-sm leading-6 text-[#665d5a]">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-5 h-11 rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
+      >
+        Попробовать снова
+      </button>
+    </div>
+  );
+}
+
+function DeleteProjectDialog({
+  project,
+  isDeleting,
+  onClose,
+  onConfirm,
+}: {
+  project: DashboardProjectSummary;
+  isDeleting: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-end bg-[#070909]/55 p-3 backdrop-blur-sm sm:place-items-center sm:p-5">
+      <section className="w-full max-w-lg rounded-[28px] border border-[#e3d5d1] bg-[#fbfcf7] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.30)] sm:p-7">
+        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#fff0ed] text-[#9c3329]">
+          <TrashIcon />
+        </div>
+        <h2 className="mt-5 font-display text-4xl leading-none text-[#111]">Удалить «{project.name}»?</h2>
+        <p className="mt-4 text-sm leading-6 text-[#667066]">
+          Посты, собранные идеи и настройки проекта будут удалены без возможности восстановления. Подключённые
+          профили Threads сохранятся и вернутся в общий пул.
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isDeleting}
+            className="h-12 rounded-full border border-[#cfd5cc] bg-white px-5 text-sm transition hover:border-[#141815] disabled:opacity-50"
+          >
+            Оставить проект
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#9c3329] px-5 text-sm text-white transition hover:bg-[#7f241c] disabled:opacity-50"
+          >
+            {isDeleting ? <Spinner /> : null}
+            {isDeleting ? "Удаляем" : "Удалить навсегда"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

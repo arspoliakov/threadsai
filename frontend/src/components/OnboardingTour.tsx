@@ -10,24 +10,32 @@ const steps = [
     text: "Проект хранит описание задачи, стиль, запрещенные слова, расписание и подключенные профили.",
     action: "Откройте «Мои проекты» и нажмите «Создать проект».",
     image: "/interface/project-library.webp",
+    to: "/app",
+    button: "Создать проект",
   },
   {
     title: "Подключите Threads-профиль",
     text: "Добавьте готовый профиль через cookies. Система проверит доступ и покажет, можно ли публиковать.",
     action: "Откройте «Аккаунты», добавьте Threads-профиль и вставьте Export JSON из Cookie-Editor.",
     image: "/interface/accounts-health.webp",
+    to: "/app/infrastructure",
+    button: "Подключить профиль",
   },
   {
     title: "Настройте голос",
     text: "Общий стиль задает характер всех постов, а настройки проекта уточняют конкретную задачу.",
     action: "Откройте «Настройки стиля» и опишите, как должен звучать ваш контент.",
     image: "/interface/prompt-lab.webp",
+    to: "/app/settings",
+    button: "Настроить стиль",
   },
   {
     title: "Запустите систему",
     text: "ThreadsGo обновит идеи, подготовит посты и поставит их в расписание. Любой текст можно быстро поправить.",
     action: "Внутри проекта нажмите «Обновить идеи для постов» или «Добавить новый пост в план».",
     image: "/interface/queue-timeline.webp",
+    to: "/app",
+    button: "Перейти к проектам",
   },
 ];
 
@@ -136,11 +144,11 @@ export function OnboardingTour() {
 
               <div className="grid gap-2 sm:flex">
                 <Link
-                  to="/app/infrastructure"
+                  to={step.to}
                   onClick={completeTour}
                   className="inline-flex h-12 items-center justify-center rounded-full border border-[#d6ddd2] px-5 text-sm text-[#07100e] transition hover:border-[#07100e]"
                 >
-                  К аккаунтам
+                  {step.button}
                 </Link>
                 <button
                   type="button"

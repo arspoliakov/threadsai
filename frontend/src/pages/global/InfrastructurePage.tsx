@@ -351,14 +351,14 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
           </label>
 
           <div className="mt-8 rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
-            Username вводить не нужно. После проверки cookies система сама определит профиль Threads.
+            Имя пользователя вводить не нужно: после проверки доступа система сама определит профиль Threads.
           </div>
 
           <div className="mt-8">
             <span className="field-label">Способ входа</span>
             <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-2xl border border-[#151515]">
               <AuthTab label="По паролю" isActive={authMode === "password"} onClick={() => setAuthMode("password")} />
-              <AuthTab label="По cookies" isActive={authMode === "cookies"} onClick={() => setAuthMode("cookies")} />
+              <AuthTab label="Из активной сессии" isActive={authMode === "cookies"} onClick={() => setAuthMode("cookies")} />
             </div>
           </div>
 
@@ -366,7 +366,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
             <Field label="Пароль" value={password} onChange={setPassword} type="password" required />
           ) : (
             <label className="mt-8 grid gap-2">
-              <span className="field-label">Cookies JSON или cookie-строка</span>
+              <span className="field-label">Данные входа из браузера</span>
               <textarea
                 value={cookiesInput}
                 onChange={(event) => setCookiesInput(event.target.value)}
@@ -376,8 +376,8 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
                 className="field-control resize-none leading-6"
               />
               <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
-                Как получить cookies: установите Cookie-Editor, зайдите на threads.net под нужным аккаунтом,
-                нажмите Export JSON и вставьте результат сюда. Это безопаснее, чем хранить пароль.
+                Откройте threads.net в браузере, где профиль уже авторизован. В расширении Cookie-Editor нажмите
+                Export JSON и вставьте результат сюда. ThreadsGo не потребуется хранить пароль от аккаунта.
               </div>
             </label>
           )}
@@ -488,14 +488,14 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
 
         <form onSubmit={handleBulkImport} className="flex flex-1 flex-col overflow-y-auto px-7 py-8">
           <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
-            Безопасный формат для пачки: JSON-массив объектов вида
+            Для подключения нескольких профилей вставьте JSON-массив объектов вида
             <code className="mx-1 rounded bg-[#f1f1eb] px-1">{"[{\"cookies\": [...]}]"}</code>.
-            Можно также вставлять несколько cookie-экспортов через строку-разделитель <code className="rounded bg-[#f1f1eb] px-1">---</code>.
-            Автопроверку cookies после импорта не запускаем, чтобы не открыть десятки браузеров сразу.
+            Можно также разделить несколько экспортов строкой <code className="rounded bg-[#f1f1eb] px-1">---</code>.
+            После импорта профили появятся в списке. Проверяйте их постепенно, чтобы не запускать много браузеров одновременно.
           </div>
 
           <label className="mt-6 grid gap-2">
-            <span className="field-label">Список cookies</span>
+            <span className="field-label">Экспортированные данные входа</span>
             <textarea
               value={rawInput}
               onChange={(event) => setRawInput(event.target.value)}

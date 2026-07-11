@@ -657,11 +657,11 @@ function formatAccountStates(accounts: ProjectAccountState[]) {
   }
 
   const statusLabels: Record<string, string> = {
-    active: "активен",
-    cookies_expired: "истекли куки",
-    blocked: "заблокирован",
-    error: "ошибка",
-    proxy_error: "ошибка прокси",
+    active: "готов к работе",
+    cookies_expired: "нужно обновить вход",
+    blocked: "временно недоступен",
+    error: "нужна проверка",
+    proxy_error: "подключение восстанавливается",
   };
 
   return accounts
@@ -680,10 +680,10 @@ function formatTaskStatuses(statuses: Record<string, number>) {
   }
 
   const statusLabels: Record<string, string> = {
-    queued: "в очереди",
-    running: "в процессе",
-    success: "успешно",
-    failed: "ошибка",
+    queued: "запланировано",
+    running: "публикуется",
+    success: "опубликовано",
+    failed: "не опубликовано",
     cancelled: "отменена",
     draft: "черновик",
   };
@@ -746,7 +746,7 @@ function formatUserFacingError(message: string) {
     return "Публикация временно не прошла. Система попробует снова.";
   }
 
-  return message.length > 180 ? "Произошла техническая ошибка. Подробности уже отправлены администратору." : message;
+  return "Операция не завершилась. Подробности уже отправлены команде, повторять действие прямо сейчас не нужно.";
 }
 
 function formatDate(value: string | null) {

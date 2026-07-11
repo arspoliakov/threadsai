@@ -17,7 +17,7 @@ export default function SeoHead() {
   const location = useLocation();
 
   useEffect(() => {
-    const page = findSeoPage(location.pathname);
+    const page = findSeoPage(location.pathname) ?? getAppPageMeta(location.pathname);
     const title = page?.title ?? "Страница не найдена | ThreadsGo";
     const description = page?.description ?? "Запрошенная страница не найдена.";
     const canonicalPath = page?.path ?? location.pathname;
@@ -46,3 +46,47 @@ export default function SeoHead() {
   return null;
 }
 
+function getAppPageMeta(pathname: string) {
+  if (!pathname.startsWith("/app")) {
+    return undefined;
+  }
+
+  const projectSection = pathname.match(/^\/app\/projects\/[^/]+(?:\/(queue|trends|settings))?\/?$/)?.[1];
+  const titles: Record<string, string> = {
+    "/app": "Проекты | ThreadsGo",
+    "/app/": "Проекты | ThreadsGo",
+    "/app/infrastructure": "Профили Threads | ThreadsGo",
+    "/app/infrastructure/": "Профили Threads | ThreadsGo",
+    "/app/settings": "Настройки стиля | ThreadsGo",
+    "/app/settings/": "Настройки стиля | ThreadsGo",
+    "/app/billing": "Тариф и подписка | ThreadsGo",
+    "/app/billing/": "Тариф и подписка | ThreadsGo",
+    "/app/how-it-works": "Как работает ThreadsGo",
+    "/app/how-it-works/": "Как работает ThreadsGo",
+  };
+  const projectTitles: Record<string, string> = {
+    queue: "Очередь публикаций | ThreadsGo",
+    trends: "Свежие темы | ThreadsGo",
+    settings: "Настройки проекта | ThreadsGo",
+  };
+  const title = projectSection
+    ? projectTitles[projectSection]
+    : /^\/app\/projects\/[^/]+\/?$/.test(pathname)
+      ? "Проект | ThreadsGo"
+      : titles[pathname];
+
+  if (!title) {
+    return undefined;
+  }
+
+  return {
+    path: pathname,
+    title,
+    description: "Закрытый кабинет ThreadsGo.",
+    h1: title,
+    lead: "",
+    kind: "system" as const,
+    index: false,
+    updatedAt: "2026-07-11",
+  };
+}

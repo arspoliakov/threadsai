@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.secrets import encrypt_secret
 from app.db.models import Account, Platform
 from app.schemas.account import AccountCreate, AccountCreatePrepared, AccountUpdate
 from app.services.admin_notifier import send_admin_alert
@@ -30,8 +31,10 @@ def strip_user_proxy_from_session_data(raw_value: str | None) -> str | None:
 
 
 async def prepare_account_create(payload: AccountCreate, session: AsyncSession) -> AccountCreatePrepared:
+    clean_session_data = strip_user_proxy_from_session_data(payload.session_data_encrypted)
     update_data = {
-        "session_data_encrypted": strip_user_proxy_from_session_data(payload.session_data_encrypted),
+        "session_data_encrypted": encrypt_secret(clean_session_data),
+        "cookies_encrypted": encrypt_secret(payload.cookies_encrypted),
     }
 
     if payload.platform == Platform.THREADS:
@@ -46,9 +49,11 @@ def prepare_account_update(payload: AccountUpdate) -> AccountUpdate:
     update_data = payload.model_dump(exclude_unset=True)
 
     if "session_data_encrypted" in update_data:
-        update_data["session_data_encrypted"] = strip_user_proxy_from_session_data(
-            update_data["session_data_encrypted"]
-        )
+        clean_session_data = strip_user_proxy_from_session_data(update_data["session_data_encrypted"])
+        update_data["session_data_encrypted"] = encrypt_secret(clean_session_data)
+
+    if "cookies_encrypted" in update_data:
+        update_data["cookies_encrypted"] = encrypt_secret(update_data["cookies_encrypted"])
 
     return AccountUpdate(**update_data)
 

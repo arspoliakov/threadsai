@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { getBillingStatus, type BillingStatus } from "../api/client";
 import { trackSeoEvent } from "../components/SeoAnalytics";
@@ -33,16 +34,47 @@ const planCopy = {
 export default function BillingPage() {
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  async function loadBilling() {
+    setIsLoading(true);
+    setLoadError(false);
+
+    try {
+      setBilling(await getBillingStatus());
+    } catch {
+      setLoadError(true);
+      toast.error("Не удалось загрузить тарифы. Попробуйте ещё раз.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     trackSeoEvent("billing_view", { source: "billing_page" });
-    void getBillingStatus()
-      .then(setBilling)
-      .finally(() => setIsLoading(false));
+    void loadBilling();
   }, []);
 
   if (isLoading) {
     return <div className="rounded-[18px] border border-[#dfe4dc] bg-white p-6">Загружаем тарифы...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <section className="rounded-[22px] border border-[#e8c7c2] bg-[#fff7f5] p-6 shadow-sm sm:p-8">
+        <h1 className="font-display text-4xl text-[#111]">Тарифы временно не загрузились</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-[#665d5a]">
+          Данные и настройки аккаунта в безопасности. Повторите запрос; если ошибка останется, напишите в поддержку.
+        </p>
+        <button
+          type="button"
+          onClick={() => void loadBilling()}
+          className="mt-5 h-12 rounded-full bg-[#111] px-6 text-sm font-semibold text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
+        >
+          Попробовать снова
+        </button>
+      </section>
+    );
   }
 
   return (

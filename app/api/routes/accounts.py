@@ -222,7 +222,10 @@ async def check_account_session(
             account_id=account.id,
             status=account.status,
             detected_username=result.detected_username,
-            message="Сессия Threads активна. Cookies работают.",
+            message=(
+                "Сессия Threads активна. Профиль снят с паузы, "
+                "публикации снова будут выходить по расписанию."
+            ),
         )
     except SessionExpiredException as exc:
         account.status = AccountStatus.COOKIES_EXPIRED
@@ -232,7 +235,11 @@ async def check_account_session(
         return AccountSessionCheckRead(
             account_id=account.id,
             status=account.status,
-            message="Сессия Threads истекла. Обновите cookies.",
+            message=(
+                "Сессия Threads не прошла проверку. Откройте Threads вручную, "
+                "пройдите возможную проверку Meta, экспортируйте свежие cookies "
+                "и нажмите «Проверить и возобновить»."
+            ),
         )
     except Exception as exc:
         account.status = AccountStatus.ERROR
@@ -242,7 +249,10 @@ async def check_account_session(
         return AccountSessionCheckRead(
             account_id=account.id,
             status=account.status,
-            message=f"Не удалось проверить сессию: {exc}",
+            message=(
+                "Не удалось проверить сессию. Попробуйте ещё раз через пару минут. "
+                f"Техническая причина: {exc}"
+            ),
         )
 
 

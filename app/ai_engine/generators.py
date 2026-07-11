@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai_engine.client import DEEPINFRA_MODEL, get_deepinfra_client
@@ -256,6 +256,41 @@ End with an open loop, a question, or a quiet punchline unless a conversion hint
 """
 
 
+THREADS_MODERN_LANGUAGE_RULES = """
+## Современность языка
+
+Слегка сдвинь речь в сторону живого современного Threads, но не превращай текст в подростковый спектакль.
+Автор должен звучать как человек 20-35 лет, который нормально пишет в интернете: проще, быстрее, честнее.
+
+Меньше миллениальских формул:
+- "делюсь наблюдением"
+- "важный инсайт"
+- "в моменте"
+- "состояние потока"
+- "экологично"
+- "упаковать смыслы"
+- "точка роста"
+- "личный бренд" без необходимости
+- "забрать пользу"
+- "это про..."
+
+Больше живых форм:
+- короткое бытовое наблюдение;
+- конкретная странная деталь;
+- фраза, которую реально можно отправить знакомому;
+- спокойная ирония без клоунады;
+- нормальные слова вместо маркетинговых заменителей.
+
+Разрешен легкий современный разговорный язык: "ну", "хз", "странно", "честно", "вот тут", "почему-то",
+если это подходит проекту и не выглядит нарочито.
+Запрещено пытаться казаться "молодежным": не используй кринжовые вставки, мемные выкрики,
+искусственное "лол", "жиза", "вайб", "имба", если этих слов нет в контексте проекта.
+
+Главный критерий: текст должен звучать не как автор курса и не как SMM-специалист,
+а как живой человек, который заметил вещь и написал ее без большой подготовки.
+"""
+
+
 THREADS_ENGAGEMENT_RULES = """
 ## Engagement-first rule
 
@@ -310,6 +345,12 @@ async def generate_post(
     target_actions = _normalize_target_actions(project)
     conversion_mode = _normalize_conversion_mode(project)
     conversion_intensity = _normalize_conversion_intensity(project)
+    generated_posts_count = await _count_generated_posts(project_id=project_id, session=session)
+    conversion_required = _should_require_conversion_post(
+        generated_posts_count=generated_posts_count,
+        conversion_intensity=conversion_intensity,
+        conversion_mode=conversion_mode,
+    )
 
     system_prompt = _build_generation_system_prompt(
         project_prompt=project_prompt,
@@ -317,11 +358,16 @@ async def generate_post(
         trends_context=_build_trends_context(trends),
         publication_memory=_build_publication_memory_context(publication_memory),
         project_stop_words=_build_project_stop_words_rule(project_stop_words),
-        target_actions_rule=_build_target_actions_rule(target_actions, conversion_intensity),
+        target_actions_rule=_build_target_actions_rule(
+            target_actions,
+            conversion_intensity,
+            conversion_required=conversion_required,
+        ),
         conversion_rule=_build_conversion_rule(
             conversion_mode=conversion_mode,
             conversion_target=(project.conversion_target if project else None),
             conversion_intensity=conversion_intensity,
+            conversion_required=conversion_required,
         ),
         topic=topic_or_context,
     )
@@ -337,10 +383,18 @@ async def generate_post(
         project_id=project_id,
         stop_words=project_stop_words,
         conversion_intensity=conversion_intensity,
+        conversion_required=conversion_required,
+        conversion_mode=conversion_mode,
+        conversion_target=(project.conversion_target if project else None),
+        target_actions=target_actions,
     )
     generated_text = _prepare_generated_text_for_threads(
         _clean_generated_text(parsed_response["content"]),
         conversion_intensity=conversion_intensity,
+        conversion_required=conversion_required,
+        conversion_mode=conversion_mode,
+        conversion_target=(project.conversion_target if project else None),
+        target_actions=target_actions,
     )
     generation_metadata = {
         "applied_angle": parsed_response["applied_angle"],
@@ -353,6 +407,9 @@ async def generate_post(
         "target_actions_count": len(target_actions),
         "conversion_mode": conversion_mode,
         "conversion_intensity": conversion_intensity,
+        "conversion_required": conversion_required,
+        "conversion_slot_number": generated_posts_count + 1,
+        "conversion_target": (project.conversion_target if project else None),
         "validation_attempts": parsed_response.get("_validation_attempts", "1"),
     }
     posting_task = PostingTask(
@@ -410,6 +467,32 @@ async def _get_recent_generated_posts(project_id: int, session: AsyncSession) ->
         )
 
     return history
+
+
+async def _count_generated_posts(project_id: int, session: AsyncSession) -> int:
+    count = await session.scalar(
+        select(func.count(PostingTask.id)).where(
+            PostingTask.project_id == project_id,
+            PostingTask.content_text.is_not(None),
+        )
+    )
+    return int(count or 0)
+
+
+def _should_require_conversion_post(
+    *,
+    generated_posts_count: int,
+    conversion_intensity: int,
+    conversion_mode: str,
+) -> bool:
+    if conversion_mode == "none" or conversion_intensity <= 0:
+        return False
+    if conversion_intensity >= 100:
+        return True
+
+    before_current_post = (generated_posts_count * conversion_intensity) // 100
+    after_current_post = ((generated_posts_count + 1) * conversion_intensity) // 100
+    return after_current_post > before_current_post
 
 
 def _build_trends_context(trends: list[SavedTrend]) -> str:
@@ -596,8 +679,20 @@ def _build_project_stop_words_rule(stop_words: list[str]) -> str:
     )
 
 
-def _build_target_actions_rule(target_actions: list[str], conversion_intensity: int) -> str:
+def _build_target_actions_rule(
+    target_actions: list[str],
+    conversion_intensity: int,
+    *,
+    conversion_required: bool,
+) -> str:
     if not target_actions:
+        if conversion_required:
+            return (
+                "## правило для финала поста\n\n"
+                "THIS POST IS A CONVERSION SLOT. В проекте не задан список целевых действий, "
+                "поэтому нативно заверши пост мягким переходом к выбранному месту конверсии "
+                "(профиль, био или закреп — смотри conversion strategy). Не оставляй пост без следующего шага."
+            )
         return (
             "## правило для финала поста\n\n"
             "Для этого проекта список целевых действий не задан. Заверши пост естественно: мягким финалом, "
@@ -606,11 +701,25 @@ def _build_target_actions_rule(target_actions: list[str], conversion_intensity: 
 
     joined_actions = "\n".join(f"- {action}" for action in target_actions)
     intensity_rule = _build_intensity_rule(conversion_intensity)
+    if conversion_required:
+        slot_rule = (
+            "THIS POST IS A CONVERSION SLOT. You MUST choose exactly one target action from the list "
+            "and naturally integrate it into the ending. Do not skip the target action. "
+            "Before the target action, add a native bridge: explain why the reader may need the next step "
+            "based on the exact tension of the post. The ending must feel like a continuation of the story, "
+            "not like a pasted ad line."
+        )
+    else:
+        slot_rule = (
+            "THIS POST IS NOT A CONVERSION SLOT. Do not use target actions in this post. "
+            "Keep it useful, engaging, and native without redirecting the reader."
+        )
     return (
         "## правило для финала поста\n\n"
         "У тебя есть список целевых действий:\n"
         f"{joined_actions}\n\n"
         f"{intensity_rule} "
+        f"{slot_rule} "
         "Use at most one target action in a post. Even at high intensity, make the transition feel native "
         "and avoid command-like, repetitive CTA wording."
     )
@@ -621,6 +730,7 @@ def _build_conversion_rule(
     conversion_mode: str,
     conversion_target: str | None,
     conversion_intensity: int,
+    conversion_required: bool,
 ) -> str:
     target = (conversion_target or "").strip()
     target_line = f"Known conversion asset: {target}" if target else "Known conversion asset: not specified."
@@ -633,14 +743,23 @@ def _build_conversion_rule(
             "End naturally with a useful thought, a sharp open loop, or a discussion question."
         )
 
+    slot_line = (
+        "CURRENT SLOT: CONVERSION REQUIRED. This exact post must contain one native redirect. "
+        "Do not treat conversion as optional. The redirect must be prepared by a native bridge: "
+        "first name the problem, tension, or useful next step from the post, then point to the profile/pinned post. "
+        "Never paste a naked final line like 'left the name in profile' without explaining why it belongs there."
+        if conversion_required
+        else "CURRENT SLOT: CONVERSION NOT REQUIRED. This exact post should not redirect the reader."
+    )
+
     if conversion_mode == "pinned_post":
         destination_rule = (
-            "If a conversion hint genuinely fits the post, point curiosity toward the profile or pinned post, "
-            "not toward a bio link. Never write a hard CTA like 'click now' or 'buy now'."
+            "For conversion slots, point curiosity toward the profile or pinned post, not toward a bio link. "
+            "Never write a hard CTA like 'click now' or 'buy now'."
         )
     else:
         destination_rule = (
-            "If a conversion hint genuinely fits the post, point curiosity toward the profile or bio link. "
+            "For conversion slots, point curiosity toward the profile or bio link. "
             "Never write a hard CTA like 'click now' or 'buy now'."
         )
 
@@ -648,11 +767,16 @@ def _build_conversion_rule(
         "## conversion strategy\n\n"
         f"Configured conversion intensity: {conversion_intensity}/100. "
         f"{_build_intensity_rule(conversion_intensity)} "
+        f"{slot_line} "
         "Traffic strategy: preserve trust and liveliness even when conversion intensity is high. "
         "The post must be interesting by itself and should not feel like an ad, lesson, funnel, or feature pitch. "
-        "At most one soft hint is allowed in a post, and never force it into the final line.\n"
+        "At most one soft hint is allowed in a post. If CURRENT SLOT requires conversion, the hint must be present.\n"
         f"{target_line}\n"
         f"{destination_rule} "
+        "Native conversion structure for required slots: observation or pain -> why the next step matters -> soft redirect. "
+        "The conversion sentence must answer 'why should the reader go there now?' in human language. "
+        "Bad native bridge: 'The service name is in my profile.' "
+        "Good native bridge: 'If you also mix clients between projects, I left the tool I use in the profile.' "
         "Allowed rare patterns: 'I left the fuller breakdown in the profile', "
         "'the detailed version is pinned in the profile', "
         "'I keep the working notes there'. "
@@ -700,6 +824,7 @@ def _build_generation_system_prompt(
             THREADS_VIBE_RULES,
             THREADS_LENGTH_RULES,
             THREADS_LIVE_FEED_RULES,
+            THREADS_MODERN_LANGUAGE_RULES,
             THREADS_ENGAGEMENT_RULES,
             project_stop_words,
             conversion_rule,
@@ -716,6 +841,10 @@ async def _generate_validated_response(
     project_id: int,
     stop_words: list[str],
     conversion_intensity: int,
+    conversion_required: bool,
+    conversion_mode: str,
+    conversion_target: str | None,
+    target_actions: list[str],
 ) -> dict[str, str]:
     last_response: dict[str, str] | None = None
     last_forbidden_words: list[str] = []
@@ -739,6 +868,10 @@ async def _generate_validated_response(
         quality_issues = _find_generation_quality_issues(
             parsed_response["content"],
             conversion_intensity=conversion_intensity,
+            conversion_required=conversion_required,
+            conversion_mode=conversion_mode,
+            conversion_target=conversion_target,
+            target_actions=target_actions,
         )
         if not forbidden_words and not quality_issues and content_length <= THREADS_POST_CHAR_LIMIT:
             return parsed_response
@@ -784,7 +917,8 @@ async def _generate_validated_response(
                 retry_reasons.append(
                     "Quality issues: "
                     + "; ".join(quality_issues)
-                    + ". Rewrite with a concrete human detail and no vague magic resolution."
+                    + ". Rewrite with a concrete human detail, no vague magic resolution, "
+                    "and obey the exact conversion slot requirement."
                 )
             messages.append(
                 {
@@ -881,7 +1015,15 @@ def _find_forbidden_words(*, content: str, stop_words: list[str]) -> list[str]:
     return found_words
 
 
-def _find_generation_quality_issues(content: str, *, conversion_intensity: int = 25) -> list[str]:
+def _find_generation_quality_issues(
+    content: str,
+    *,
+    conversion_intensity: int = 25,
+    conversion_required: bool = False,
+    conversion_mode: str = "bio_link",
+    conversion_target: str | None = None,
+    target_actions: list[str] | None = None,
+) -> list[str]:
     lowered = " ".join(content.lower().split())
     issues: list[str] = []
 
@@ -957,10 +1099,116 @@ def _find_generation_quality_issues(content: str, *, conversion_intensity: int =
         "в профиле",
         "по ссылке",
     ]
-    if conversion_intensity <= 25 and any(marker in lowered for marker in product_resolution_markers):
+    if not conversion_required and conversion_intensity <= 25 and any(marker in lowered for marker in product_resolution_markers):
         issues.append("too direct product/profile resolution for a low-reach feed post")
+    if conversion_required and not _has_conversion_signal(
+        content,
+        conversion_mode=conversion_mode,
+        conversion_target=conversion_target,
+        target_actions=target_actions or [],
+    ):
+        issues.append("missing required conversion redirect")
+    if conversion_required and _has_weak_conversion_bridge(
+        content,
+        conversion_mode=conversion_mode,
+        conversion_target=conversion_target,
+        target_actions=target_actions or [],
+    ):
+        issues.append("conversion redirect is pasted without a native bridge")
 
     return issues
+
+
+def _has_conversion_signal(
+    content: str,
+    *,
+    conversion_mode: str,
+    conversion_target: str | None,
+    target_actions: list[str],
+) -> bool:
+    lowered = " ".join(content.lower().split())
+    markers = _get_conversion_markers(
+        conversion_mode=conversion_mode,
+        conversion_target=conversion_target,
+        target_actions=target_actions,
+    )
+    return any(marker in lowered for marker in markers)
+
+
+def _get_conversion_markers(
+    *,
+    conversion_mode: str,
+    conversion_target: str | None,
+    target_actions: list[str],
+) -> list[str]:
+    markers: list[str] = []
+    if conversion_mode == "pinned_post":
+        markers.extend(["закреп", "закреплен", "закреплён", "прикреплен", "прикреплён"])
+    elif conversion_mode == "bio_link":
+        markers.extend(["профил", "био", "bio", "ссылк", "линк"])
+
+    target = (conversion_target or "").strip().lower()
+    if target:
+        markers.extend(part for part in re.split(r"[\s/.,;:!?()#?=&_-]+", target) if len(part) >= 4)
+
+    for action in target_actions:
+        for part in re.split(r"[\s/.,;:!?()#?=&_-]+", action.lower()):
+            if len(part) >= 5:
+                markers.append(part)
+
+    return list(dict.fromkeys(markers))
+
+
+def _has_weak_conversion_bridge(
+    content: str,
+    *,
+    conversion_mode: str,
+    conversion_target: str | None,
+    target_actions: list[str],
+) -> bool:
+    if not _has_conversion_signal(
+        content,
+        conversion_mode=conversion_mode,
+        conversion_target=conversion_target,
+        target_actions=target_actions,
+    ):
+        return False
+
+    normalized = " ".join(content.lower().split())
+    naked_patterns = [
+        "название сервиса оставила в профиле",
+        "название оставила в профиле",
+        "сервис оставила в профиле",
+        "оставила в профиле",
+        "оставил в профиле",
+        "подробности в профиле",
+        "детали в профиле",
+        "ссылка в био",
+        "ссылка в профиле",
+        "все в закрепе",
+        "детали в закрепе",
+        "подробности в закрепе",
+    ]
+    if any(pattern in normalized for pattern in naked_patterns):
+        bridge_markers = [
+            "если",
+            "когда",
+            "кому",
+            "чтобы",
+            "потому",
+            "поэтому",
+            "если у вас",
+            "если тебе",
+            "для тех",
+            "в таких случаях",
+            "вот тут",
+            "чтобы не",
+            "я для этого",
+            "мне для этого",
+        ]
+        return not any(marker in normalized for marker in bridge_markers)
+
+    return False
 
 
 def _clean_generated_text(text: str) -> str:
@@ -988,11 +1236,57 @@ def _clean_generated_text(text: str) -> str:
     return cleaned.strip()
 
 
-def _prepare_generated_text_for_threads(text: str, *, conversion_intensity: int = 25) -> str:
-    if conversion_intensity <= 25:
+def _prepare_generated_text_for_threads(
+    text: str,
+    *,
+    conversion_intensity: int = 25,
+    conversion_required: bool = False,
+    conversion_mode: str = "bio_link",
+    conversion_target: str | None = None,
+    target_actions: list[str] | None = None,
+) -> str:
+    target_actions = target_actions or []
+    if not conversion_required and conversion_intensity <= 25:
         text = _remove_stale_conversion_tail(text)
+    if conversion_required and not _has_conversion_signal(
+        text,
+        conversion_mode=conversion_mode,
+        conversion_target=conversion_target,
+        target_actions=target_actions,
+    ):
+        text = _append_conversion_fallback(
+            text,
+            conversion_mode=conversion_mode,
+            target_actions=target_actions,
+        )
     fitted = _fit_generated_text_for_threads(text)
     return _format_generated_text_lines(fitted)
+
+
+def _append_conversion_fallback(
+    text: str,
+    *,
+    conversion_mode: str,
+    target_actions: list[str],
+) -> str:
+    if target_actions:
+        action = target_actions[0].strip().rstrip(".")
+        fallback = f"Если у тебя похожая история, {action[0].lower() + action[1:] if action else action}"
+    elif conversion_mode == "pinned_post":
+        fallback = "Если хочется разобраться без лишнего шума, подробности оставил в закрепленном посте"
+    else:
+        fallback = "Если у тебя такое тоже всплывает в работе, подробности оставил в профиле"
+
+    if not fallback:
+        return text
+
+    candidate = f"{text.strip()}\n\n{fallback}."
+    if len(candidate) <= THREADS_POST_CHAR_LIMIT:
+        return candidate
+
+    reserved = len(fallback) + 5
+    shortened = _fit_generated_text_for_threads(text, limit=max(80, THREADS_POST_CHAR_LIMIT - reserved))
+    return f"{shortened.rstrip('.')}\n\n{fallback}."
 
 
 def _remove_stale_conversion_tail(text: str) -> str:

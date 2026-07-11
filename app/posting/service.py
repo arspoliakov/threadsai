@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +19,47 @@ from app.telegram.notifications import send_user_notification
 
 
 SESSION_USERNAME_PLACEHOLDERS = {"", "из сессии", "Из сессии", "pending_from_session"}
+
+QUARANTINE_ERROR_MARKERS = (
+    "could not open threads composer",
+    "could not type text into threads composer",
+    "threads ui race",
+    "composer editor",
+    "manual verification",
+    "manual confirmation",
+    "confirm you're human",
+    "checkpoint",
+    "captcha",
+    "login screen",
+    "log in",
+    "choose how you want",
+    "content is not available",
+    "http error 500",
+    "error 500",
+)
+
+HARD_QUARANTINE_ERROR_MARKERS = (
+    "manual verification",
+    "manual confirmation",
+    "confirm you're human",
+    "checkpoint",
+    "captcha",
+    "login screen",
+    "log in",
+    "choose how you want",
+    "content is not available",
+    "http error 500",
+    "error 500",
+)
+
+PROXY_RETRY_MARKERS = (
+    "proxy ip changed during selenium session",
+    "proxy/network",
+    "err_proxy",
+    "tunnel connection failed",
+    "no exit node",
+    "proxy",
+)
 
 
 def get_adapter(platform: Platform) -> BasePostingAdapter:
@@ -69,7 +110,7 @@ async def execute_posting_task(
         task.status = PostingTaskStatus.QUEUED
         task.started_at = None
         task.finished_at = None
-        task.error_message = "Threads account has no assigned proxy port."
+        task.error_message = "У аккаунта Threads нет назначенного прокси-порта."
         await session.commit()
         await session.refresh(task)
         return task
@@ -118,7 +159,11 @@ async def execute_posting_task(
         return task
     except RetryablePostingException as exc:
         error_message = str(exc)
-        await _mark_retryable(session, task, account, error_message)
+        if _should_quarantine_account(error_message, task.retry_count):
+            await _mark_account_needs_review(session, task, account, error_message)
+            await _notify_account_owner_about_quarantine(account, task, error_message)
+        else:
+            await _mark_retryable(session, task, account, error_message)
         return task
     except Exception as exc:
         error_message = str(exc)
@@ -136,8 +181,6 @@ async def _mark_failed(session: AsyncSession, task: PostingTask, error_message: 
         task.account.last_error = error_message
     await session.commit()
     await session.refresh(task)
-    if task.account_id is not None:
-        schedule_account_queue_refill(task.project_id, task.account_id)
 
 
 async def _mark_retryable(
@@ -147,17 +190,41 @@ async def _mark_retryable(
     error_message: str,
 ) -> None:
     is_proxy_rotation = _is_proxy_rotation_retry(error_message)
+    retry_delay = timedelta(minutes=5 if is_proxy_rotation else 30)
     task.status = PostingTaskStatus.QUEUED
     task.started_at = None
     task.finished_at = None
+    task.scheduled_at = datetime.now(UTC) + retry_delay
     task.error_message = (
-        "Техническая пауза: прокси сменил IP во время публикации. Система повторит задачу автоматически."
+        "Техническая пауза: прокси сменил IP во время публикации. "
+        "Система повторит задачу после безопасной задержки."
         if is_proxy_rotation
-        else error_message
+        else "Техническая пауза: временная ошибка браузера или прокси. "
+        "Система повторит задачу позже."
     )
     task.retry_count += 1
-    if not is_proxy_rotation:
-        account.last_error = error_message
+    account.last_error = error_message
+    await session.commit()
+    await session.refresh(task)
+
+
+async def _mark_account_needs_review(
+    session: AsyncSession,
+    task: PostingTask,
+    account: Account,
+    error_message: str,
+) -> None:
+    account.status = AccountStatus.ERROR
+    account.last_error = error_message[:2000]
+    task.status = PostingTaskStatus.QUEUED
+    task.started_at = None
+    task.finished_at = None
+    task.scheduled_at = None
+    task.error_message = (
+        "Публикация остановлена: Threads показал подозрительный экран, composer не открылся "
+        "или потребовалась ручная проверка. Аккаунт поставлен на паузу до ручной диагностики."
+    )
+    task.retry_count += 1
     await session.commit()
     await session.refresh(task)
 
@@ -194,6 +261,7 @@ async def _mark_session_expired(
     task.status = PostingTaskStatus.QUEUED
     task.started_at = None
     task.finished_at = None
+    task.scheduled_at = None
     task.error_message = error_message
     await session.commit()
     await session.refresh(task)
@@ -205,9 +273,43 @@ async def _notify_account_owner_about_session(account: Account) -> None:
     telegram_id = owner.telegram_id if owner is not None else None
     username = account.username or "без username"
     text = (
-        f"Сессия Threads у аккаунта @{username} истекла.\n\n"
-        "Публикация приостановлена, задача возвращена в очередь. "
-        "Открой настройки проекта и обнови cookies."
+        f"Профиль Threads @{username} поставлен на паузу.\n\n"
+        "Почему: Threads не подтвердил текущую сессию cookies. "
+        "Мы остановили публикации, чтобы не добивать аккаунт повторными попытками.\n\n"
+        "Что сделать:\n"
+        "1. Открой Threads вручную в этом профиле.\n"
+        "2. Если Meta просит проверку или вход, пройди её руками.\n"
+        "3. Экспортируй свежие cookies через Cookie-Editor.\n"
+        "4. В ThreadsGo открой проект → Настройки → профиль → вставь cookies "
+        "и нажми «Проверить и возобновить».\n\n"
+        "После успешной проверки очередь продолжит работать сама."
+    )
+    await send_user_notification(telegram_id=telegram_id, text=text)
+
+
+async def _notify_account_owner_about_quarantine(
+    account: Account,
+    task: PostingTask,
+    error_message: str,
+) -> None:
+    project = account.project
+    owner = project.owner if project is not None else None
+    telegram_id = owner.telegram_id if owner is not None else None
+    username = account.username or "без username"
+    project_name = project.name if project is not None else f"#{task.project_id}"
+    text = (
+        "Профиль поставлен на защитную паузу.\n\n"
+        f"Проект: {project_name}\n"
+        f"Аккаунт: @{username}\n"
+        f"Задача: #{task.id}\n\n"
+        "Почему: Threads показал подозрительный экран или не дал открыть окно публикации. "
+        "Мы не продолжаем ретраи бесконечно, потому что это может ухудшить состояние аккаунта.\n\n"
+        "Что сделать:\n"
+        "1. Открой Threads вручную и проверь, что профиль живой.\n"
+        "2. Если есть проверка Meta, пройди её.\n"
+        "3. В ThreadsGo открой настройки проекта и нажми «Проверить и возобновить».\n"
+        "4. Если проверка не проходит, обнови cookies и повтори проверку.\n\n"
+        f"Техническая причина: {error_message[:900]}"
     )
     await send_user_notification(telegram_id=telegram_id, text=text)
 
@@ -241,5 +343,23 @@ def _account_proxy_url(account: Account) -> str | None:
     return build_threads_proxy_url_for_account(account)
 
 
+def _should_quarantine_account(error_message: str, retry_count: int = 0) -> bool:
+    normalized = error_message.casefold()
+    if _is_proxy_rotation_retry(error_message):
+        return False
+    if _is_proxy_transport_retry(error_message):
+        return False
+    if any(marker in normalized for marker in HARD_QUARANTINE_ERROR_MARKERS):
+        return True
+    if any(marker in normalized for marker in QUARANTINE_ERROR_MARKERS):
+        return retry_count >= 2
+    return False
+
+
 def _is_proxy_rotation_retry(error_message: str) -> bool:
     return "proxy ip changed during selenium session" in error_message.casefold()
+
+
+def _is_proxy_transport_retry(error_message: str) -> bool:
+    normalized = error_message.casefold()
+    return any(marker in normalized for marker in PROXY_RETRY_MARKERS)

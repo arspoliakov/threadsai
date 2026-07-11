@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   LoginError,
   TelegramAuthPayload,
+  getCurrentUser,
   loginWithTelegram,
   loginWithTelegramWebApp,
   setStoredAuthToken,
@@ -38,6 +39,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as LocationState | null;
+  const accessDenied = new URLSearchParams(location.search).get("reason") === "access-denied";
   const widgetContainerRef = useRef<HTMLDivElement | null>(null);
   const widgetTimeoutRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export default function LoginPage() {
         setStoredAuthToken(response.access_token);
         trackSeoEvent("registration_complete", getSeoAttribution());
         toast.success("Вход через Telegram выполнен");
-        navigate(state?.from || "/app", { replace: true });
+        navigate(await getPostLoginDestination(state?.from), { replace: true });
       } catch (telegramError) {
         const message =
           telegramError instanceof LoginError
@@ -101,7 +103,7 @@ export default function LoginPage() {
         setStoredAuthToken(response.access_token);
         trackSeoEvent("registration_complete", getSeoAttribution());
         toast.success("Вход через Telegram выполнен");
-        navigate(state?.from || "/app", { replace: true });
+        navigate(await getPostLoginDestination(state?.from), { replace: true });
         return true;
       } catch (telegramError) {
         const message =
@@ -233,6 +235,12 @@ export default function LoginPage() {
             Вход в кабинет.
           </h1>
 
+          {accessDenied ? (
+            <div className="mt-6 rounded-2xl border border-[#f0b64d]/35 bg-[#2a2110] px-4 py-3 text-sm leading-6 text-[#ffd78a]">
+              Доступ к кабинету ещё не одобрен или был приостановлен. Напишите в поддержку — мы проверим аккаунт и сообщим, когда можно войти.
+            </div>
+          ) : null}
+
           <div className="mt-8 grid gap-3 rounded-[1.6rem] border border-white/10 bg-black/24 p-5">
             <AgreementCheckbox
               checked={termsAccepted}
@@ -349,6 +357,19 @@ export default function LoginPage() {
       </section>
     </main>
   );
+}
+
+async function getPostLoginDestination(requestedPath?: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user.subscription_status) {
+      return "/app/billing";
+    }
+  } catch {
+    // The normal API interceptor will handle invalid access; keep a safe fallback here.
+  }
+
+  return requestedPath || "/app";
 }
 
 function Spinner() {

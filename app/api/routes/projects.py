@@ -1,6 +1,8 @@
 import logging
+import re
 from datetime import UTC, datetime
 from typing import Any
+from unicodedata import normalize
 
 from pydantic import BaseModel, ConfigDict
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -111,13 +113,41 @@ async def create_project(
             },
         )
 
+    safe_slug = await _build_unique_project_slug(
+        db=db,
+        raw_value=payload.slug or payload.name,
+    )
     repository = ProjectRepository(db)
-    project = await repository.create_project(payload)
+    project = await repository.create_project(payload.model_copy(update={"slug": safe_slug}))
     project.owner_id = current_user_id
     await db.commit()
     await db.refresh(project)
 
     return project
+
+
+async def _build_unique_project_slug(db: AsyncSession, raw_value: str) -> str:
+    base = _slugify_project_value(raw_value)
+    candidate = base
+    suffix = 1
+
+    while await db.scalar(select(Project.id).where(Project.slug == candidate).limit(1)):
+        suffix_text = f"-{suffix}"
+        candidate = f"{base[:120 - len(suffix_text)]}{suffix_text}"
+        suffix += 1
+
+    return candidate
+
+
+def _slugify_project_value(value: str) -> str:
+    ascii_value = (
+        normalize("NFKD", value.casefold().strip())
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_value).strip("-")
+    slug = re.sub(r"-{2,}", "-", slug).strip("-")[:100].strip("-")
+    return slug or f"project-{int(datetime.now(UTC).timestamp())}"
 
 
 @router.get("/{project_id}", response_model=ProjectRead, status_code=status.HTTP_200_OK)

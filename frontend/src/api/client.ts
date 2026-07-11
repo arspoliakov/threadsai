@@ -45,6 +45,23 @@ apiClient.interceptors.response.use(
       }
     }
 
+    if (error?.response?.status === 403) {
+      const detail = error?.response?.data?.detail;
+      const isAccessDenied =
+        detail === "Telegram user is not approved for dashboard access" ||
+        detail === "Invalid admin token" ||
+        detail === "Tenant-scoped API requires Telegram JWT authentication.";
+
+      if (isAccessDenied) {
+        clearStoredAuthToken();
+        window.localStorage.removeItem("threadsbot.authenticated");
+
+        if (window.location.pathname !== "/login") {
+          window.location.assign("/login?reason=access-denied");
+        }
+      }
+    }
+
     if (error?.response?.status === 402) {
       const detail = error?.response?.data?.detail;
       const code = typeof detail === "object" && detail ? detail.code : "";
@@ -71,6 +88,46 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+export function getApiErrorMessage(error: unknown, fallback: string) {
+  if (!axios.isAxiosError(error)) {
+    return fallback;
+  }
+
+  const detail = error.response?.data?.detail;
+  if (typeof detail === "string" && detail.trim()) {
+    return detail;
+  }
+
+  if (detail && typeof detail === "object") {
+    const code = typeof detail.code === "string" ? detail.code : "";
+    const limit = typeof detail.limit === "number" ? detail.limit : null;
+
+    if (code === "subscription_required") {
+      return "Для этого действия нужна активная подписка.";
+    }
+    if (code === "tariff_projects_limit_reached") {
+      return limit === null
+        ? "Достигнут лимит проектов текущего тарифа."
+        : `На текущем тарифе доступно проектов: ${limit}.`;
+    }
+    if (code === "tariff_accounts_limit_reached") {
+      return limit === null
+        ? "Достигнут лимит профилей текущего тарифа."
+        : `На текущем тарифе доступно профилей: ${limit}.`;
+    }
+    if (code === "tariff_posts_limit_reached") {
+      return limit === null
+        ? "Достигнут дневной лимит публикаций текущего тарифа."
+        : `На текущем тарифе доступно публикаций в день: ${limit}.`;
+    }
+    if (typeof detail.message === "string" && detail.message.trim()) {
+      return detail.message;
+    }
+  }
+
+  return fallback;
+}
 
 export type LoginResponse = {
   access_token: string;

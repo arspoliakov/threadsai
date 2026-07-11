@@ -24,7 +24,9 @@ data/
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+frontend/.env.production
 frontend/.env.bak*
+frontend/dist-release.tar.gz
 
 # Logs and temporary files
 *.log

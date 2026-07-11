@@ -31,7 +31,7 @@ class ProjectBase(BaseModel):
 
 
 class ProjectCreate(ProjectBase):
-    pass
+    slug: str | None = Field(default=None, max_length=120)
 
 
 class ProjectUpdate(BaseModel):

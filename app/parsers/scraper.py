@@ -35,6 +35,8 @@ MIN_LIKES_THRESHOLD = 10
 DEFAULT_UNKNOWN_LIKES_SCORE = 1
 SCROLL_TIMES = 4
 SCROLL_PAUSE_SECONDS = 2.5
+SCROLL_STEP_MIN_PX = 420
+SCROLL_STEP_MAX_PX = 1100
 INITIAL_FEED_PAUSE_SECONDS = 3
 EMPTY_FEED_REFRESH_PAUSE_SECONDS = 5
 MAX_EMPTY_FEED_REFRESHES = 2
@@ -117,10 +119,28 @@ class ThreadsTrendScraper:
                 self.adapter._remove_file_safely(proxy_extension_path)
 
     def _scroll_feed(self, driver: WebDriver, deadline_at: float | None = None) -> None:
-        for _ in range(SCROLL_TIMES):
+        scroll_rounds = random.randint(max(2, SCROLL_TIMES - 1), SCROLL_TIMES + 2)
+
+        for round_index in range(scroll_rounds):
             self.adapter._raise_if_deadline_exceeded(deadline_at)
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            _sleep_with_deadline(SCROLL_PAUSE_SECONDS, deadline_at, self.adapter)
+            scroll_step = random.randint(SCROLL_STEP_MIN_PX, SCROLL_STEP_MAX_PX)
+            driver.execute_script(
+                """
+                window.scrollBy({
+                  top: arguments[0],
+                  left: 0,
+                  behavior: 'smooth'
+                });
+                """,
+                scroll_step,
+            )
+            logger.info("Threads feed soft-scroll %s/%s by %s px", round_index + 1, scroll_rounds, scroll_step)
+
+            pause_seconds = random.uniform(1.8, 5.5)
+            if random.random() < 0.25:
+                pause_seconds += random.uniform(2.0, 5.0)
+
+            _sleep_with_deadline(pause_seconds, deadline_at, self.adapter)
 
     def _wait_for_feed_content(self, driver: WebDriver, deadline_at: float | None = None) -> None:
         for attempt in range(MAX_EMPTY_FEED_REFRESHES + 1):
@@ -214,8 +234,6 @@ class ThreadsTrendScraper:
             score = likes if likes is not None else DEFAULT_UNKNOWN_LIKES_SCORE
             if likes is None:
                 logger.warning("Лайки не найдены, сохранен по дефолту: %s", preview)
-
-            self._maybe_like_post(container)
 
             posts.append(
                 {

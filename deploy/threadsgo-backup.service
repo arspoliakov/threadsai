@@ -4,5 +4,4 @@ After=local-fs.target
 
 [Service]
 Type=oneshot
-ExecStart=/opt/threadsai/deploy/backup_database.sh
-
+ExecStart=/usr/bin/bash /opt/threadsai/deploy/backup_database.sh

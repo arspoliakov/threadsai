@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   createProject,
   deleteProject,
+  getApiErrorMessage,
   getDashboardSummary,
   type DashboardProjectSummary,
   type DashboardSummary,
@@ -43,14 +44,14 @@ export default function Dashboard() {
     await toast.promise(
       createProject({
         name: payload.name,
-        slug: createSlug(payload.name),
+        slug: createSafeSlug(payload.name),
         description: payload.description || null,
         is_active: true,
       }),
       {
         loading: "Создаем проект...",
         success: "Проект создан",
-        error: "Не удалось создать проект",
+        error: (error) => getApiErrorMessage(error, "Не удалось создать проект."),
       },
     );
 
@@ -429,13 +430,55 @@ function EmptyProjects({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-function createSlug(name: string) {
-  const base = name
+function createSafeSlug(name: string) {
+  const transliterationMap: Record<string, string> = {
+    а: "a",
+    б: "b",
+    в: "v",
+    г: "g",
+    д: "d",
+    е: "e",
+    ё: "e",
+    ж: "zh",
+    з: "z",
+    и: "i",
+    й: "y",
+    к: "k",
+    л: "l",
+    м: "m",
+    н: "n",
+    о: "o",
+    п: "p",
+    р: "r",
+    с: "s",
+    т: "t",
+    у: "u",
+    ф: "f",
+    х: "h",
+    ц: "ts",
+    ч: "ch",
+    ш: "sh",
+    щ: "sch",
+    ъ: "",
+    ы: "y",
+    ь: "",
+    э: "e",
+    ю: "yu",
+    я: "ya",
+  };
+
+  const normalized = name
     .toLowerCase()
+    .split("")
+    .map((char) => transliterationMap[char] ?? char)
+    .join("")
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zа-яё0-9]+/gi, "-")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const base = normalized
+    .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-")
     .slice(0, 64);
 
   return `${base || "project"}-${Date.now().toString(36)}`;

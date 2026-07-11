@@ -257,7 +257,7 @@ export default function ProjectSettingsPage() {
       toast.promise(checkPromise, {
         loading: "Проверяем сессию Threads...",
         success: (result) => result.message,
-        error: "Не удалось проверить сессию",
+        error: "Не удалось проверить сессию. Попробуйте ещё раз или обновите cookies.",
       });
       await checkPromise;
       await loadSettings({ silent: true });
@@ -661,24 +661,31 @@ function AccountCard({
   const [cookiesDraft, setCookiesDraft] = useState("");
   const proxyPaused = account.status === "proxy_error";
   const sessionNeedsUpdate = account.status === "cookies_expired" || account.status === "blocked" || account.status === "error";
+  const isPaused = proxyPaused || sessionNeedsUpdate;
 
   return (
-    <article className={`rounded-2xl border p-4 transition hover:shadow-sm ${sessionNeedsUpdate ? "border-[#d88a35]/50 bg-[#fff4df]" : "border-[#e1e1dc] bg-[#fbfaf5] hover:border-[#151515]"}`}>
+    <article
+      className={`rounded-2xl border p-4 transition hover:shadow-sm ${
+        isPaused
+          ? "border-[#d88a35]/50 bg-[#fff4df]"
+          : "border-[#e1e1dc] bg-[#fbfaf5] hover:border-[#151515]"
+      }`}
+    >
       <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-center">
         <div>
-          <p className="field-label">Имя профиля</p>
+          <p className="field-label">Профиль Threads</p>
           <p className="mt-1 text-sm text-[#24231f]">{formatUsername(account.username)}</p>
         </div>
         <div>
-          <p className="field-label">Статус подключения</p>
+          <p className="field-label">Состояние</p>
           <StatusBadge status={account.status} />
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton onClick={onCheckSession} disabled={isChecking || isUnlinking}>
-            {isChecking ? "проверка..." : "Проверить доступ"}
+            {isChecking ? "проверяем..." : sessionNeedsUpdate ? "Проверить и возобновить" : "Проверить сессию"}
           </ActionButton>
           <ActionButton danger onClick={onUnlink} disabled={isChecking || isUnlinking}>
-            {isUnlinking ? "отключаем..." : "Отключить профиль"}
+            {isUnlinking ? "отключаем..." : "Отвязать от проекта"}
           </ActionButton>
         </div>
       </div>
@@ -691,31 +698,53 @@ function AccountCard({
 
       {proxyPaused ? (
         <div className="mt-4 rounded-2xl border border-[#f1d19a] bg-[#fff8e8] px-4 py-3 text-sm leading-6 text-[#6f4300]">
-          Подключение временно недоступно. Система сама продолжит проверку и вернет профиль в работу. Обновлять cookies не нужно.
+          Профиль временно на технической паузе из-за прокси или сетевого сбоя. Cookies менять не нужно:
+          система сама попробует вернуть профиль в работу, когда соединение стабилизируется.
         </div>
       ) : null}
 
       {sessionNeedsUpdate ? (
-        <div className="mt-4 border-t border-[#d88a35]/30 pt-4">
-          <p className="text-sm leading-6 text-[#4a2b08]">
-            Если сессия слетела, вставьте свежий Export JSON из Cookie-Editor и сохраните.
-          </p>
+        <div className="mt-4 space-y-4 border-t border-[#d88a35]/30 pt-4">
+          <div className="rounded-2xl border border-[#d88a35]/40 bg-white/70 p-4 text-sm leading-6 text-[#4a2b08]">
+            <p className="font-semibold text-[#24231f]">Публикации по этому профилю поставлены на паузу.</p>
+            <p className="mt-2">
+              Это защитный режим: Threads мог показать экран проверки, composer мог не открыться,
+              или cookies могли устареть. Мы не делаем бесконечные ретраи, чтобы не ухудшать состояние аккаунта.
+            </p>
+            <ol className="mt-3 list-decimal space-y-1 pl-5">
+              <li>Откройте Threads вручную в этом профиле и убедитесь, что аккаунт живой.</li>
+              <li>Если Meta просит проверку или вход, пройдите её руками.</li>
+              <li>Если проверка прошла, нажмите «Проверить и возобновить».</li>
+              <li>Если не помогло, экспортируйте свежие cookies и сохраните их ниже.</li>
+            </ol>
+          </div>
           <textarea
             value={cookiesDraft}
             onChange={(event) => setCookiesDraft(event.target.value)}
             rows={5}
-            placeholder="Вставьте свежий JSON cookies"
+            placeholder="Вставьте свежий JSON cookies из Cookie-Editor, если сессия действительно слетела"
             className="mt-3 w-full resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-xs leading-5 text-[#24231f] outline-none transition focus:border-[#151515]"
           />
-          <button
-            type="button"
-            onClick={() => onSaveCookies(cookiesDraft)}
-            disabled={isSavingCookies}
-            className="mt-3 flex items-center gap-2 rounded-2xl border border-[#4a2b08] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#4a2b08] transition hover:bg-[#4a2b08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSavingCookies ? <Spinner /> : null}
-            Обновить cookies
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onSaveCookies(cookiesDraft)}
+              disabled={isSavingCookies}
+              className="flex items-center gap-2 rounded-2xl border border-[#4a2b08] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#4a2b08] transition hover:bg-[#4a2b08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingCookies ? <Spinner /> : null}
+              Обновить cookies
+            </button>
+            <button
+              type="button"
+              onClick={onCheckSession}
+              disabled={isChecking}
+              className="flex items-center gap-2 rounded-2xl border border-[#151515] bg-[#151515] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isChecking ? <Spinner /> : null}
+              Проверить и возобновить
+            </button>
+          </div>
         </div>
       ) : null}
     </article>

@@ -88,7 +88,7 @@ class Settings(BaseSettings):
         validation_alias="SELENIUM_DEADLINE_SECONDS",
     )
     max_concurrent_browsers: int = Field(
-        default=3,
+        default=1,
         validation_alias="MAX_CONCURRENT_BROWSERS",
     )
     proxy_failure_threshold: int = Field(
@@ -118,6 +118,10 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(
         default="change-me-local-jwt-secret",
         validation_alias="JWT_SECRET_KEY",
+    )
+    data_encryption_key: str = Field(
+        default="",
+        validation_alias="DATA_ENCRYPTION_KEY",
     )
     jwt_access_token_expire_minutes: int = Field(
         default=60 * 24 * 7,

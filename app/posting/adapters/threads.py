@@ -13,7 +13,13 @@ from typing import Any, Callable, TypeVar
 from urllib.parse import unquote, urlparse
 
 import httpx
-import undetected_chromedriver as uc
+try:
+    import undetected_chromedriver as uc
+except ImportError as exc:  # Python 3.13 removed distutils used by uc 3.5.5.
+    uc = None  # type: ignore[assignment]
+    UNDETECTED_CHROMEDRIVER_IMPORT_ERROR: ImportError | None = exc
+else:
+    UNDETECTED_CHROMEDRIVER_IMPORT_ERROR = None
 from selenium.common.exceptions import (
     ElementClickInterceptedException,
     StaleElementReferenceException,
@@ -31,11 +37,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from app.db.models import Account, PostingTask
 from app.core.config import settings
+from app.core.secrets import decrypt_secret
 from app.posting.adapters.base import BasePostingAdapter, PublishResult
 from app.posting.exceptions import (
     PublicationVerificationPending,
     PostingDeadlineExceeded,
     ProxyNetworkException,
+    RetryablePostingException,
     SessionExpiredException,
     ThreadChainPartialSuccess,
 )
@@ -61,6 +69,17 @@ class ProxyIpWatchdog:
     current_ip: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class BrowserFingerprintProfile:
+    """Stable per-account browser surface. It must not change every launch."""
+
+    width: int
+    height: int
+    canvas_noise: int
+    canvas_x: int
+    canvas_y: int
+
+
 class ThreadsAdapter(BasePostingAdapter):
     BASE_URL = "https://www.threads.net/"
     LOGIN_URL = "https://www.threads.net/login"
@@ -79,7 +98,7 @@ class ThreadsAdapter(BasePostingAdapter):
     COMPOSER_TRIGGER_LOCATORS = [
         (
             By.XPATH,
-            '//*[local-name()="svg" and (contains(@aria-label, "Новая") or contains(@aria-label, "New") or contains(@aria-label, "Create"))]'
+            '//*[local-name()="svg" and (contains(@aria-label, "Новая ветка") or contains(@aria-label, "Новый пост") or contains(@aria-label, "New thread") or contains(@aria-label, "New post"))]'
             '/ancestor::*[@role="button" or self::button][1]',
         ),
         (
@@ -87,7 +106,6 @@ class ThreadsAdapter(BasePostingAdapter):
             '//*[contains(normalize-space(), "Что нового?") or contains(normalize-space(), "What\'s new?")]'
             '/ancestor::*[@role="button" or self::button or @tabindex][1]',
         ),
-        (By.XPATH, XPATHS["thread_popup"]),
     ]
 
     COMPOSER_EDITOR_LOCATORS = [
@@ -95,6 +113,11 @@ class ThreadsAdapter(BasePostingAdapter):
         (By.CSS_SELECTOR, 'div[contenteditable="true"]'),
         (By.XPATH, XPATHS["thread_text"]),
     ]
+
+    COMPOSER_DIRECT_URLS = (
+        "https://www.threads.net/new",
+        "https://www.threads.net/intent/post",
+    )
 
     def __init__(self, timeout_seconds: int = 25) -> None:
         self.timeout_seconds = timeout_seconds
@@ -213,6 +236,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 PostingDeadlineExceeded,
                 ProxyNetworkException,
                 PublicationVerificationPending,
+                RetryablePostingException,
                 SessionExpiredException,
                 ThreadChainPartialSuccess,
             ):
@@ -226,6 +250,11 @@ class ThreadsAdapter(BasePostingAdapter):
 
                 if self._is_retryable_network_error(exc):
                     raise ProxyNetworkException(f"Threads proxy/network transport failed: {exc}") from exc
+
+                if self._is_retryable_ui_error(exc):
+                    raise RetryablePostingException(
+                        f"Threads UI race while publishing; task will retry automatically: {exc}"
+                    ) from exc
 
                 screenshot_path = self._save_error_screenshot(driver, task.id)
                 if attempt == 0 and self._is_recoverable_browser_crash(exc):
@@ -337,8 +366,15 @@ class ThreadsAdapter(BasePostingAdapter):
 
     def _create_driver(self, proxy_extension_path: Path | None, *, account_id: int | None = None) -> WebDriver:
         use_undetected_driver = settings.chrome_driver_backend.casefold() == "undetected"
+        if use_undetected_driver and uc is None:
+            raise RuntimeError(
+                "CHROME_DRIVER_BACKEND=undetected выбран, но undetected-chromedriver не импортируется. "
+                "Используйте Python 3.12 либо переключите CHROME_DRIVER_BACKEND=selenium. "
+                f"Причина импорта: {UNDETECTED_CHROMEDRIVER_IMPORT_ERROR}"
+            )
         options = uc.ChromeOptions() if use_undetected_driver else webdriver.ChromeOptions()
         user_data_dir = self._get_user_data_dir(account_id)
+        fingerprint_profile = _build_fingerprint_profile(account_id)
         profile_lock = _get_profile_lock(account_id)
 
         if profile_lock is not None:
@@ -364,7 +400,7 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
         options.add_argument("--webrtc-ip-handling-policy=disable_non_proxied_udp")
-        options.add_argument("--window-size=1440,1200")
+        options.add_argument(f"--window-size={fingerprint_profile.width},{fingerprint_profile.height}")
         options.add_argument(f"--user-data-dir={user_data_dir}")
         options.add_argument("--disk-cache-size=52428800")
         options.add_argument("--media-cache-size=1")
@@ -406,6 +442,12 @@ class ThreadsAdapter(BasePostingAdapter):
             options.add_argument(f"--load-extension={proxy_extension_path}")
 
         try:
+            options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+            options.add_experimental_option("useAutomationExtension", False)
+        except Exception:
+            pass
+
+        try:
             self._trim_chrome_profile_cache(user_data_dir)
             if use_undetected_driver:
                 driver = uc.Chrome(options=options, use_subprocess=True)
@@ -414,7 +456,7 @@ class ThreadsAdapter(BasePostingAdapter):
             setattr(driver, "_threadsai_user_data_dir", user_data_dir)
             setattr(driver, "_threadsai_persistent_profile", account_id is not None)
             setattr(driver, "_threadsai_profile_lock", profile_lock)
-            self._apply_stealth_scripts(driver)
+            self._apply_stealth_scripts(driver, fingerprint_profile)
             return driver
         except WebDriverException as exc:
             if profile_lock is not None:
@@ -441,64 +483,65 @@ class ThreadsAdapter(BasePostingAdapter):
                 self._remove_directory_safely(user_data_dir)
             raise ProxyNetworkException(f"Chrome/proxy driver startup failed: {exc}") from exc
 
-    def _apply_stealth_scripts(self, driver: WebDriver) -> None:
-        driver.execute_cdp_cmd(
-            "Page.addScriptToEvaluateOnNewDocument",
-            {
-                "source": """
-                Object.defineProperty(navigator, 'webdriver', {
+    def _apply_stealth_scripts(
+        self,
+        driver: WebDriver,
+        fingerprint_profile: BrowserFingerprintProfile,
+    ) -> None:
+        script = f"""
+                Object.defineProperty(navigator, 'webdriver', {{
                   get: () => undefined
-                });
-                Object.defineProperty(navigator, 'plugins', {
+                }});
+                Object.defineProperty(navigator, 'plugins', {{
                   get: () => [1, 2, 3, 4, 5]
-                });
-                Object.defineProperty(navigator, 'languages', {
+                }});
+                Object.defineProperty(navigator, 'languages', {{
                   get: () => ['ru-RU', 'ru', 'en-US', 'en']
-                });
-                window.chrome = window.chrome || { runtime: {} };
+                }});
+                window.chrome = window.chrome || {{ runtime: {{}} }};
 
-                try {
-                  const canvasNoise = Math.floor(Math.random() * 3) + 1;
-                  const canvasX = Math.floor(Math.random() * 7);
-                  const canvasY = Math.floor(Math.random() * 7);
+                try {{
+                  const canvasNoise = {fingerprint_profile.canvas_noise};
+                  const canvasX = {fingerprint_profile.canvas_x};
+                  const canvasY = {fingerprint_profile.canvas_y};
                   const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
-                  CanvasRenderingContext2D.prototype.getImageData = function(...args) {
+                  CanvasRenderingContext2D.prototype.getImageData = function(...args) {{
                     const imageData = originalGetImageData.apply(this, args);
-                    for (let i = 0; i < imageData.data.length; i += 64) {
+                    for (let i = 0; i < imageData.data.length; i += 64) {{
                       imageData.data[i] = imageData.data[i] ^ canvasNoise;
-                    }
+                    }}
                     return imageData;
-                  };
+                  }};
                   const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-                  HTMLCanvasElement.prototype.toDataURL = function(...args) {
+                  HTMLCanvasElement.prototype.toDataURL = function(...args) {{
                     const context = this.getContext('2d');
-                    if (context) {
+                    if (context) {{
                       context.fillStyle = 'rgba(1,1,1,0.01)';
                       context.fillRect(canvasX % Math.max(1, this.width), canvasY % Math.max(1, this.height), 1, 1);
-                    }
+                    }}
                     return originalToDataURL.apply(this, args);
-                  };
-                } catch (_) {}
+                  }};
+                }} catch (_) {{}}
 
-                try {
-                  Object.defineProperty(window, 'RTCPeerConnection', {
+                try {{
+                  Object.defineProperty(window, 'RTCPeerConnection', {{
                     configurable: true,
                     value: undefined
-                  });
-                  Object.defineProperty(window, 'webkitRTCPeerConnection', {
+                  }});
+                  Object.defineProperty(window, 'webkitRTCPeerConnection', {{
                     configurable: true,
                     value: undefined
-                  });
-                } catch (_) {}
+                  }});
+                }} catch (_) {{}}
 
-                const stopMedia = (node) => {
+                const stopMedia = (node) => {{
                   if (!node) return;
                   const mediaNodes = node.matches && node.matches('video,audio')
                     ? [node]
                     : Array.from(node.querySelectorAll ? node.querySelectorAll('video,audio') : []);
 
-                  for (const media of mediaNodes) {
-                    try {
+                  for (const media of mediaNodes) {{
+                    try {{
                       media.preload = 'none';
                       media.autoplay = false;
                       media.muted = true;
@@ -506,32 +549,34 @@ class ThreadsAdapter(BasePostingAdapter):
                       media.removeAttribute('src');
                       media.querySelectorAll('source').forEach((source) => source.removeAttribute('src'));
                       media.load();
-                    } catch (_) {}
-                  }
-                };
+                    }} catch (_) {{}}
+                  }}
+                }};
 
-                try {
-                  Object.defineProperty(HTMLMediaElement.prototype, 'preload', {
+                try {{
+                  Object.defineProperty(HTMLMediaElement.prototype, 'preload', {{
                     configurable: true,
-                    get() { return 'none'; },
-                    set() { return 'none'; }
-                  });
-                } catch (_) {}
+                    get() {{ return 'none'; }},
+                    set() {{ return 'none'; }}
+                  }});
+                }} catch (_) {{}}
 
-                try {
-                  HTMLMediaElement.prototype.play = function() {
+                try {{
+                  HTMLMediaElement.prototype.play = function() {{
                     stopMedia(this);
                     return Promise.resolve();
-                  };
-                } catch (_) {}
+                  }};
+                }} catch (_) {{}}
 
-                new MutationObserver((mutations) => {
-                  for (const mutation of mutations) {
+                new MutationObserver((mutations) => {{
+                  for (const mutation of mutations) {{
                     mutation.addedNodes.forEach(stopMedia);
-                  }
-                }).observe(document.documentElement, { childList: true, subtree: true });
+                  }}
+                }}).observe(document.documentElement, {{ childList: true, subtree: true }});
                 """
-            },
+        driver.execute_cdp_cmd(
+            "Page.addScriptToEvaluateOnNewDocument",
+            {"source": script},
         )
 
     def _apply_network_blocking(self, driver: WebDriver) -> None:
@@ -619,6 +664,7 @@ class ThreadsAdapter(BasePostingAdapter):
         driver.refresh()
         self._wait_for_dom(driver)
         self._assert_authenticated_session(driver)
+        self._assert_no_blocking_challenge(driver)
 
     def _assert_authenticated_session(self, driver: WebDriver) -> None:
         last_reason = "login page detected"
@@ -678,6 +724,120 @@ class ThreadsAdapter(BasePostingAdapter):
 
         return False
 
+    def _assert_no_blocking_challenge(self, driver: WebDriver) -> None:
+        if self._wait_for_composer_editor(driver, timeout_seconds=1) is not None:
+            return
+
+        challenge_text = self._find_blocking_challenge_text(driver)
+        if not challenge_text:
+            return
+
+        raise SessionExpiredException(
+            "Threads requires manual confirmation before publishing. "
+            f"Visible challenge: {challenge_text}. Refresh cookies after passing this screen manually."
+        )
+
+    def _find_blocking_challenge_text(self, driver: WebDriver) -> str | None:
+        try:
+            result = driver.execute_script(
+                r"""
+                const strongPageMarkers = [
+                  'choose how you want to create a threads account',
+                  'confirm you\'re human',
+                  'enter the code from the image',
+                  'use your instagram account',
+                  'use your mobile number',
+                  'log in with instagram',
+                  'log in to threads',
+                  'create a threads account',
+                  'security check',
+                  'checkpoint',
+                  '\u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u0435, \u0447\u0442\u043e \u0432\u044b \u0447\u0435\u043b\u043e\u0432\u0435\u043a',
+                  '\u0441\u043e\u0437\u0434\u0430\u0442\u044c \u0430\u043a\u043a\u0430\u0443\u043d\u0442 threads',
+                  '\u0432\u043e\u0439\u0442\u0438 \u0432 threads',
+                  '\u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438'
+                ];
+                const inputMarkers = [
+                  'use your mobile number',
+                  'mobile number',
+                  'phone number',
+                  'add phone',
+                  'get a new code',
+                  'enter code',
+                  'enter the code',
+                  'code from the image',
+                  'new code',
+                  'verification',
+                  '\u043d\u043e\u043c\u0435\u0440 \u0442\u0435\u043b\u0435\u0444\u043e\u043d\u0430',
+                  '\u043c\u043e\u0431\u0438\u043b\u044c\u043d',
+                  '\u0442\u0435\u043b\u0435\u0444\u043e\u043d',
+                  '\u043f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u043d\u043e\u0432\u044b\u0439 \u043a\u043e\u0434',
+                  '\u0432\u0432\u0435\u0434\u0438\u0442\u0435 \u043a\u043e\u0434',
+                  '\u043d\u043e\u0432\u044b\u0439 \u043a\u043e\u0434',
+                  '\u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430'
+                ];
+
+                const url = window.location.href.toLowerCase();
+                if (url.includes('/login') || url.includes('checkpoint')) {
+                  return `url:${window.location.href}`;
+                }
+
+                const bodyText = (document.body?.innerText || '')
+                  .replace(/\s+/g, ' ')
+                  .trim();
+                const normalizedBody = bodyText.toLowerCase();
+                const pageMarker = strongPageMarkers.find((marker) => normalizedBody.includes(marker));
+                if (pageMarker) {
+                  const markerIndex = Math.max(0, normalizedBody.indexOf(pageMarker));
+                  return bodyText.slice(markerIndex, markerIndex + 220);
+                }
+
+                function isVisible(element) {
+                  const rect = element.getBoundingClientRect();
+                  const style = window.getComputedStyle(element);
+                  return rect.width > 8 &&
+                    rect.height > 8 &&
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    Number(style.opacity || '1') > 0;
+                }
+
+                function describe(element) {
+                  return [
+                    element.innerText || '',
+                    element.textContent || '',
+                    element.getAttribute('aria-label') || '',
+                    element.getAttribute('title') || '',
+                    element.getAttribute('placeholder') || ''
+                  ].join(' ').replace(/\s+/g, ' ').trim();
+                }
+
+                const selectors = [
+                  'input',
+                  'textarea',
+                  '[placeholder]',
+                  '[aria-label]'
+                ];
+                const seen = new Set();
+                for (const selector of selectors) {
+                  for (const element of document.querySelectorAll(selector)) {
+                    if (seen.has(element) || !isVisible(element)) continue;
+                    seen.add(element);
+                    const text = describe(element);
+                    const normalized = text.toLowerCase();
+                    if (inputMarkers.some((label) => normalized.includes(label))) {
+                      return text.slice(0, 180);
+                    }
+                  }
+                }
+                return null;
+                """
+            )
+        except WebDriverException:
+            return None
+
+        return str(result).strip() if result else None
+
     def _share_posts_chain(self, driver: WebDriver, posts_chain: list[str], media_url: str | None) -> None:
         if not posts_chain:
             raise ValueError("Threads posting task has an empty posts_chain.")
@@ -703,13 +863,17 @@ class ThreadsAdapter(BasePostingAdapter):
         driver.get(self.BASE_URL)
         self._wait_for_dom(driver)
         logger.info("Threads page loaded before opening composer")
+        time.sleep(random.uniform(1.4, 3.6))
 
         self._open_thread_composer(driver)
+        time.sleep(random.uniform(1.8, 4.2))
         self._type_thread_text(driver, text)
+        time.sleep(random.uniform(4.0, 8.0))
 
         if media_url:
             self._safe_send_keys(driver, By.XPATH, self.XPATHS["upload_photo"], media_url)
             logger.info("Threads media path attached")
+            time.sleep(random.uniform(2.0, 4.0))
 
         self._submit_thread(driver)
 
@@ -749,6 +913,12 @@ class ThreadsAdapter(BasePostingAdapter):
     def _open_thread_composer(self, driver: WebDriver) -> None:
         last_error: Exception | None = None
 
+        if self._wait_for_composer_editor(driver, timeout_seconds=3) is not None:
+            logger.info("Threads composer editor was already visible")
+            return
+
+        self._assert_no_blocking_challenge(driver)
+
         for by, selector in self.COMPOSER_TRIGGER_LOCATORS:
             try:
                 self._js_click_first_match(driver, by, selector)
@@ -760,12 +930,259 @@ class ThreadsAdapter(BasePostingAdapter):
             except (TimeoutException, WebDriverException, StaleElementReferenceException) as exc:
                 last_error = exc
 
+        for attempt in range(1, 4):
+            try:
+                self._dismiss_threads_overlays(driver)
+                self._assert_no_blocking_challenge(driver)
+                clicked_target = self._js_click_composer_trigger(driver)
+                logger.info(
+                    "Threads composer trigger clicked by strict DOM scan on attempt %s: %s",
+                    attempt,
+                    clicked_target,
+                )
+
+                if self._wait_for_composer_editor(driver, timeout_seconds=8) is not None:
+                    logger.info("Threads composer editor is ready after strict DOM scan")
+                    return
+            except (TimeoutException, WebDriverException, StaleElementReferenceException) as exc:
+                last_error = exc
+                logger.warning("Threads composer strict DOM scan failed on attempt %s: %s", attempt, exc)
+
+        for composer_url in self.COMPOSER_DIRECT_URLS:
+            try:
+                self._dismiss_threads_overlays(driver)
+                driver.get(composer_url)
+                self._wait_for_dom(driver)
+                logger.info("Threads direct composer URL opened as fallback: %s", composer_url)
+
+                if self._wait_for_composer_editor(driver, timeout_seconds=12) is not None:
+                    logger.info("Threads composer editor is ready after direct URL fallback")
+                    return
+
+                self._assert_no_blocking_challenge(driver)
+            except (TimeoutException, WebDriverException, StaleElementReferenceException) as exc:
+                last_error = exc
+                logger.warning("Threads direct composer URL fallback failed (%s): %s", composer_url, exc)
+
         if last_error is not None:
             raise RetryablePostingException(
                 f"Could not open Threads composer: {last_error}"
             ) from last_error
 
         raise RetryablePostingException("Could not open Threads composer.")
+
+    def _dismiss_threads_overlays(self, driver: WebDriver) -> None:
+        try:
+            ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+        except WebDriverException:
+            pass
+
+        try:
+            driver.execute_script(
+                r"""
+                const labels = [
+                  'not now',
+                  'later',
+                  'close',
+                  '\u043d\u0435 \u0441\u0435\u0439\u0447\u0430\u0441',
+                  '\u043f\u043e\u0437\u0436\u0435',
+                  '\u0437\u0430\u043a\u0440\u044b\u0442\u044c'
+                ];
+                const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+                for (const element of candidates) {
+                  const text = [
+                    element.innerText || '',
+                    element.textContent || '',
+                    element.getAttribute('aria-label') || '',
+                    element.getAttribute('title') || ''
+                  ].join(' ').trim().toLowerCase();
+                  if (!text || !labels.some((label) => text.includes(label))) continue;
+                  const rect = element.getBoundingClientRect();
+                  const style = window.getComputedStyle(element);
+                  if (
+                    rect.width > 8 &&
+                    rect.height > 8 &&
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden'
+                  ) {
+                    element.click();
+                    return true;
+                  }
+                }
+                return false;
+                """
+            )
+        except WebDriverException:
+            pass
+
+    def _js_click_composer_trigger(self, driver: WebDriver) -> str:
+        result = driver.execute_script(
+            r"""
+            const exactTriggerLabels = [
+              'new thread',
+              'new post',
+              'start a thread',
+              "what's new",
+              'write',
+              'post',
+              '\u043d\u043e\u0432\u0430\u044f \u0432\u0435\u0442\u043a\u0430',
+              '\u043d\u043e\u0432\u044b\u0439 \u043f\u043e\u0441\u0442',
+              '\u0447\u0442\u043e \u043d\u043e\u0432\u043e\u0433\u043e',
+              '\u043d\u0430\u043f\u0438\u0441\u0430\u0442\u044c',
+              '\u043f\u043e\u0441\u0442'
+            ];
+            const partialTriggerLabels = [
+              "what's new",
+              'start a thread',
+              '\u0447\u0442\u043e \u043d\u043e\u0432\u043e\u0433\u043e'
+            ];
+            const rejectLabels = [
+              'continue',
+              'get a new code',
+              'new code',
+              'log in',
+              'login',
+              'sign in',
+              'sign up',
+              'create account',
+              'forgot',
+              'password',
+              'email',
+              'phone',
+              'phone number',
+              'mobile number',
+              'use your mobile number',
+              'add phone',
+              'next',
+              'back',
+              'verify',
+              'verification',
+              'security',
+              'security check',
+              'checkpoint',
+              'confirm',
+              'code',
+              '\u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c',
+              '\u043f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u043d\u043e\u0432\u044b\u0439 \u043a\u043e\u0434',
+              '\u043d\u043e\u0432\u044b\u0439 \u043a\u043e\u0434',
+              '\u0432\u043e\u0439\u0442\u0438',
+              '\u0432\u0445\u043e\u0434',
+              '\u0440\u0435\u0433\u0438\u0441\u0442\u0440',
+              '\u043f\u0430\u0440\u043e\u043b',
+              '\u043d\u043e\u043c\u0435\u0440 \u0442\u0435\u043b\u0435\u0444\u043e\u043d\u0430',
+              '\u043c\u043e\u0431\u0438\u043b\u044c\u043d',
+              '\u0442\u0435\u043b\u0435\u0444\u043e\u043d',
+              '\u0434\u0430\u043b\u0435\u0435',
+              '\u043d\u0430\u0437\u0430\u0434',
+              '\u043a\u043e\u0434',
+              '\u043f\u0440\u043e\u0432\u0435\u0440\u043a',
+              '\u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434',
+              '\u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d',
+              'cookie',
+              'privacy',
+              'terms',
+              'learn more',
+              '\u043a\u0443\u043a',
+              '\u043a\u043e\u043d\u0444\u0438\u0434\u0435\u043d\u0446',
+              '\u0443\u0441\u043b\u043e\u0432'
+            ];
+            const selectors = [
+              'a[href*="/new"]',
+              'a[href*="/intent/post"]',
+              'button',
+              '[role="button"]',
+              '[tabindex="0"]'
+            ];
+            const seen = new Set();
+            const candidates = [];
+
+            function isVisible(element) {
+              const rect = element.getBoundingClientRect();
+              const style = window.getComputedStyle(element);
+              return rect.width > 12 &&
+                rect.height > 12 &&
+                style.display !== 'none' &&
+                style.visibility !== 'hidden' &&
+                Number(style.opacity || '1') > 0;
+            }
+
+            function describe(element) {
+              return [
+                element.innerText || '',
+                element.textContent || '',
+                element.getAttribute('aria-label') || '',
+                element.getAttribute('title') || '',
+                element.getAttribute('href') || ''
+              ].join(' ').replace(/\s+/g, ' ').trim();
+            }
+
+            for (const selector of selectors) {
+              for (const rawElement of document.querySelectorAll(selector)) {
+                if (seen.has(rawElement)) continue;
+                seen.add(rawElement);
+                if (!isVisible(rawElement)) continue;
+
+                const element = rawElement.closest('a, button, [role="button"], [tabindex="0"]') || rawElement;
+                const text = describe(element).toLowerCase();
+                const href = (element.getAttribute('href') || '').toLowerCase();
+                let score = 0;
+                const hasDirectHref = href.includes('/new') || href.includes('/intent/post');
+                const hasExactTrigger = exactTriggerLabels.some((label) => text === label || text.startsWith(label + ' '));
+                const hasPartialTrigger = partialTriggerLabels.some((label) => text.includes(label));
+
+                if (rejectLabels.some((label) => text.includes(label))) {
+                  continue;
+                }
+                if (!hasDirectHref && !hasExactTrigger && !hasPartialTrigger) {
+                  continue;
+                }
+                if (!hasDirectHref && text.length > 260) {
+                  continue;
+                }
+
+                if (hasDirectHref) score += 120;
+                if (hasExactTrigger) score += 100;
+                if (hasPartialTrigger) score += 80;
+                if (element.querySelector('svg')) score += 10;
+
+                const rect = element.getBoundingClientRect();
+                if (rect.left < window.innerWidth * 0.35 || rect.top < window.innerHeight * 0.45) {
+                  score += 5;
+                }
+                if (text.includes('reply') || text.includes('\u043e\u0442\u0432\u0435\u0442')) {
+                  score -= 80;
+                }
+                if (text.includes('search') || text.includes('\u043f\u043e\u0438\u0441\u043a')) {
+                  score -= 80;
+                }
+                if (text === 'create' || text === '\u0441\u043e\u0437\u0434\u0430\u0442\u044c') {
+                  score -= 120;
+                }
+
+                if (score >= 80) {
+                  candidates.push({ element, score, text: describe(element), area: rect.width * rect.height });
+                }
+              }
+            }
+
+            candidates.sort((a, b) => {
+              if (a.score !== b.score) return b.score - a.score;
+              return b.area - a.area;
+            });
+
+            const target = candidates[0];
+            if (!target) return null;
+
+            target.element.scrollIntoView({ block: 'center', inline: 'nearest' });
+            target.element.click();
+            return target.text || target.element.tagName;
+            """
+        )
+
+        if not result:
+            raise TimeoutException("Threads composer trigger was not found by DOM scan.")
+
+        return str(result)[:160]
 
     def _is_composer_editor_present(self, driver: WebDriver) -> bool:
         return self._wait_for_composer_editor(driver, timeout_seconds=4) is not None
@@ -800,6 +1217,7 @@ class ThreadsAdapter(BasePostingAdapter):
         raise TimeoutException("Could not type text into Threads composer.")
 
     def _submit_thread(self, driver: WebDriver) -> None:
+        time.sleep(random.uniform(2.5, 6.0))
         try:
             self._click_submit_button(driver)
             logger.info("Threads publish button clicked")
@@ -1165,11 +1583,11 @@ class ThreadsAdapter(BasePostingAdapter):
 
                 try:
                     self._wait_until_editor_has_focus(driver, element)
-                    self._human_type_text(driver, value)
+                    self._paste_text_like_human(driver, value)
                     self._wait_until_editor_contains_text(driver, value)
                     return
                 except (TimeoutException, WebDriverException) as typing_error:
-                    logger.warning("Threads human typing failed, falling back to JS input: %s", typing_error)
+                    logger.warning("Threads clipboard-style input failed, falling back to JS input: %s", typing_error)
 
                 if not self._inject_text_with_javascript(driver, element, value):
                     raise TimeoutException(f"Could not inject text into composer editor: {selector}")
@@ -1211,17 +1629,40 @@ class ThreadsAdapter(BasePostingAdapter):
         except WebDriverException:
             return False
 
-    def _human_type_text(self, driver: WebDriver, value: str) -> None:
-        for index, character in enumerate(value):
-            if character == "\n":
-                ActionChains(driver).send_keys(Keys.ENTER).perform()
-            else:
-                ActionChains(driver).send_keys(character).perform()
+    def _paste_text_like_human(self, driver: WebDriver, value: str) -> None:
+        self._write_text_to_browser_clipboard(driver, value)
+        time.sleep(random.uniform(0.35, 1.2))
+        ActionChains(driver).key_down(Keys.CONTROL).send_keys("v").key_up(Keys.CONTROL).perform()
+        logger.info("Threads text pasted into active composer via Ctrl+V")
 
-            delay = random.uniform(0.05, 0.25)
-            if index > 0 and index % random.randint(35, 70) == 0:
-                delay += random.uniform(0.25, 0.9)
-            time.sleep(delay)
+    def _write_text_to_browser_clipboard(self, driver: WebDriver, value: str) -> None:
+        try:
+            driver.execute_cdp_cmd(
+                "Browser.grantPermissions",
+                {
+                    "origin": self.BASE_URL.rstrip("/"),
+                    "permissions": ["clipboardReadWrite", "clipboardSanitizedWrite"],
+                },
+            )
+        except WebDriverException:
+            pass
+
+        written = driver.execute_async_script(
+            """
+            const text = arguments[0];
+            const done = arguments[arguments.length - 1];
+            if (!navigator.clipboard || !navigator.clipboard.writeText) {
+              done(false);
+              return;
+            }
+            navigator.clipboard.writeText(text)
+              .then(() => done(true))
+              .catch(() => done(false));
+            """,
+            value,
+        )
+        if not written:
+            raise WebDriverException("Browser clipboard API is unavailable.")
 
     def _retry_on_stale(
         self,
@@ -1586,7 +2027,7 @@ chrome.webRequest.onAuthRequired.addListener(
         return str(screenshot_path)
 
     def _load_cookies(self, account: Account) -> list[dict[str, Any]]:
-        payload = self._load_json(account.cookies_encrypted)
+        payload = self._load_json(decrypt_secret(account.cookies_encrypted))
 
         if not payload:
             return []
@@ -1704,7 +2145,6 @@ chrome.webRequest.onAuthRequired.addListener(
             "Default/Media Cache",
             "Default/Service Worker/CacheStorage",
             "Default/Service Worker/ScriptCache",
-            "Default/IndexedDB/https_www.threads.net_0.indexeddb.leveldb",
             "ShaderCache",
             "GrShaderCache",
             "GraphiteDawnCache",
@@ -1763,6 +2203,29 @@ chrome.webRequest.onAuthRequired.addListener(
         )
         return isinstance(exc, WebDriverException) and any(marker in error_text for marker in retryable_markers)
 
+    def _is_retryable_ui_error(self, exc: Exception) -> bool:
+        error_text = str(exc).casefold()
+        retryable_markers = (
+            "stale element reference",
+            "stale element not found",
+            "could not open threads composer",
+            "could not type text into threads composer",
+            "composer editor is not",
+            "editor is not ready",
+            "threads ui did not confirm publication",
+            "element click intercepted",
+            "element is not clickable",
+        )
+        return isinstance(
+            exc,
+            (
+                TimeoutException,
+                StaleElementReferenceException,
+                ElementClickInterceptedException,
+                WebDriverException,
+            ),
+        ) and any(marker in error_text for marker in retryable_markers)
+
 
 def _is_headless_browser_enabled() -> bool:
     return os.getenv("HEADLESS_BROWSER", "True").strip().casefold() not in {
@@ -1789,6 +2252,26 @@ def _get_profile_lock(account_id: int | None) -> threading.Lock | None:
             PROFILE_LOCKS[account_id] = threading.Lock()
 
         return PROFILE_LOCKS[account_id]
+
+
+def _build_fingerprint_profile(account_id: int | None) -> BrowserFingerprintProfile:
+    seed = account_id if account_id is not None else os.getpid()
+    randomizer = random.Random(seed)
+    viewport_pool = (
+        (1366, 900),
+        (1440, 900),
+        (1440, 1200),
+        (1536, 960),
+        (1600, 1000),
+    )
+    width, height = viewport_pool[randomizer.randrange(len(viewport_pool))]
+    return BrowserFingerprintProfile(
+        width=width,
+        height=height,
+        canvas_noise=randomizer.randint(1, 3),
+        canvas_x=randomizer.randint(1, 11),
+        canvas_y=randomizer.randint(1, 11),
+    )
 
 
 def _get_directory_size(path: Path) -> int:

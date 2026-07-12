@@ -479,7 +479,7 @@ export async function login(password: string): Promise<LoginResponse> {
       }
 
       if (error.response?.status === 403) {
-        throw new LoginError("Доступ пока не открыт. Напишите владельцу сервиса, чтобы он добавил ваш Telegram ID в список допуска.");
+        throw new LoginError("Сейчас включён закрытый режим доступа. Напишите в поддержку, и мы поможем войти.");
       }
 
       if (!error.response) {
@@ -541,7 +541,7 @@ export async function loginWithTelegramWebApp(initData: string): Promise<LoginRe
       }
 
       if (error.response?.status === 403) {
-        throw new LoginError("Доступ пока не открыт. Напишите владельцу сервиса, чтобы он добавил ваш Telegram ID.");
+        throw new LoginError("Сейчас включён закрытый режим доступа. Напишите в поддержку, и мы поможем войти.");
       }
 
       if (error.response?.status === 429) {
@@ -564,6 +564,11 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 
 export async function getBillingStatus(): Promise<BillingStatus> {
   const response = await apiClient.get<BillingStatus>("/api/v1/billing/status");
+  return response.data;
+}
+
+export async function refreshBillingStatus(): Promise<BillingStatus> {
+  const response = await apiClient.post<BillingStatus>("/api/v1/billing/refresh");
   return response.data;
 }
 

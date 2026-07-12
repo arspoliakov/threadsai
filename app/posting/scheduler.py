@@ -91,10 +91,9 @@ def setup_posting_scheduler() -> AsyncIOScheduler:
     if not scheduler.get_job("analyze_daily_trends"):
         scheduler.add_job(
             analyze_daily_trends,
-            trigger="cron",
-            day=f"*/{TREND_ANALYSIS_INTERVAL_DAYS}",
-            hour=3,
-            minute=0,
+            trigger="interval",
+            hours=1,
+            next_run_time=datetime.now(UTC) + timedelta(minutes=5),
             id="analyze_daily_trends",
             max_instances=1,
             coalesce=True,
@@ -270,7 +269,21 @@ async def analyze_daily_trends() -> None:
                 logger.info("Daily trend analysis skipped for project #%s: no owner.", project.id)
                 continue
 
+            if not _is_project_in_active_window(project):
+                logger.info("Trend refresh skipped for project #%s outside its active window.", project.id)
+                continue
+
             try:
+                last_success_at = await session.scalar(
+                    select(func.max(ProjectOperation.finished_at)).where(
+                        ProjectOperation.project_id == project.id,
+                        ProjectOperation.action_type == ProjectOperationType.SCRAPING,
+                        ProjectOperation.status == ProjectOperationStatus.SUCCESS,
+                    )
+                )
+                if not _trend_refresh_due(last_success_at):
+                    continue
+
                 existing_operation_id = await session.scalar(
                     select(ProjectOperation.id)
                     .where(
@@ -303,6 +316,18 @@ async def analyze_daily_trends() -> None:
                 await send_admin_notification(
                     f"Daily trend analysis queueing failed for project #{project.id}.\n\nError: {exc}"
                 )
+
+
+def _trend_refresh_due(last_success_at: datetime | None, reference_utc: datetime | None = None) -> bool:
+    if last_success_at is None:
+        return True
+
+    normalized_last_success = last_success_at
+    if normalized_last_success.tzinfo is None:
+        normalized_last_success = normalized_last_success.replace(tzinfo=UTC)
+
+    reference = reference_utc or datetime.now(UTC)
+    return reference - normalized_last_success >= timedelta(days=TREND_ANALYSIS_INTERVAL_DAYS)
 
 
 async def check_and_run_tasks() -> None:

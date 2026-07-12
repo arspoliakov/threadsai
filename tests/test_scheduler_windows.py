@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pydantic import ValidationError
 
 from app.db.models import Project
-from app.posting.scheduler import _is_project_in_active_window, _project_active_window_bounds
+from app.posting.scheduler import _is_project_in_active_window, _project_active_window_bounds, _trend_refresh_due
 from app.schemas.project import ProjectCreate
 
 
@@ -30,6 +30,11 @@ class SchedulerWindowTest(unittest.TestCase):
     def test_invalid_clock_value_is_rejected_by_api_schema(self) -> None:
         with self.assertRaises(ValidationError):
             ProjectCreate(name="Bad clock", active_hours_start="29:70")
+
+    def test_trends_are_not_refreshed_before_three_days(self) -> None:
+        reference = datetime(2026, 7, 12, 12, 0, tzinfo=UTC)
+        self.assertFalse(_trend_refresh_due(datetime(2026, 7, 10, 12, 1, tzinfo=UTC), reference))
+        self.assertTrue(_trend_refresh_due(datetime(2026, 7, 9, 12, 0, tzinfo=UTC), reference))
 
 
 if __name__ == "__main__":

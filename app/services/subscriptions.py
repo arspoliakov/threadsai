@@ -159,6 +159,38 @@ async def sync_user_subscription_after_login(
     return True
 
 
+async def refresh_user_subscription(
+    *,
+    bot: Bot,
+    user: User,
+    session: AsyncSession,
+) -> bool:
+    if user.telegram_id is None:
+        return False
+
+    membership_check = await check_tariff_membership_for_user(
+        bot=bot,
+        telegram_id=user.telegram_id,
+    )
+    if membership_check.active_tariff is not None:
+        _apply_tariff(user, membership_check.active_tariff)
+        await session.commit()
+        await session.refresh(user)
+        return True
+
+    if membership_check.checked_chats_count == 0:
+        logger.warning(
+            "Manual subscription refresh skipped user_id=%s: no tariff chats could be checked.",
+            user.id,
+        )
+        return user.subscription_status
+
+    if user.subscription_status:
+        await disable_user_subscription(user=user, session=session)
+        await session.refresh(user)
+    return False
+
+
 async def check_tariff_membership_for_user(*, bot: Bot, telegram_id: int) -> TariffMembershipCheck:
     active_tariffs: list[TariffLimits] = []
     checked_chats_count = 0

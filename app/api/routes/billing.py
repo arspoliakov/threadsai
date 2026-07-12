@@ -1,10 +1,12 @@
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.db.models import User
-from app.services.subscriptions import get_tariff_chats
+from app.services.subscriptions import get_tariff_chats, refresh_user_subscription
+from app.telegram.bot import get_bot
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -31,6 +33,26 @@ class BillingStatusRead(BaseModel):
 
 @router.get("/status", response_model=BillingStatusRead, status_code=status.HTTP_200_OK)
 async def get_billing_status(current_user: User = Depends(get_current_user)) -> BillingStatusRead:
+    return _build_billing_status(current_user)
+
+
+@router.post("/refresh", response_model=BillingStatusRead, status_code=status.HTTP_200_OK)
+async def refresh_billing_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BillingStatusRead:
+    bot = get_bot()
+    if bot is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Telegram subscription check is temporarily unavailable.",
+        )
+
+    await refresh_user_subscription(bot=bot, user=current_user, session=db)
+    return _build_billing_status(current_user)
+
+
+def _build_billing_status(current_user: User) -> BillingStatusRead:
     return BillingStatusRead(
         subscription_status=current_user.subscription_status,
         tariff_plan=current_user.tariff_plan,

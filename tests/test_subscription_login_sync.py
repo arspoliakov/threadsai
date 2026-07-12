@@ -74,6 +74,33 @@ class SubscriptionLoginSyncTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(activated)
             self.assertFalse(user.subscription_status)
 
+    async def test_manual_refresh_disables_expired_subscription(self) -> None:
+        async with self.session_factory() as session:
+            user = User(
+                telegram_id=777,
+                first_name="Former customer",
+                subscription_status=True,
+                tariff_plan="pro",
+                tariff_accounts_limit=7,
+                tariff_posts_per_day=5,
+                tariff_projects_limit=5,
+                tariff_queue_days=3,
+            )
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
+            active = await subscriptions.refresh_user_subscription(
+                bot=FakeBot(None),
+                user=user,
+                session=session,
+            )
+
+            self.assertFalse(active)
+            self.assertFalse(user.subscription_status)
+            self.assertEqual(user.tariff_plan, "none")
+            self.assertEqual(user.tariff_accounts_limit, 0)
+
     def test_allowlist_is_optional_after_billing_launch(self) -> None:
         open_settings = Settings(
             _env_file=None,

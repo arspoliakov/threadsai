@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 from collections.abc import AsyncGenerator
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -147,6 +149,30 @@ class ApiSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["owner_id"], 1)
         self.assertEqual(payload["name"], "Новый проект")
         self.assertRegex(payload["slug"], r"^project-[0-9]+$")
+
+    async def test_billing_refresh_confirms_telegram_membership(self) -> None:
+        from app.services.subscriptions import get_tariff_chats
+
+        tariff_chat_id, tariff = next(iter(get_tariff_chats().items()))
+
+        class FakeBot:
+            async def get_chat_member(self, *, chat_id: int, user_id: int) -> object:
+                del user_id
+                return SimpleNamespace(status="member" if chat_id == tariff_chat_id else "left")
+
+        async with self.session_factory() as session:
+            user = await session.get(User, 1)
+            assert user is not None
+            user.subscription_status = False
+            user.tariff_plan = "none"
+            await session.commit()
+
+        with patch("app.api.routes.billing.get_bot", return_value=FakeBot()):
+            response = await self.client.post("/api/v1/billing/refresh")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["subscription_status"])
+        self.assertEqual(response.json()["tariff_plan"], tariff.name)
 
     async def test_protected_route_rejects_missing_token(self) -> None:
         app.dependency_overrides.pop(get_current_user_id, None)

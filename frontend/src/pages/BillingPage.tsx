@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { getBillingStatus, type BillingStatus } from "../api/client";
+import { getApiErrorMessage, getBillingStatus, refreshBillingStatus, type BillingStatus } from "../api/client";
 import { trackSeoEvent } from "../components/SeoAnalytics";
 
 const planCopy = {
@@ -35,6 +35,7 @@ export default function BillingPage() {
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [isRefreshingSubscription, setIsRefreshingSubscription] = useState(false);
 
   async function loadBilling() {
     setIsLoading(true);
@@ -54,6 +55,23 @@ export default function BillingPage() {
     trackSeoEvent("billing_view", { source: "billing_page" });
     void loadBilling();
   }, []);
+
+  async function checkSubscription() {
+    setIsRefreshingSubscription(true);
+    try {
+      const refreshed = await refreshBillingStatus();
+      setBilling(refreshed);
+      toast.success(
+        refreshed.subscription_status
+          ? "Тариф подтвержден, лимиты обновлены"
+          : "Оплата пока не найдена. Если вы только что оплатили, подождите минуту и повторите проверку.",
+      );
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Не удалось проверить оплату. Попробуйте ещё раз через минуту."));
+    } finally {
+      setIsRefreshingSubscription(false);
+    }
+  }
 
   if (isLoading) {
     return <div className="rounded-[18px] border border-[#dfe4dc] bg-white p-6">Загружаем тарифы...</div>;
@@ -89,9 +107,19 @@ export default function BillingPage() {
         </div>
 
         {billing ? (
-          <div className="mt-5 rounded-[16px] border border-[#e1e7dd] bg-[#f7faf4] p-4 text-sm leading-6 text-[#4f5a50]">
-            Сейчас: {billing.subscription_status ? `тариф ${billing.tariff_plan}` : "подписка не активна"}. Настройки и
-            тексты не пропадут, если подписка закончится: автопубликация просто встанет на паузу.
+          <div className="mt-5 flex flex-col gap-4 rounded-[16px] border border-[#e1e7dd] bg-[#f7faf4] p-4 text-sm leading-6 text-[#4f5a50] sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              Сейчас: {billing.subscription_status ? `тариф ${billing.tariff_plan}` : "подписка не активна"}. Настройки и
+              тексты не пропадут, если подписка закончится: автопубликация просто встанет на паузу.
+            </p>
+            <button
+              type="button"
+              onClick={() => void checkSubscription()}
+              disabled={isRefreshingSubscription}
+              className="h-11 shrink-0 rounded-full border border-[#cfd6cc] bg-white px-5 text-sm font-medium text-[#111] transition hover:border-[#111] hover:bg-[#111] hover:text-white disabled:cursor-wait disabled:opacity-50"
+            >
+              {isRefreshingSubscription ? "Проверяем..." : "Проверить оплату"}
+            </button>
           </div>
         ) : null}
       </section>
@@ -174,8 +202,8 @@ export default function BillingPage() {
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
             <h3 className="text-base font-semibold text-[#111]">Когда включится доступ после оплаты?</h3>
             <p className="mt-2 text-sm leading-6 text-[#5f675f]">
-              Обычно сразу после вступления в закрытый Telegram-канал тарифа. Если кабинет уже открыт, обновите
-              страницу через минуту.
+              Обычно сразу после вступления в закрытый Telegram-канал тарифа. Если кабинет уже открыт, нажмите
+              «Проверить оплату» выше. Резервная автоматическая сверка выполняется каждые 15 минут.
             </p>
           </div>
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">

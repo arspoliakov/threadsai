@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import traceback
 from uuid import uuid4
@@ -20,7 +21,10 @@ class ErrorReportingMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             error_id = uuid4().hex[:10]
             logger.exception("Unhandled API error %s", error_id)
-            await _notify_admin_about_error(error_id=error_id, request=request, exc=exc)
+            notification_task = asyncio.create_task(
+                _notify_admin_about_error(error_id=error_id, request=request, exc=exc)
+            )
+            notification_task.add_done_callback(_consume_notification_result)
 
             return JSONResponse(
                 status_code=500,
@@ -30,6 +34,13 @@ class ErrorReportingMiddleware(BaseHTTPMiddleware):
                     "error_id": error_id,
                 },
             )
+
+
+def _consume_notification_result(task: asyncio.Task[None]) -> None:
+    try:
+        task.result()
+    except Exception:
+        logger.exception("Could not deliver an API error report to the admin.")
 
 
 async def _notify_admin_about_error(error_id: str, request: Request, exc: Exception) -> None:

@@ -6,6 +6,7 @@ import {
   checkAccountSession,
   getApiErrorMessage,
   getAccounts,
+  getCurrentUser,
   getProjectDashboard,
   unlinkAccount,
   updateAccount,
@@ -65,15 +66,17 @@ export default function ProjectSettingsPage() {
   const [checkingAccountId, setCheckingAccountId] = useState<number | null>(null);
   const [unlinkingAccountId, setUnlinkingAccountId] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [tariffPostsPerDayLimit, setTariffPostsPerDayLimit] = useState(20);
 
   async function loadSettings({ silent = false }: { silent?: boolean } = {}) {
     setIsLoading(true);
     setLoadError(null);
 
     try {
-      const [accountsResult, dashboardResult] = await Promise.all([
+      const [accountsResult, dashboardResult, currentUser] = await Promise.all([
         getAccounts(),
         getProjectDashboard(projectId),
+        getCurrentUser(),
       ]);
       setAccounts(accountsResult);
       setProject(dashboardResult.project);
@@ -89,6 +92,7 @@ export default function ProjectSettingsPage() {
         active_hours_end: dashboardResult.project.active_hours_end ?? "21:00",
         timezone: normalizeTimezone(dashboardResult.project.timezone),
       });
+      setTariffPostsPerDayLimit(Math.max(1, currentUser.tariff_posts_per_day || 1));
       if (!silent) {
         toast.success("Настройки обновлены");
       }
@@ -204,7 +208,7 @@ export default function ProjectSettingsPage() {
 
     try {
       const savePromise = updateProject(project.id, {
-        posts_per_day: clampPostsPerDay(scheduleDraft.posts_per_day),
+        posts_per_day: clampPostsPerDay(scheduleDraft.posts_per_day, tariffPostsPerDayLimit),
         active_hours_start: scheduleDraft.active_hours_start,
         active_hours_end: scheduleDraft.active_hours_end,
         timezone: normalizeTimezone(scheduleDraft.timezone),
@@ -505,7 +509,7 @@ export default function ProjectSettingsPage() {
                 <input
                   type="number"
                   min={1}
-                  max={20}
+                  max={tariffPostsPerDayLimit}
                   value={scheduleDraft.posts_per_day}
                   onChange={(event) =>
                     setScheduleDraft((current) => ({
@@ -515,6 +519,9 @@ export default function ProjectSettingsPage() {
                   }
                   className="field-control"
                 />
+                <span className="text-xs leading-5 text-[#77766f]">
+                  На текущем тарифе доступно до {tariffPostsPerDayLimit} публикаций в день на каждый профиль.
+                </span>
               </label>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -967,12 +974,12 @@ function getConversionIntensityDescription(value: number) {
   return "Каждый пост мягко ведет к выбранному действию.";
 }
 
-function clampPostsPerDay(value: number) {
+function clampPostsPerDay(value: number, limit = 20) {
   if (!Number.isFinite(value)) {
     return 3;
   }
 
-  return Math.min(20, Math.max(1, Math.round(value)));
+  return Math.min(limit, Math.max(1, Math.round(value)));
 }
 
 function normalizeTimezone(value: string | null | undefined) {

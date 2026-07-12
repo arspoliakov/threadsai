@@ -17,8 +17,6 @@ import { trackSeoEvent } from "../../components/SeoAnalytics";
 const THREADS_PLATFORM: Platform = "threads";
 const SESSION_USERNAME_PLACEHOLDER = "pending_from_session";
 
-type AuthMode = "password" | "cookies";
-
 export default function InfrastructurePage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -285,8 +283,6 @@ function AccountCard({
 }
 
 function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCreated: () => Promise<void> }) {
-  const [password, setPassword] = useState("");
-  const [authMode, setAuthMode] = useState<AuthMode>("cookies");
   const [cookiesInput, setCookiesInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -297,22 +293,21 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
     setError(null);
 
     try {
-      const cookiesPayload = authMode === "cookies" ? normalizeCookies(cookiesInput) : null;
+      const cookiesPayload = normalizeCookies(cookiesInput);
 
       await createAccount({
         project_id: null,
         platform: THREADS_PLATFORM,
         username: SESSION_USERNAME_PLACEHOLDER,
         session_data_encrypted: JSON.stringify({
-          auth_method: authMode,
+          auth_method: "cookies",
           username_source: "session",
-          password: authMode === "password" ? password : undefined,
         }),
         cookies_encrypted: cookiesPayload,
         status: "active",
       });
       toast.success("Профиль добавлен");
-      trackSeoEvent("threads_connected", { method: authMode });
+      trackSeoEvent("threads_connected", { method: "cookies" });
       await onCreated();
     } catch (submitError) {
       toast.error("Профиль не добавлен");
@@ -354,33 +349,21 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
             Имя пользователя вводить не нужно: после проверки доступа система сама определит профиль Threads.
           </div>
 
-          <div className="mt-8">
-            <span className="field-label">Способ входа</span>
-            <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-2xl border border-[#151515]">
-              <AuthTab label="По паролю" isActive={authMode === "password"} onClick={() => setAuthMode("password")} />
-              <AuthTab label="Из активной сессии" isActive={authMode === "cookies"} onClick={() => setAuthMode("cookies")} />
+          <label className="mt-8 grid gap-2">
+            <span className="field-label">Данные входа из браузера</span>
+            <textarea
+              value={cookiesInput}
+              onChange={(event) => setCookiesInput(event.target.value)}
+              required
+              rows={8}
+              placeholder='[{"name":"sessionid","value":"...","domain":".threads.net"}]'
+              className="field-control resize-none leading-6"
+            />
+            <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
+              Откройте threads.net в браузере, где профиль уже авторизован. В расширении Cookie-Editor нажмите
+              Export JSON и вставьте результат сюда. ThreadsGo не потребуется хранить пароль от аккаунта.
             </div>
-          </div>
-
-          {authMode === "password" ? (
-            <Field label="Пароль" value={password} onChange={setPassword} type="password" required />
-          ) : (
-            <label className="mt-8 grid gap-2">
-              <span className="field-label">Данные входа из браузера</span>
-              <textarea
-                value={cookiesInput}
-                onChange={(event) => setCookiesInput(event.target.value)}
-                required
-                rows={8}
-                placeholder='[{"name":"sessionid","value":"...","domain":".threads.net"}]'
-                className="field-control resize-none leading-6"
-              />
-              <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
-                Откройте threads.net в браузере, где профиль уже авторизован. В расширении Cookie-Editor нажмите
-                Export JSON и вставьте результат сюда. ThreadsGo не потребуется хранить пароль от аккаунта.
-              </div>
-            </label>
-          )}
+          </label>
 
           {error ? (
             <div className="mt-6 border-l-2 border-[#b42318] px-4 py-3 text-sm text-[#61140e]">
@@ -545,49 +528,6 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
         </form>
       </aside>
     </div>
-  );
-}
-
-function AuthTab({ label, isActive, onClick }: { label: string; isActive: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        isActive
-          ? "bg-[#151515] px-4 py-3 font-mono text-xs uppercase tracking-[0.14em] text-white"
-          : "bg-transparent px-4 py-3 font-mono text-xs uppercase tracking-[0.14em] text-[#151515] transition hover:bg-[#e8e8e2]"
-      }
-    >
-      {label}
-    </button>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  type = "text",
-  required = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="mt-8 grid gap-2">
-      <span className="field-label">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        type={type}
-        required={required}
-        className="field-control"
-      />
-    </label>
   );
 }
 

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.exceptions import TelegramAPIError
@@ -10,6 +11,7 @@ from app.db.session import AsyncSessionLocal
 from app.services.subscriptions import activate_user_subscription, handle_user_left_tariff_chat
 
 
+logger = logging.getLogger(__name__)
 dp = Dispatcher()
 _bot: Bot | None = None
 
@@ -103,12 +105,20 @@ async def start_bot_polling() -> None:
     if bot is None:
         return
 
-    try:
-        await dp.start_polling(bot, handle_signals=False)
-    except TelegramAPIError:
-        return
-    except Exception:
-        return
+    retry_delay = 2
+    while True:
+        try:
+            await dp.start_polling(bot, handle_signals=False)
+            retry_delay = 2
+        except asyncio.CancelledError:
+            raise
+        except TelegramAPIError as exc:
+            logger.warning("Telegram bot polling interrupted: %s. Retrying in %s seconds.", exc, retry_delay)
+        except Exception:
+            logger.exception("Telegram bot polling crashed. Retrying in %s seconds.", retry_delay)
+
+        await asyncio.sleep(retry_delay)
+        retry_delay = min(60, retry_delay * 2)
 
 
 async def stop_bot() -> None:

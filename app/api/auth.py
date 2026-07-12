@@ -99,6 +99,7 @@ async def telegram_login(
         )
 
     user = await _get_or_create_telegram_user(payload=payload, db=db)
+    await _sync_subscription_after_login(user=user, db=db)
     token = create_access_token(
         {
             "sub": str(user.id),
@@ -141,6 +142,7 @@ async def telegram_webapp_login(
         ),
         db=db,
     )
+    await _sync_subscription_after_login(user=user, db=db)
     token = create_access_token(
         {
             "sub": str(user.id),
@@ -309,6 +311,25 @@ async def _get_or_create_telegram_user(payload: TelegramAuthPayload, db: AsyncSe
     await db.commit()
     await db.refresh(user)
     return user
+
+
+async def _sync_subscription_after_login(*, user: User, db: AsyncSession) -> None:
+    if user.subscription_status:
+        return
+
+    try:
+        from app.services.subscriptions import sync_user_subscription_after_login
+        from app.telegram.bot import get_bot
+
+        bot = get_bot()
+        if bot is None:
+            return
+
+        await sync_user_subscription_after_login(bot=bot, user=user, session=db)
+    except Exception:
+        # Authentication must stay available even when Telegram temporarily cannot
+        # confirm channel membership. The regular reconciler will retry later.
+        logger.exception("Could not synchronize subscription during login for user_id=%s.", user.id)
 
 
 def create_access_token(payload: dict[str, Any]) -> str:

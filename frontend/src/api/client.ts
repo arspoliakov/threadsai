@@ -107,7 +107,7 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
       "Project not found": "Проект не найден или уже удалён.",
       "Account not found": "Профиль Threads не найден или уже удалён.",
       "Posting task not found": "Публикация не найдена или уже удалена.",
-      "Telegram user is not approved yet": "Доступ к кабинету ещё не одобрен. Напишите в поддержку.",
+      "Telegram user is not approved yet": "Доступ к закрытому тесту ещё не одобрен. Напишите в поддержку.",
     };
     return safeMessages[detail] || fallback;
   }
@@ -133,6 +133,12 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
       return limit === null
         ? "Достигнут дневной лимит публикаций текущего тарифа."
         : `На текущем тарифе доступно публикаций в день: ${limit}.`;
+    }
+    if (code === "threads_post_too_long") {
+      return "Один пост Threads может содержать не больше 500 символов. Сократите текст или разделите его на цепочку.";
+    }
+    if (code === "threads_login_data_required") {
+      return "Добавьте данные входа из браузера, где профиль Threads уже авторизован.";
     }
     if (typeof detail.message === "string" && detail.message.trim()) {
       return detail.message;

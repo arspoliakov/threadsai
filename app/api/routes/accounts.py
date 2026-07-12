@@ -5,12 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db, require_active_subscription
 from app.db.models import Account, AccountStatus, PostingTask, Project, User
-from app.db.repositories.accounts import AccountRepository
 from app.posting.exceptions import SessionExpiredException
 from app.posting.scheduler import schedule_account_queue_refill
 from app.posting.session_checker import check_session_in_subprocess
 from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
-from app.services.proxy_pool import prepare_account_create, prepare_account_update
+from app.services.proxy_pool import prepare_account_create, prepare_account_update, threads_proxy_assignment_lock
 
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -35,6 +34,15 @@ async def create_account(
     current_user_id: int = Depends(get_current_user_id),
     current_user: User = Depends(require_active_subscription),
 ) -> AccountRead:
+    if payload.platform.value == "threads" and not (payload.cookies_encrypted or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "threads_login_data_required",
+                "message": "Threads requires exported login data from an active browser session.",
+            },
+        )
+
     accounts_count = await db.scalar(
         select(func.count(Account.id)).where(Account.owner_id == current_user_id)
     )
@@ -58,12 +66,15 @@ async def create_account(
                 detail="Project not found",
             )
 
-    prepared_payload = await prepare_account_create(payload, db)
-    account_repository = AccountRepository(db)
-    account = await account_repository.create_account(prepared_payload)
-    account.owner_id = current_user_id
-    await db.commit()
-    await db.refresh(account)
+    async with threads_proxy_assignment_lock:
+        prepared_payload = await prepare_account_create(payload, db)
+        account = Account(
+            **prepared_payload.model_dump(),
+            owner_id=current_user_id,
+        )
+        db.add(account)
+        await db.commit()
+        await db.refresh(account)
     if account.project_id is not None and account.status == AccountStatus.ACTIVE:
         schedule_account_queue_refill(account.project_id, account.id)
     return account

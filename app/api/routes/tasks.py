@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user_id, get_db, require_active_subscription
 from app.ai_engine.generators import generate_post
-from app.db.models import Platform, PostingTask, PostingTaskStatus, Project, User
+from app.db.models import AccountStatus, Platform, PostingTask, PostingTaskStatus, Project, User
 from app.posting.scheduler import schedule_account_queue_refill
 
 
@@ -57,6 +57,9 @@ class PostingTaskUpdate(BaseModel):
 
         content = (self.content_text or self.content or "").strip()
         return [content] if content else []
+
+
+THREADS_POST_CHAR_LIMIT = 500
 
 
 @router.get("/", response_model=list[PostingTaskRead], status_code=status.HTTP_200_OK)
@@ -126,8 +129,18 @@ async def update_task(
     posts_chain = payload.resolved_posts_chain
     if not posts_chain:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="content_text is required",
+        )
+    oversized_items = [index + 1 for index, item in enumerate(posts_chain) if len(item) > THREADS_POST_CHAR_LIMIT]
+    if oversized_items:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "threads_post_too_long",
+                "message": "Each Threads post must contain no more than 500 characters.",
+                "items": oversized_items,
+            },
         )
 
     task.posts_chain = posts_chain
@@ -158,10 +171,14 @@ async def regenerate_task(
             detail="Posting task not found",
         )
 
-    if task.status == PostingTaskStatus.RUNNING:
+    if task.status in {
+        PostingTaskStatus.RUNNING,
+        PostingTaskStatus.SUCCESS,
+        PostingTaskStatus.PARTIAL_SUCCESS,
+    }:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Running task cannot be regenerated.",
+            detail=f"Task cannot be regenerated in status: {task.status.value}",
         )
 
     regenerated_task = await generate_post(
@@ -209,6 +226,7 @@ async def cancel_task(
         )
 
     if task.status in {
+        PostingTaskStatus.RUNNING,
         PostingTaskStatus.SUCCESS,
         PostingTaskStatus.PARTIAL_SUCCESS,
         PostingTaskStatus.FAILED,
@@ -257,6 +275,12 @@ async def publish_task_now(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Posting task has no assigned account.",
+        )
+
+    if task.account is None or task.account.status != AccountStatus.ACTIVE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Posting account is paused or unavailable.",
         )
 
     task.scheduled_at = datetime.now(UTC)

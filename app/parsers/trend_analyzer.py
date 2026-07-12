@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai_engine.client import DEEPINFRA_MODEL, get_deepinfra_client
@@ -68,6 +68,9 @@ async def analyze_and_save_trends(
 ) -> list[SavedTrend]:
     posts = [_coerce_raw_post(post) for post in raw_posts]
     selected_posts = select_top_posts_by_er(posts)
+    if not selected_posts:
+        raise ValueError("No eligible posts remained after trend filtering; previous trends were preserved.")
+
     saved_trends: list[SavedTrend] = []
 
     for post in selected_posts:
@@ -111,6 +114,16 @@ async def analyze_and_save_trends(
         trend.analyzed = True
         session.add(trend)
         saved_trends.append(trend)
+
+    await session.flush()
+    fresh_trend_ids = [trend.id for trend in saved_trends if trend.id is not None]
+    if fresh_trend_ids:
+        await session.execute(
+            delete(SavedTrend).where(
+                SavedTrend.project_id == project_id,
+                SavedTrend.id.not_in(fresh_trend_ids),
+            )
+        )
 
     await session.commit()
 

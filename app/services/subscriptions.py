@@ -130,6 +130,35 @@ async def find_active_tariff_for_user(*, bot: Bot, telegram_id: int) -> TariffLi
     return (await check_tariff_membership_for_user(bot=bot, telegram_id=telegram_id)).active_tariff
 
 
+async def sync_user_subscription_after_login(
+    *,
+    bot: Bot,
+    user: User,
+    session: AsyncSession,
+) -> bool:
+    """Immediately recover a Tribute subscription whose join event arrived before registration."""
+    if user.telegram_id is None or user.subscription_status:
+        return user.subscription_status
+
+    membership_check = await check_tariff_membership_for_user(
+        bot=bot,
+        telegram_id=user.telegram_id,
+    )
+    if membership_check.active_tariff is None:
+        return False
+
+    _apply_tariff(user, membership_check.active_tariff)
+    await session.commit()
+    await session.refresh(user)
+    logger.info(
+        "Subscription synchronized during login for user_id=%s telegram_id=%s plan=%s.",
+        user.id,
+        user.telegram_id,
+        user.tariff_plan,
+    )
+    return True
+
+
 async def check_tariff_membership_for_user(*, bot: Bot, telegram_id: int) -> TariffMembershipCheck:
     active_tariffs: list[TariffLimits] = []
     checked_chats_count = 0

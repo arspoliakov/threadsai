@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.deps import get_current_user_id, get_db
 from app.api.main import app
 from app.db.base import Base
-from app.db.models import Account, AccountStatus, Platform, Project, User
+from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project, User
 
 
 class ApiSmokeTest(unittest.IsolatedAsyncioTestCase):
@@ -113,6 +113,18 @@ class ApiSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([account["id"] for account in response.json()], [1])
 
+    async def test_threads_account_requires_working_login_data(self) -> None:
+        response = await self.client.post(
+            "/api/v1/accounts/",
+            json={
+                "platform": "threads",
+                "username": "pending_from_session",
+                "status": "active",
+            },
+        )
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(response.json()["detail"]["code"], "threads_login_data_required")
+
     async def test_dashboard_reports_only_owned_project_health(self) -> None:
         response = await self.client.get("/api/v1/dashboard/summary")
         self.assertEqual(response.status_code, 200, response.text)
@@ -144,6 +156,64 @@ class ApiSmokeTest(unittest.IsolatedAsyncioTestCase):
             app.dependency_overrides[get_current_user_id] = self.override_user_id
 
         self.assertEqual(response.status_code, 401)
+
+    async def test_running_task_cannot_be_cancelled(self) -> None:
+        async with self.session_factory() as session:
+            session.add(
+                PostingTask(
+                    id=10,
+                    project_id=1,
+                    account_id=1,
+                    platform=Platform.THREADS,
+                    content_text="Публикация уже отправляется",
+                    posts_chain=["Публикация уже отправляется"],
+                    status=PostingTaskStatus.RUNNING,
+                )
+            )
+            await session.commit()
+
+        response = await self.client.patch("/api/v1/tasks/10/cancel")
+        self.assertEqual(response.status_code, 409, response.text)
+
+    async def test_published_task_cannot_be_regenerated(self) -> None:
+        async with self.session_factory() as session:
+            session.add(
+                PostingTask(
+                    id=11,
+                    project_id=1,
+                    account_id=1,
+                    platform=Platform.THREADS,
+                    content_text="Уже опубликовано",
+                    posts_chain=["Уже опубликовано"],
+                    status=PostingTaskStatus.SUCCESS,
+                )
+            )
+            await session.commit()
+
+        response = await self.client.post("/api/v1/tasks/11/regenerate")
+        self.assertEqual(response.status_code, 409, response.text)
+
+    async def test_manual_edit_rejects_oversized_threads_post(self) -> None:
+        async with self.session_factory() as session:
+            session.add(
+                PostingTask(
+                    id=12,
+                    project_id=1,
+                    account_id=1,
+                    platform=Platform.THREADS,
+                    content_text="Черновик",
+                    posts_chain=["Черновик"],
+                    status=PostingTaskStatus.QUEUED,
+                )
+            )
+            await session.commit()
+
+        response = await self.client.put(
+            "/api/v1/tasks/12",
+            json={"content_text": "x" * 501},
+        )
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(response.json()["detail"]["code"], "threads_post_too_long")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from app.posting.exceptions import (
     ThreadChainPartialSuccess,
 )
 from app.posting.scheduler import schedule_account_queue_refill
+from app.services.admin_notifier import send_admin_alert
 from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.telegram.notifications import send_user_notification
 
@@ -297,6 +298,13 @@ async def _notify_account_owner_about_quarantine(
     telegram_id = owner.telegram_id if owner is not None else None
     username = account.username or "без username"
     project_name = project.name if project is not None else f"#{task.project_id}"
+    await send_admin_alert(
+        "Threads profile quarantined.\n\n"
+        f"Project: {project_name}\n"
+        f"Account: #{account.id} @{username}\n"
+        f"Task: #{task.id}\n"
+        f"Error: {error_message[:2200]}"
+    )
     text = (
         "Профиль поставлен на защитную паузу.\n\n"
         f"Проект: {project_name}\n"
@@ -308,8 +316,7 @@ async def _notify_account_owner_about_quarantine(
         "1. Открой Threads вручную и проверь, что профиль живой.\n"
         "2. Если есть проверка Meta, пройди её.\n"
         "3. В ThreadsGo открой настройки проекта и нажми «Проверить и возобновить».\n"
-        "4. Если проверка не проходит, обнови cookies и повтори проверку.\n\n"
-        f"Техническая причина: {error_message[:900]}"
+        "4. Если проверка не проходит, обнови данные входа и повтори проверку."
     )
     await send_user_notification(telegram_id=telegram_id, text=text)
 
@@ -324,12 +331,20 @@ async def _notify_account_owner_about_posting_error(
     telegram_id = owner.telegram_id if owner is not None else None
     username = account.username or "без username"
     project_name = project.name if project is not None else f"#{task.project_id}"
+    await send_admin_alert(
+        "Threads publication failed.\n\n"
+        f"Project: {project_name}\n"
+        f"Account: #{account.id} @{username}\n"
+        f"Task: #{task.id}\n"
+        f"Error: {error_message[:2200]}"
+    )
     text = (
         "Публикация не прошла.\n\n"
         f"Проект: {project_name}\n"
         f"Аккаунт: @{username}\n"
         f"Задача: #{task.id}\n\n"
-        f"Ошибка: {error_message[:1200]}"
+        "Текст сохранён и никуда не пропал. Мы уже получили технический лог и проверяем причину. "
+        "Открой настройки проекта и посмотри статус профиля; если он активен, повторять действие сразу не нужно."
     )
     await send_user_notification(telegram_id=telegram_id, text=text)
 

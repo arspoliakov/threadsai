@@ -662,8 +662,11 @@ def _project_active_window_bounds(project: Project, reference_utc: datetime | No
     local_start = datetime.combine(local_reference.date(), start_time, tzinfo=timezone)
     local_end = datetime.combine(local_reference.date(), end_time, tzinfo=timezone)
 
-    if local_end <= local_start:
-        local_end += timedelta(days=1)
+    if end_time <= start_time:
+        if local_reference.timetz().replace(tzinfo=None) < end_time:
+            local_start -= timedelta(days=1)
+        else:
+            local_end += timedelta(days=1)
 
     return local_start.astimezone(UTC), local_end.astimezone(UTC)
 

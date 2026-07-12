@@ -14,7 +14,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Account, AccountStatus, Platform, SavedTrend
@@ -487,6 +487,9 @@ async def scrape_trends(
         expected_proxy_ip=expected_proxy_ip,
     )
     raw_posts = sorted(raw_posts, key=lambda post: post.get("likes", 0), reverse=True)
+    if not raw_posts:
+        raise ValueError("Threads feed did not return any eligible trend posts; previous trends were preserved.")
+
     saved_raw_count = await save_scraped_posts(project_id=project_id, raw_posts=raw_posts, session=session)
     return ScrapeTrendsResult(raw_posts=raw_posts, saved_raw_count=saved_raw_count)
 
@@ -497,9 +500,6 @@ async def save_scraped_posts(
     session: AsyncSession,
 ) -> int:
     saved_count = 0
-    await session.execute(delete(SavedTrend).where(SavedTrend.project_id == project_id))
-    await session.flush()
-    logger.info("Garbage Collection: старые тренды проекта #%s удалены перед сохранением свежей ленты", project_id)
 
     for post in sorted(raw_posts, key=lambda item: item.get("likes", 0), reverse=True):
         if saved_count >= MAX_ACCEPTED_POSTS:
@@ -551,6 +551,10 @@ async def save_scraped_posts(
         logger.info("Вердикт: Сохранен (%s/%s) - %s", saved_count, MAX_ACCEPTED_POSTS, _preview_text(text))
 
     await session.commit()
+    logger.info(
+        "Свежий сырой срез проекта #%s сохранен без удаления предыдущей рабочей подборки.",
+        project_id,
+    )
     return saved_count
 
 

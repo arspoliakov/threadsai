@@ -18,6 +18,7 @@ import { DismissibleTip } from "../../components/DismissibleTip";
 import { trackSeoEvent } from "../../components/SeoAnalytics";
 
 const terminalStatuses: PostingTaskStatus[] = ["success", "partial_success", "failed", "cancelled"];
+const THREADS_POST_CHAR_LIMIT = 500;
 
 export default function ProjectQueuePage() {
   const { id } = useParams();
@@ -251,6 +252,10 @@ function TaskCard({
       toast.error("Текст поста не может быть пустым");
       return;
     }
+    if (normalizedText.length > THREADS_POST_CHAR_LIMIT) {
+      toast.error(`Сократите текст до ${THREADS_POST_CHAR_LIMIT} символов или разделите его на цепочку`);
+      return;
+    }
 
     onSave(normalizedText);
     setIsEditing(false);
@@ -285,8 +290,14 @@ function TaskCard({
             rows={8}
             className="w-full resize-y rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] p-4 text-sm leading-6 text-[#252525] outline-none transition-all duration-200 ease-in-out focus:border-[#151515]"
           />
+          <div className="mt-2 flex items-center justify-between gap-3 text-xs">
+            <span className="text-[#77766f]">До {THREADS_POST_CHAR_LIMIT} символов в одном посте Threads</span>
+            <span className={draftText.trim().length > THREADS_POST_CHAR_LIMIT ? "font-semibold text-[#b42318]" : "text-[#77766f]"}>
+              {draftText.trim().length}/{THREADS_POST_CHAR_LIMIT}
+            </span>
+          </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <ActionButton variant="dark" onClick={handleSaveEdit} disabled={isBusy} isLoading={isSaving}>
+            <ActionButton variant="dark" onClick={handleSaveEdit} disabled={isBusy || draftText.trim().length > THREADS_POST_CHAR_LIMIT} isLoading={isSaving}>
               Сохранить
             </ActionButton>
             <ActionButton onClick={handleCancelEdit} disabled={isBusy} isLoading={false}>

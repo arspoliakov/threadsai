@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from urllib.parse import quote
 
@@ -12,6 +13,9 @@ from app.core.secrets import encrypt_secret
 from app.db.models import Account, Platform
 from app.schemas.account import AccountCreate, AccountCreatePrepared, AccountUpdate
 from app.services.admin_notifier import send_admin_alert
+
+
+threads_proxy_assignment_lock = asyncio.Lock()
 
 
 def strip_user_proxy_from_session_data(raw_value: str | None) -> str | None:
@@ -61,26 +65,42 @@ def prepare_account_update(payload: AccountUpdate) -> AccountUpdate:
 async def assign_threads_proxy_port(session: AsyncSession) -> int:
     _validate_proxy_port_config()
 
-    max_assigned_port = await session.scalar(
-        select(func.max(Account.assigned_port)).where(
-            Account.platform == Platform.THREADS,
-            Account.assigned_port.is_not(None),
-        )
+    assigned_ports = set(
+        (
+            await session.scalars(
+                select(Account.assigned_port).where(
+                    Account.platform == Platform.THREADS,
+                    Account.assigned_port.is_not(None),
+                )
+            )
+        ).all()
     )
-
-    next_port = settings.proxy_port_start if max_assigned_port is None else int(max_assigned_port) + 1
-    if next_port > settings.proxy_port_end:
+    next_port = next(
+        (
+            port
+            for port in range(settings.proxy_port_start, settings.proxy_port_end + 1)
+            if port not in assigned_ports
+        ),
+        None,
+    )
+    if next_port is None:
+        last_assigned_port = await session.scalar(
+            select(func.max(Account.assigned_port)).where(
+                Account.platform == Platform.THREADS,
+                Account.assigned_port.is_not(None),
+            )
+        )
         await send_admin_alert(
             "Proxy port pool exhausted.\n\n"
             f"Range: {settings.proxy_port_start}-{settings.proxy_port_end}\n"
-            f"Last assigned port: {max_assigned_port}"
+            f"Last assigned port: {last_assigned_port}"
         )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Threads proxy port pool is exhausted. Contact support.",
         )
 
-    return next_port
+    return int(next_port)
 
 
 def build_threads_proxy_url_for_account(account: Account) -> str | None:

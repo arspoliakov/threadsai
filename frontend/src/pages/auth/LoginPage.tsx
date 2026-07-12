@@ -237,7 +237,16 @@ export default function LoginPage() {
 
           {accessDenied ? (
             <div className="mt-6 rounded-2xl border border-[#f0b64d]/35 bg-[#2a2110] px-4 py-3 text-sm leading-6 text-[#ffd78a]">
-              Доступ к кабинету ещё не одобрен или был приостановлен. Напишите в поддержку — мы проверим аккаунт и сообщим, когда можно войти.
+              Доступ к закрытому тесту ещё не одобрен или был приостановлен. Напишите в{" "}
+              <a
+                href="https://t.me/cuartenlol"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-white underline decoration-[#70ff35] underline-offset-4"
+              >
+                поддержку
+              </a>
+              {" "}— мы проверим аккаунт и сообщим, когда можно войти.
             </div>
           ) : null}
 

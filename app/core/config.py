@@ -135,6 +135,10 @@ class Settings(BaseSettings):
         default="641434769",
         validation_alias="APPROVED_TELEGRAM_IDS",
     )
+    enforce_telegram_allowlist: bool = Field(
+        default=False,
+        validation_alias="ENFORCE_TELEGRAM_ALLOWLIST",
+    )
     public_app_url: str = Field(
         default="https://threadsgo.ru",
         validation_alias="PUBLIC_APP_URL",
@@ -175,6 +179,9 @@ class Settings(BaseSettings):
     def is_telegram_id_approved(self, telegram_id: int | None) -> bool:
         if telegram_id is None:
             return False
+
+        if not self.enforce_telegram_allowlist:
+            return True
 
         approved_ids = self.approved_telegram_id_set()
         if not approved_ids:

@@ -57,7 +57,7 @@ apiClient.interceptors.response.use(
         window.localStorage.removeItem("threadsbot.authenticated");
 
         if (window.location.pathname !== "/login") {
-          window.location.assign("/login?reason=access-denied");
+          window.location.assign("/login?reason=session-expired");
         }
       }
     }
@@ -107,7 +107,7 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
       "Project not found": "Проект не найден или уже удалён.",
       "Account not found": "Профиль Threads не найден или уже удалён.",
       "Posting task not found": "Публикация не найдена или уже удалена.",
-      "Telegram user is not approved yet": "Доступ к закрытому тесту ещё не одобрен. Напишите в поддержку.",
+      "Telegram user is not approved yet": "Не удалось подтвердить доступ. Войдите через Telegram ещё раз или напишите в поддержку.",
     };
     return safeMessages[detail] || fallback;
   }
@@ -479,7 +479,7 @@ export async function login(password: string): Promise<LoginResponse> {
       }
 
       if (error.response?.status === 403) {
-        throw new LoginError("Сейчас включён закрытый режим доступа. Напишите в поддержку, и мы поможем войти.");
+        throw new LoginError("Не удалось подтвердить доступ. Попробуйте войти ещё раз или напишите в поддержку.");
       }
 
       if (!error.response) {
@@ -513,6 +513,10 @@ export async function loginWithTelegram(payload: TelegramAuthPayload): Promise<L
         throw new LoginError("Слишком много попыток входа. Подождите минуту и попробуйте снова.");
       }
 
+      if (error.response?.status === 403) {
+        throw new LoginError("Не удалось подтвердить доступ. Попробуйте войти ещё раз или напишите в поддержку.");
+      }
+
       if (!error.response) {
         throw new LoginError("API недоступен. Проверьте, что backend запущен на 127.0.0.1:8000.");
       }
@@ -541,7 +545,7 @@ export async function loginWithTelegramWebApp(initData: string): Promise<LoginRe
       }
 
       if (error.response?.status === 403) {
-        throw new LoginError("Сейчас включён закрытый режим доступа. Напишите в поддержку, и мы поможем войти.");
+        throw new LoginError("Не удалось подтвердить доступ. Попробуйте войти ещё раз или напишите в поддержку.");
       }
 
       if (error.response?.status === 429) {

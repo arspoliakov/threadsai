@@ -39,7 +39,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as LocationState | null;
-  const accessDenied = new URLSearchParams(location.search).get("reason") === "access-denied";
+  const loginReason = new URLSearchParams(location.search).get("reason");
+  const sessionNeedsRefresh = loginReason === "session-expired" || loginReason === "access-denied";
   const widgetContainerRef = useRef<HTMLDivElement | null>(null);
   const widgetTimeoutRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -235,18 +236,10 @@ export default function LoginPage() {
             Вход в кабинет.
           </h1>
 
-          {accessDenied ? (
-            <div className="mt-6 rounded-2xl border border-[#f0b64d]/35 bg-[#2a2110] px-4 py-3 text-sm leading-6 text-[#ffd78a]">
-              Доступ к закрытому тесту ещё не одобрен или был приостановлен. Напишите в{" "}
-              <a
-                href="https://t.me/cuartenlol"
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-white underline decoration-[#70ff35] underline-offset-4"
-              >
-                поддержку
-              </a>
-              {" "}— мы проверим аккаунт и сообщим, когда можно войти.
+          {sessionNeedsRefresh ? (
+            <div className="mt-6 rounded-2xl border border-[#6cc9ff]/30 bg-[#10212a] px-4 py-3 text-sm leading-6 text-[#ccecff]">
+              Сессия кабинета устарела после обновления. С данными всё в порядке — просто войдите через Telegram ещё
+              раз.
             </div>
           ) : null}
 

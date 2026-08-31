@@ -18,13 +18,20 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("users", sa.Column("subscription_phase", sa.String(length=32), nullable=False, server_default="none"))
-    op.add_column("users", sa.Column("subscription_trial_started_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("users", sa.Column("subscription_paid_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("users", sa.Column("subscription_expires_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("users", sa.Column("tribute_last_event_type", sa.String(length=128), nullable=True))
-    op.add_column("users", sa.Column("tribute_last_event_json", sa.JSON(), nullable=True))
-    op.alter_column("users", "subscription_phase", server_default=None)
+    existing_columns = {column["name"] for column in sa.inspect(op.get_bind()).get_columns("users")}
+
+    if "subscription_phase" not in existing_columns:
+        op.add_column("users", sa.Column("subscription_phase", sa.String(length=32), nullable=False, server_default="none"))
+    if "subscription_trial_started_at" not in existing_columns:
+        op.add_column("users", sa.Column("subscription_trial_started_at", sa.DateTime(timezone=True), nullable=True))
+    if "subscription_paid_at" not in existing_columns:
+        op.add_column("users", sa.Column("subscription_paid_at", sa.DateTime(timezone=True), nullable=True))
+    if "subscription_expires_at" not in existing_columns:
+        op.add_column("users", sa.Column("subscription_expires_at", sa.DateTime(timezone=True), nullable=True))
+    if "tribute_last_event_type" not in existing_columns:
+        op.add_column("users", sa.Column("tribute_last_event_type", sa.String(length=128), nullable=True))
+    if "tribute_last_event_json" not in existing_columns:
+        op.add_column("users", sa.Column("tribute_last_event_json", sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:

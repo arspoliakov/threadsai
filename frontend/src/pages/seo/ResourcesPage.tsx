@@ -11,6 +11,15 @@ const tools = [
   "/personal-brand-strategy-generator/",
 ];
 
+const commercialPages = [
+  "/ai-for-threads/",
+  "/ai-posts-for-threads/",
+  "/automatic-threads-management/",
+  "/threads-content-automation/",
+  "/threads-for-business/",
+  "/threads-for-small-business/",
+];
+
 const productPages = [
   "/threads-autoposting/",
   "/threads-trends/",
@@ -70,6 +79,29 @@ export default function ResourcesPage() {
       </section>
 
       <div className="mx-auto max-w-6xl space-y-16 px-5 py-14 sm:px-8">
+        <section className="rounded-[2rem] border border-[#c8d6cb] bg-[#07100e] p-6 text-white shadow-[0_24px_80px_rgba(7,16,14,0.16)] sm:p-8">
+          <div className="flex flex-wrap items-end justify-between gap-5">
+            <div>
+              <p className="text-sm uppercase tracking-[0.14em] text-[#7eff3a]">Быстрый старт</p>
+              <h2 className="mt-2 max-w-3xl font-display text-4xl sm:text-5xl">Ищете ИИ для Threads или автопостинг?</h2>
+              <p className="mt-4 max-w-2xl leading-7 text-white/70">
+                Начните с этих страниц: они коротко объясняют, как ThreadsGo помогает писать посты,
+                вести очередь и не терять контроль над аккаунтом.
+              </p>
+            </div>
+            <Link to="/login" className="rounded-full bg-[#7eff3a] px-6 py-3.5 text-sm font-semibold uppercase tracking-[0.14em] text-[#07100e] hover:bg-white">
+              Попробовать
+            </Link>
+          </div>
+          <div className="mt-7 grid gap-3 md:grid-cols-3">
+            {pagesByPath(commercialPages).map((page) => (
+              <Link key={page.path} to={page.path} className="rounded-2xl border border-white/10 bg-white/[0.06] p-5 hover:border-[#7eff3a]/70">
+                <h3 className="font-display text-2xl">{page.h1}</h3>
+                <p className="mt-3 line-clamp-3 text-sm leading-6 text-white/68">{page.description}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
         <ResourceSection title="Бесплатные инструменты" items={pagesByPath(tools)} />
         <ResourceSection title="Как работает ThreadsGo" items={pagesByPath(productPages)} />
         <ResourceSection title="Страницы по нишам" items={pagesByPath(nichePages)} />

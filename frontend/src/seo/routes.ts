@@ -1,4 +1,10 @@
 export const seoLandingRoutePaths = [
+  "/ai-for-threads/",
+  "/ai-posts-for-threads/",
+  "/automatic-threads-management/",
+  "/threads-for-business/",
+  "/threads-for-small-business/",
+  "/threads-content-automation/",
   "/threads-autoposting/",
   "/threads-post-generator/",
   "/threads-ideas-generator/",

@@ -167,6 +167,7 @@ export type CurrentUser = {
   first_name: string;
   photo_url: string | null;
   subscription_status: boolean;
+  subscription_phase: string;
   tariff_plan: string;
   tariff_accounts_limit: number;
   tariff_posts_per_day: number;
@@ -185,6 +186,8 @@ export type BillingPlan = {
 
 export type BillingStatus = {
   subscription_status: boolean;
+  subscription_phase: string;
+  subscription_expires_at: string | null;
   tariff_plan: string;
   accounts_limit: number;
   posts_per_day_limit: number;

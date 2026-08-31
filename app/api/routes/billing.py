@@ -1,11 +1,14 @@
+import hmac
+from typing import Any
+
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.db.models import User
-from app.services.subscriptions import get_tariff_chats, refresh_user_subscription
+from app.services.subscriptions import apply_tribute_webhook_payload, get_tariff_chats, refresh_user_subscription
 from app.telegram.bot import get_bot
 
 
@@ -23,6 +26,8 @@ class BillingPlanRead(BaseModel):
 
 class BillingStatusRead(BaseModel):
     subscription_status: bool
+    subscription_phase: str
+    subscription_expires_at: str | None
     tariff_plan: str
     accounts_limit: int
     posts_per_day_limit: int
@@ -52,9 +57,32 @@ async def refresh_billing_status(
     return _build_billing_status(current_user)
 
 
+@router.post("/tribute/webhook", status_code=status.HTTP_200_OK)
+async def tribute_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    _validate_tribute_webhook_secret(request)
+
+    try:
+        payload = await request.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook JSON") from exc
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Webhook payload must be an object")
+
+    applied = await apply_tribute_webhook_payload(payload=payload, session=db)
+    return {"ok": True, "applied": applied}
+
+
 def _build_billing_status(current_user: User) -> BillingStatusRead:
     return BillingStatusRead(
         subscription_status=current_user.subscription_status,
+        subscription_phase=current_user.subscription_phase,
+        subscription_expires_at=current_user.subscription_expires_at.isoformat()
+        if current_user.subscription_expires_at
+        else None,
         tariff_plan=current_user.tariff_plan,
         accounts_limit=current_user.tariff_accounts_limit,
         posts_per_day_limit=current_user.tariff_posts_per_day,
@@ -83,3 +111,22 @@ def _build_plan_reads() -> list[BillingPlanRead]:
         for tariff in get_tariff_chats().values()
     ]
     return sorted(plans, key=lambda plan: plan_order.get(plan.name, 99))
+
+
+def _validate_tribute_webhook_secret(request: Request) -> None:
+    expected_secret = settings.tribute_webhook_secret.strip()
+    if not expected_secret:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Tribute webhook is not configured")
+
+    provided_secret = (
+        request.headers.get("x-tribute-webhook-secret")
+        or request.headers.get("x-webhook-secret")
+        or request.query_params.get("token")
+        or ""
+    ).strip()
+    auth_header = request.headers.get("authorization", "").strip()
+    if auth_header.lower().startswith("bearer "):
+        provided_secret = auth_header[7:].strip()
+
+    if not hmac.compare_digest(provided_secret, expected_secret):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook secret")

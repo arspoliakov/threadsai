@@ -124,7 +124,7 @@ export default function BillingPage() {
         {billing ? (
           <div className="mt-5 flex flex-col gap-4 rounded-[16px] border border-[#e1e7dd] bg-[#f7faf4] p-4 text-sm leading-6 text-[#4f5a50] sm:flex-row sm:items-center sm:justify-between">
             <p>
-              Сейчас: {billing.subscription_status ? `тариф ${billing.tariff_plan}` : "подписка не активна"}. Настройки и
+              Сейчас: {billing.subscription_status ? formatSubscriptionLabel(billing) : "подписка не активна"}. Настройки и
               тексты не пропадут, если подписка закончится: автопубликация просто встанет на паузу.
             </p>
             <button
@@ -231,4 +231,13 @@ export default function BillingPage() {
       </section>
     </div>
   );
+}
+
+function formatSubscriptionLabel(billing: BillingStatus) {
+  const phaseLabel = billing.subscription_phase === "trial" ? "пробный период" : "оплаченный доступ";
+  const expiresLabel = billing.subscription_expires_at
+    ? ` до ${new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(new Date(billing.subscription_expires_at))}`
+    : "";
+
+  return `тариф ${billing.tariff_plan}, ${phaseLabel}${expiresLabel}`;
 }

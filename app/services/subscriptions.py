@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from aiogram import Bot
@@ -60,6 +61,18 @@ def get_tariff_chats() -> dict[int, TariffLimits]:
 
 def get_tariff_for_chat(chat_id: int) -> TariffLimits | None:
     return get_tariff_chats().get(int(chat_id))
+
+
+def get_tariff_by_name(plan_name: str | None) -> TariffLimits | None:
+    if not plan_name:
+        return None
+
+    normalized_name = _normalize_plan_name(plan_name)
+    for tariff in get_tariff_chats().values():
+        if tariff.name == normalized_name:
+            return tariff
+
+    return None
 
 
 async def activate_user_subscription(
@@ -264,8 +277,105 @@ async def reconcile_known_user_subscriptions(*, bot: Bot, session: AsyncSession)
     return changed_count
 
 
+async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: AsyncSession) -> bool:
+    event_type = _normalize_event_type(_first_string(payload, ["type"], ["event"], ["event_type"], ["data", "type"]))
+    telegram_id = _first_int(
+        payload,
+        ["telegram_id"],
+        ["telegram_user_id"],
+        ["user_id"],
+        ["user", "telegram_id"],
+        ["user", "id"],
+        ["subscriber", "telegram_id"],
+        ["subscriber", "id"],
+        ["data", "telegram_id"],
+        ["data", "user", "id"],
+        ["payload", "user", "id"],
+    )
+    chat_id = _first_int(
+        payload,
+        ["chat_id"],
+        ["channel_id"],
+        ["tariff_chat_id"],
+        ["chat", "id"],
+        ["channel", "id"],
+        ["subscription", "chat_id"],
+        ["data", "chat_id"],
+        ["data", "channel", "id"],
+    )
+    plan_name = _first_string(
+        payload,
+        ["plan"],
+        ["tariff"],
+        ["tariff_plan"],
+        ["subscription", "plan"],
+        ["subscription", "name"],
+        ["product", "name"],
+        ["data", "plan"],
+        ["data", "tariff"],
+        ["data", "subscription", "name"],
+    )
+
+    if telegram_id is None:
+        logger.warning("Tribute webhook skipped: telegram_id was not found in payload type=%s.", event_type)
+        return False
+
+    user = await session.scalar(select(User).where(User.telegram_id == telegram_id).limit(1))
+    if user is None:
+        logger.info("Tribute webhook skipped: telegram_id=%s is not registered yet.", telegram_id)
+        return False
+
+    user.tribute_last_event_type = event_type
+    user.tribute_last_event_json = payload
+    user.subscription_expires_at = _first_datetime(
+        payload,
+        ["expires_at"],
+        ["expired_at"],
+        ["ends_at"],
+        ["period_ends_at"],
+        ["subscription", "expires_at"],
+        ["subscription", "period_ends_at"],
+        ["data", "expires_at"],
+        ["data", "subscription", "expires_at"],
+    )
+
+    if _is_cancel_event(event_type):
+        await disable_user_subscription(user=user, session=session)
+        logger.info("Tribute webhook disabled subscription for user_id=%s event=%s.", user.id, event_type)
+        return True
+
+    tariff = get_tariff_for_chat(chat_id) if chat_id is not None else None
+    if tariff is None:
+        tariff = get_tariff_by_name(plan_name)
+
+    if tariff is None:
+        logger.warning(
+            "Tribute webhook skipped: tariff was not resolved for user_id=%s event=%s chat_id=%s plan=%s.",
+            user.id,
+            event_type,
+            chat_id,
+            plan_name,
+        )
+        await session.commit()
+        return False
+
+    phase = _subscription_phase_from_event(event_type)
+    _apply_tariff(user, tariff)
+    user.subscription_phase = phase
+    now = datetime.now(UTC)
+    if phase == "trial" and user.subscription_trial_started_at is None:
+        user.subscription_trial_started_at = _first_datetime(payload, ["created_at"], ["started_at"], ["data", "created_at"]) or now
+    if phase == "regular":
+        user.subscription_paid_at = _first_datetime(payload, ["paid_at"], ["created_at"], ["data", "paid_at"], ["data", "created_at"]) or now
+
+    await session.commit()
+    logger.info("Tribute webhook applied for user_id=%s plan=%s phase=%s event=%s.", user.id, tariff.name, phase, event_type)
+    return True
+
+
 async def disable_user_subscription(*, user: User, session: AsyncSession) -> None:
     user.subscription_status = False
+    user.subscription_phase = "none"
     user.tariff_plan = "none"
     user.tariff_accounts_limit = 0
     user.tariff_posts_per_day = 0
@@ -311,6 +421,8 @@ async def disable_user_subscription(*, user: User, session: AsyncSession) -> Non
 
 def _apply_tariff(user: User, tariff: TariffLimits) -> None:
     user.subscription_status = True
+    if user.subscription_phase == "none":
+        user.subscription_phase = "regular"
     user.tariff_plan = tariff.name
     user.tariff_accounts_limit = tariff.accounts
     user.tariff_posts_per_day = tariff.posts
@@ -327,6 +439,80 @@ def _user_subscription_snapshot(user: User) -> tuple[bool, str, int, int, int, i
         user.tariff_projects_limit,
         user.tariff_queue_days,
     )
+
+
+def _normalize_plan_name(plan_name: str) -> str:
+    normalized = plan_name.strip().lower()
+    if "agency" in normalized:
+        return "agency"
+    if "pro" in normalized:
+        return "pro"
+    if "basic" in normalized or "creator" in normalized:
+        return "basic"
+    return normalized
+
+
+def _normalize_event_type(event_type: str | None) -> str:
+    return (event_type or "unknown").strip().lower()
+
+
+def _subscription_phase_from_event(event_type: str) -> str:
+    if "trial" in event_type:
+        return "trial"
+    return "regular"
+
+
+def _is_cancel_event(event_type: str) -> bool:
+    return any(marker in event_type for marker in ("cancel", "expire", "unsubscribe", "deleted", "left"))
+
+
+def _first_string(payload: dict[str, Any], *paths: list[str]) -> str | None:
+    for path in paths:
+        value = _get_path(payload, path)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _first_int(payload: dict[str, Any], *paths: list[str]) -> int | None:
+    for path in paths:
+        value = _get_path(payload, path)
+        if isinstance(value, bool) or value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _first_datetime(payload: dict[str, Any], *paths: list[str]) -> datetime | None:
+    for path in paths:
+        value = _get_path(payload, path)
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, int | float):
+            try:
+                return datetime.fromtimestamp(value, tz=UTC)
+            except (OSError, OverflowError, ValueError):
+                continue
+        if isinstance(value, str) and value.strip():
+            normalized = value.strip().replace("Z", "+00:00")
+            try:
+                parsed = datetime.fromisoformat(normalized)
+            except ValueError:
+                continue
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None
+
+
+def _get_path(payload: dict[str, Any], path: list[str]) -> Any:
+    current: Any = payload
+    for key in path:
+        if not isinstance(current, dict) or key not in current:
+            return None
+        current = current[key]
+    return current
 
 
 def _is_active_member(member: Any) -> bool:

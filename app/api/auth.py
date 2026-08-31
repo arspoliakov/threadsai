@@ -59,6 +59,7 @@ class CurrentUserResponse(BaseModel):
     first_name: str
     photo_url: str | None
     subscription_status: bool
+    subscription_phase: str
     tariff_plan: str
     tariff_accounts_limit: int
     tariff_posts_per_day: int
@@ -184,6 +185,7 @@ async def get_current_user_profile(
         first_name=user.first_name,
         photo_url=user.photo_url,
         subscription_status=user.subscription_status,
+        subscription_phase=user.subscription_phase,
         tariff_plan=user.tariff_plan,
         tariff_accounts_limit=user.tariff_accounts_limit,
         tariff_posts_per_day=user.tariff_posts_per_day,

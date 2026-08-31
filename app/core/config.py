@@ -159,6 +159,10 @@ class Settings(BaseSettings):
         default="",
         validation_alias="TRIBUTE_AGENCY_URL",
     )
+    tribute_webhook_secret: str = Field(
+        default="",
+        validation_alias="TRIBUTE_WEBHOOK_SECRET",
+    )
 
     def approved_telegram_id_set(self) -> set[int]:
         raw_ids = self.approved_telegram_ids.replace(";", ",").replace(" ", ",")

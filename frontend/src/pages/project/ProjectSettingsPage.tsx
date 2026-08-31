@@ -16,6 +16,7 @@ import {
   type ConversionMode,
   type Project,
 } from "../../api/client";
+import { trackSeoEvent } from "../../components/SeoAnalytics";
 
 const timezoneOptions = [
   { value: "Europe/Moscow", label: "Москва — Europe/Moscow" },
@@ -133,6 +134,11 @@ export default function ProjectSettingsPage() {
         loading: "Добавляем профиль...",
         success: "Профиль добавлен в проект",
         error: (error) => getApiErrorMessage(error, "Не удалось добавить профиль."),
+      });
+      trackSeoEvent("threads_account_connected", {
+        method: "existing_profile",
+        project_id: projectId,
+        account_id: Number(selectedAccountId),
       });
       setSelectedAccountId("");
       await loadSettings({ silent: true });
@@ -252,6 +258,11 @@ export default function ProjectSettingsPage() {
         error: (error) => getApiErrorMessage(error, "Не удалось обновить данные входа."),
       });
       await savePromise;
+      trackSeoEvent("threads_account_connected", {
+        method: "cookies_refresh",
+        project_id: projectId,
+        account_id: accountId,
+      });
       await loadSettings({ silent: true });
     } finally {
       setSavingCookiesId(null);

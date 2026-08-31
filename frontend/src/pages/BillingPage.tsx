@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { getApiErrorMessage, getBillingStatus, refreshBillingStatus, type BillingStatus } from "../api/client";
-import { trackSeoEvent } from "../components/SeoAnalytics";
+import { trackSeoEvent, trackSeoEventOnce } from "../components/SeoAnalytics";
 
 const planCopy = {
   basic: {
@@ -56,11 +56,26 @@ export default function BillingPage() {
     void loadBilling();
   }, []);
 
+  useEffect(() => {
+    if (billing?.subscription_status) {
+      trackSeoEventOnce("subscription_active", {
+        source: "billing_page",
+        plan: billing.tariff_plan,
+      });
+    }
+  }, [billing?.subscription_status, billing?.tariff_plan]);
+
   async function checkSubscription() {
     setIsRefreshingSubscription(true);
     try {
       const refreshed = await refreshBillingStatus();
       setBilling(refreshed);
+      if (refreshed.subscription_status) {
+        trackSeoEventOnce("subscription_active", {
+          source: "billing_refresh",
+          plan: refreshed.tariff_plan,
+        });
+      }
       toast.success(
         refreshed.subscription_status
           ? "Тариф подтвержден, лимиты обновлены"

@@ -122,6 +122,11 @@ export default function ProjectOverviewPage() {
 
     try {
       const result = await triggerScraping(projectId);
+      trackSeoEvent("trend_collection_started", {
+        action: "scraping",
+        project_id: projectId,
+        source: "project_overview",
+      });
       setStatusMessage(result.message || "Сбор идей запущен в фоне.");
       toast.success("Сбор идей запущен в фоне");
       await refreshScrapingOperation();
@@ -140,8 +145,18 @@ export default function ProjectOverviewPage() {
     setError(null);
 
     try {
+      trackSeoEvent("first_generation_started", {
+        action: "generation",
+        project_id: projectId,
+        source: "project_overview",
+      });
       const result = await triggerGeneration(projectId);
       trackSeoEvent("draft_created", { project_id: projectId, task_id: result.task_id });
+      trackSeoEvent("first_post_queued", {
+        project_id: projectId,
+        task_id: result.task_id,
+        source: "project_overview",
+      });
       setStatusMessage(`Пост готов и добавлен в расписание: публикация #${result.task_id}.`);
       toast.success(`Пост добавлен в расписание: #${result.task_id}`);
       await loadDashboard();

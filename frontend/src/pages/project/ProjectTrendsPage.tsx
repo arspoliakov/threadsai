@@ -13,6 +13,7 @@ import {
   type SavedTrend,
 } from "../../api/client";
 import { DismissibleTip } from "../../components/DismissibleTip";
+import { trackSeoEvent } from "../../components/SeoAnalytics";
 
 export default function ProjectTrendsPage() {
   const { id } = useParams();
@@ -99,6 +100,11 @@ export default function ProjectTrendsPage() {
 
     try {
       const result = await triggerScraping(projectId);
+      trackSeoEvent("trend_collection_started", {
+        action: "scraping",
+        project_id: projectId,
+        source: "project_trends",
+      });
       setCollectionOperation({
         id: result.operation_id,
         project_id: result.project_id,

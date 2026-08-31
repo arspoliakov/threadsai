@@ -24,6 +24,14 @@ export function trackSeoEvent(event: string, payload: Record<string, unknown> = 
   if (counterId && window.ym) window.ym(counterId, "reachGoal", event, payload);
 }
 
+export function trackSeoEventOnce(event: string, payload: Record<string, unknown> = {}) {
+  if (typeof window === "undefined") return;
+  const storageKey = `threadsgo.analytics.${event}`;
+  if (window.localStorage.getItem(storageKey)) return;
+  window.localStorage.setItem(storageKey, new Date().toISOString());
+  trackSeoEvent(event, payload);
+}
+
 export function getSeoAttribution(): {
   first_landing?: string | null;
   referrer?: string | null;

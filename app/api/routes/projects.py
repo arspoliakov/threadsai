@@ -317,6 +317,13 @@ async def trigger_project_scraping(
     _subscription: User = Depends(require_active_subscription),
 ) -> TriggerScrapingRead:
     project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
+    account_id = await _get_active_threads_account_id(project_id=project.id, owner_id=current_user_id, db=db)
+
+    if account_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Сначала подключите рабочий профиль Threads. После этого можно будет собрать идеи для постов.",
+        )
 
     running_operation = await db.scalar(
         select(ProjectOperation)
@@ -420,21 +427,12 @@ async def trigger_project_generation(
     _subscription: User = Depends(require_active_subscription),
 ) -> TriggerGenerationRead:
     project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
-    account_id = await db.scalar(
-        select(Account.id)
-        .where(
-            Account.project_id == project.id,
-            Account.platform == Platform.THREADS,
-            Account.status == AccountStatus.ACTIVE,
-        )
-        .order_by(Account.last_used_at.asc().nullsfirst(), Account.created_at.asc())
-        .limit(1)
-    )
+    account_id = await _get_active_threads_account_id(project_id=project.id, owner_id=current_user_id, db=db)
 
     if account_id is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Project has no active Threads account assigned.",
+            detail="Сначала подключите рабочий профиль Threads. После этого можно будет готовить посты.",
         )
 
     operation = ProjectOperation(
@@ -528,6 +526,22 @@ async def _get_owned_project(project_id: int, owner_id: int, db: AsyncSession) -
         )
 
     return project
+
+
+async def _get_active_threads_account_id(project_id: int, owner_id: int, db: AsyncSession) -> int | None:
+    return await db.scalar(
+        select(Account.id)
+        .where(
+            Account.project_id == project_id,
+            Account.owner_id == owner_id,
+            Account.platform == Platform.THREADS,
+            Account.status == AccountStatus.ACTIVE,
+            Account.cookies_encrypted.is_not(None),
+            Account.assigned_port.is_not(None),
+        )
+        .order_by(Account.last_used_at.asc().nullsfirst(), Account.created_at.asc())
+        .limit(1)
+    )
 
 
 def _build_generation_topic(project: ProjectRead) -> str:

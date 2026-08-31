@@ -4,9 +4,11 @@ import { toast } from "sonner";
 
 import {
   getApiErrorMessage,
+  getProjectDashboard,
   getLatestProjectOperation,
   getProjectTrends,
   triggerScraping,
+  type ProjectDashboard,
   type ProjectOperation,
   type SavedTrend,
 } from "../../api/client";
@@ -19,7 +21,9 @@ export default function ProjectTrendsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCollecting, setIsCollecting] = useState(false);
   const [collectionOperation, setCollectionOperation] = useState<ProjectOperation | null>(null);
+  const [dashboard, setDashboard] = useState<ProjectDashboard | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const hasThreadsProfile = dashboard?.account_states.some((account) => account.status === "active") ?? false;
 
   async function loadTrends({ silent = false }: { silent?: boolean } = {}) {
     if (trends.length === 0) {
@@ -44,6 +48,7 @@ export default function ProjectTrendsPage() {
   useEffect(() => {
     if (Number.isFinite(projectId)) {
       void loadTrends({ silent: true });
+      void loadDashboard();
       void refreshCollectionStatus();
     }
   }, [projectId]);
@@ -76,7 +81,20 @@ export default function ProjectTrendsPage() {
     }
   }
 
+  async function loadDashboard() {
+    try {
+      setDashboard(await getProjectDashboard(projectId));
+    } catch {
+      // Ideas remain readable even if project readiness is temporarily unavailable.
+    }
+  }
+
   async function handleCollectTrends() {
+    if (!hasThreadsProfile) {
+      toast.error("Сначала подключите рабочий профиль Threads. После этого можно будет собрать идеи.");
+      return;
+    }
+
     setIsCollecting(true);
 
     try {
@@ -113,11 +131,16 @@ export default function ProjectTrendsPage() {
         <button
           type="button"
           onClick={() => void handleCollectTrends()}
-          disabled={isLoading || isCollecting}
+          disabled={isLoading || isCollecting || !hasThreadsProfile}
+          title={!hasThreadsProfile ? "Сначала подключите рабочий профиль Threads" : undefined}
           className="flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#151515] bg-white px-5 text-sm transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 md:w-fit"
         >
           {isCollecting ? <Spinner /> : null}
-          {isCollecting ? "Собираем идеи" : "Обновить подборку идей"}
+          {isCollecting
+            ? "Собираем идеи"
+            : hasThreadsProfile
+              ? "Обновить подборку идей"
+              : "Сначала подключите профиль"}
         </button>
       </header>
 

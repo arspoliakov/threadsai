@@ -35,6 +35,13 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class AuthAttributionPayload(BaseModel):
+    first_landing: str | None = Field(default=None, max_length=2048)
+    referrer: str | None = Field(default=None, max_length=2048)
+    utm: dict[str, str] = Field(default_factory=dict)
+    analytics: dict[str, str] = Field(default_factory=dict)
+
+
 class TelegramAuthPayload(BaseModel):
     id: int
     first_name: str = Field(min_length=1)
@@ -42,6 +49,7 @@ class TelegramAuthPayload(BaseModel):
     photo_url: str | None = None
     auth_date: int
     hash: str
+    attribution: AuthAttributionPayload | None = None
 
 
 class CurrentUserResponse(BaseModel):
@@ -60,6 +68,7 @@ class CurrentUserResponse(BaseModel):
 
 class TelegramWebAppLoginRequest(BaseModel):
     init_data: str = Field(min_length=1)
+    attribution: AuthAttributionPayload | None = None
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
@@ -139,6 +148,7 @@ async def telegram_webapp_login(
             photo_url=telegram_user.get("photo_url"),
             auth_date=int(dict(parse_qsl(payload.init_data)).get("auth_date", 0)),
             hash=dict(parse_qsl(payload.init_data)).get("hash", ""),
+            attribution=payload.attribution,
         ),
         db=db,
     )
@@ -301,16 +311,50 @@ async def _get_or_create_telegram_user(payload: TelegramAuthPayload, db: AsyncSe
             username=payload.username,
             first_name=payload.first_name,
             photo_url=payload.photo_url,
+            first_landing_path=_clean_optional_string(payload.attribution.first_landing) if payload.attribution else None,
+            first_referrer=_clean_optional_string(payload.attribution.referrer) if payload.attribution else None,
+            first_utm_json=_clean_string_dict(payload.attribution.utm) if payload.attribution else None,
+            first_analytics_json=_clean_string_dict(payload.attribution.analytics) if payload.attribution else None,
         )
         db.add(user)
     else:
         user.username = payload.username
         user.first_name = payload.first_name
         user.photo_url = payload.photo_url
+        if payload.attribution is not None:
+            if not user.first_landing_path:
+                user.first_landing_path = _clean_optional_string(payload.attribution.first_landing)
+            if not user.first_referrer:
+                user.first_referrer = _clean_optional_string(payload.attribution.referrer)
+            if not user.first_utm_json:
+                user.first_utm_json = _clean_string_dict(payload.attribution.utm) or None
+            if not user.first_analytics_json:
+                user.first_analytics_json = _clean_string_dict(payload.attribution.analytics) or None
 
     await db.commit()
     await db.refresh(user)
     return user
+
+
+def _clean_optional_string(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    stripped = value.strip()
+    return stripped[:2048] if stripped else None
+
+
+def _clean_string_dict(values: dict[str, str] | None) -> dict[str, str]:
+    if not values:
+        return {}
+
+    cleaned: dict[str, str] = {}
+    for key, value in values.items():
+        clean_key = str(key).strip()[:128]
+        clean_value = str(value).strip()[:2048]
+        if clean_key and clean_value:
+            cleaned[clean_key] = clean_value
+    return cleaned
 
 
 async def _sync_subscription_after_login(*, user: User, db: AsyncSession) -> None:

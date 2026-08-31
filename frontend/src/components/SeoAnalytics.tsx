@@ -10,6 +10,7 @@ declare global {
 
 const FIRST_LANDING_KEY = "threadsgo.first_landing";
 const FIRST_UTM_KEY = "threadsgo.first_utm";
+const FIRST_REFERRER_KEY = "threadsgo.first_referrer";
 const GTM_ID = import.meta.env.VITE_GTM_ID as string | undefined;
 const YANDEX_METRIKA_ID = import.meta.env.VITE_YANDEX_METRIKA_ID as string | undefined;
 let analyticsScriptsMounted = false;
@@ -22,19 +23,42 @@ export function trackSeoEvent(event: string, payload: Record<string, unknown> = 
   if (counterId && window.ym) window.ym(counterId, "reachGoal", event, payload);
 }
 
-export function getSeoAttribution() {
+export function getSeoAttribution(): {
+  first_landing?: string | null;
+  referrer?: string | null;
+  utm?: Record<string, string>;
+  analytics?: Record<string, string>;
+} {
   if (typeof window === "undefined") return {};
   const firstLanding = window.localStorage.getItem(FIRST_LANDING_KEY);
+  const firstReferrer = window.localStorage.getItem(FIRST_REFERRER_KEY);
   const storedUtm = window.localStorage.getItem(FIRST_UTM_KEY);
-  let firstUtm: Record<string, unknown> = {};
+  let firstUtm: Record<string, string> = {};
   if (storedUtm) {
     try {
-      firstUtm = JSON.parse(storedUtm) as Record<string, unknown>;
+      firstUtm = cleanStringRecord(JSON.parse(storedUtm));
     } catch {
       firstUtm = {};
     }
   }
-  return { first_landing: firstLanding, ...firstUtm };
+  return {
+    first_landing: firstLanding,
+    referrer: firstReferrer,
+    utm: firstUtm,
+    analytics: getClientAnalyticsIds(),
+  };
+}
+
+function cleanStringRecord(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, item]) => [key, typeof item === "string" ? item : String(item)])
+      .filter(([key, item]) => key && item),
+  );
 }
 
 export default function SeoAnalytics() {
@@ -50,8 +74,15 @@ export default function SeoAnalytics() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (!window.localStorage.getItem(FIRST_LANDING_KEY)) window.localStorage.setItem(FIRST_LANDING_KEY, location.pathname);
+    if (!window.localStorage.getItem(FIRST_REFERRER_KEY) && document.referrer) {
+      window.localStorage.setItem(FIRST_REFERRER_KEY, document.referrer);
+    }
     if (!window.localStorage.getItem(FIRST_UTM_KEY)) {
-      const utm = Object.fromEntries([...params.entries()].filter(([key]) => key.startsWith("utm_")));
+      const utm = Object.fromEntries(
+        [...params.entries()].filter(([key]) =>
+          key.startsWith("utm_") || key === "yclid" || key === "gclid" || key === "fbclid",
+        ),
+      );
       if (Object.keys(utm).length) window.localStorage.setItem(FIRST_UTM_KEY, JSON.stringify(utm));
     }
     trackSeoEvent("seo_page_view", { path: location.pathname });
@@ -119,4 +150,28 @@ function getYandexCounterId() {
   if (!YANDEX_METRIKA_ID) return undefined;
   const counterId = Number(YANDEX_METRIKA_ID);
   return Number.isFinite(counterId) ? counterId : undefined;
+}
+
+function getClientAnalyticsIds() {
+  const result: Record<string, string> = {};
+  const counterId = getYandexCounterId();
+  if (counterId) result.yandex_metrika_id = String(counterId);
+
+  const yandexClientId = getYandexClientId(counterId);
+  if (yandexClientId) result.yandex_client_id = yandexClientId;
+
+  return result;
+}
+
+function getYandexClientId(counterId: number | undefined) {
+  if (!counterId || !window.ym) return undefined;
+  let clientId: string | undefined;
+  try {
+    window.ym(counterId, "getClientID", (value: unknown) => {
+      if (typeof value === "string") clientId = value;
+    });
+  } catch {
+    return undefined;
+  }
+  return clientId;
 }

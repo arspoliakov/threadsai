@@ -61,7 +61,7 @@ export default function LoginPage() {
       setIsLoading(true);
 
       try {
-        const response = await loginWithTelegram(user);
+        const response = await loginWithTelegram(user, getSeoAttribution());
         setStoredAuthToken(response.access_token);
         trackSeoEvent("registration_complete", getSeoAttribution());
         toast.success("Вход через Telegram выполнен");
@@ -100,7 +100,7 @@ export default function LoginPage() {
       try {
         webApp?.ready?.();
         webApp?.expand?.();
-        const response = await loginWithTelegramWebApp(initData);
+        const response = await loginWithTelegramWebApp(initData, getSeoAttribution());
         setStoredAuthToken(response.access_token);
         trackSeoEvent("registration_complete", getSeoAttribution());
         toast.success("Вход через Telegram выполнен");

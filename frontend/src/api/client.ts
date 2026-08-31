@@ -153,6 +153,13 @@ export type LoginResponse = {
   token_type: "bearer";
 };
 
+export type AuthAttributionPayload = {
+  first_landing?: string | null;
+  referrer?: string | null;
+  utm?: Record<string, string>;
+  analytics?: Record<string, string>;
+};
+
 export type CurrentUser = {
   id: number;
   telegram_id: number | null;
@@ -193,6 +200,7 @@ export type TelegramAuthPayload = {
   photo_url?: string;
   auth_date: number;
   hash: string;
+  attribution?: AuthAttributionPayload;
 };
 
 export class LoginError extends Error {
@@ -491,11 +499,14 @@ export async function login(password: string): Promise<LoginResponse> {
   }
 }
 
-export async function loginWithTelegram(payload: TelegramAuthPayload): Promise<LoginResponse> {
+export async function loginWithTelegram(
+  payload: TelegramAuthPayload,
+  attribution?: AuthAttributionPayload,
+): Promise<LoginResponse> {
   try {
     const response = await axios.post<LoginResponse>(
       `${API_BASE_URL}/api/v1/auth/telegram`,
-      payload,
+      { ...payload, attribution },
       {
         headers: {
           "Content-Type": "application/json",
@@ -526,11 +537,14 @@ export async function loginWithTelegram(payload: TelegramAuthPayload): Promise<L
   }
 }
 
-export async function loginWithTelegramWebApp(initData: string): Promise<LoginResponse> {
+export async function loginWithTelegramWebApp(
+  initData: string,
+  attribution?: AuthAttributionPayload,
+): Promise<LoginResponse> {
   try {
     const response = await axios.post<LoginResponse>(
       `${API_BASE_URL}/api/v1/auth/telegram-webapp`,
-      { init_data: initData },
+      { init_data: initData, attribution },
       {
         headers: {
           "Content-Type": "application/json",

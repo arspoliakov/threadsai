@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import unittest
+import hashlib
+import hmac
 from types import SimpleNamespace
 
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import Settings
+from app.api import auth
 from app.db.base import Base
 from app.db.models import User
 from app.services import subscriptions
@@ -116,6 +120,43 @@ class SubscriptionLoginSyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(open_settings.is_telegram_id_approved(999))
         self.assertFalse(closed_settings.is_telegram_id_approved(999))
         self.assertTrue(closed_settings.is_telegram_id_approved(1))
+
+    def test_telegram_widget_auth_ignores_local_attribution_for_signature(self) -> None:
+        previous_token = auth.settings.telegram_bot_token
+        previous_max_age = auth.settings.telegram_auth_max_age_seconds
+        auth.settings.telegram_bot_token = "test-bot-token"
+        auth.settings.telegram_auth_max_age_seconds = 60 * 60 * 24 * 365 * 10
+
+        try:
+            auth_date = 1780000000
+            signed_payload = {
+                "auth_date": auth_date,
+                "first_name": "Ilya",
+                "id": 123456789,
+                "username": "ilya",
+            }
+            data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(signed_payload.items()))
+            secret_key = hashlib.sha256(auth.settings.telegram_bot_token.encode("utf-8")).digest()
+            payload_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+
+            payload = auth.TelegramAuthPayload(
+                **signed_payload,
+                hash=payload_hash,
+                attribution=auth.AuthAttributionPayload(
+                    first_landing="/direct/ai-post-generator/",
+                    referrer="https://yandex.ru/",
+                    utm={"utm_source": "yandex"},
+                    analytics={"client_id": "123.456"},
+                ),
+            )
+
+            try:
+                auth._validate_telegram_auth(payload)
+            except HTTPException as exc:  # pragma: no cover - assertion gives a cleaner failure.
+                self.fail(f"Telegram auth should ignore attribution during signature validation, got {exc.detail!r}")
+        finally:
+            auth.settings.telegram_bot_token = previous_token
+            auth.settings.telegram_auth_max_age_seconds = previous_max_age
 
 
 if __name__ == "__main__":

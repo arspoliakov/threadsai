@@ -209,7 +209,7 @@ def _validate_telegram_auth(payload: TelegramAuthPayload) -> None:
             detail="Telegram auth payload is expired",
         )
 
-    payload_dict = payload.model_dump(exclude={"hash"}, exclude_none=True)
+    payload_dict = payload.model_dump(exclude={"hash", "attribution"}, exclude_none=True)
     data_check_string = "\n".join(
         f"{key}={value}" for key, value in sorted(payload_dict.items())
     )

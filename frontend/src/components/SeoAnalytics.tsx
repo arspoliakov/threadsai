@@ -14,6 +14,7 @@ const FIRST_REFERRER_KEY = "threadsgo.first_referrer";
 const GTM_ID = import.meta.env.VITE_GTM_ID as string | undefined;
 const YANDEX_METRIKA_ID = import.meta.env.VITE_YANDEX_METRIKA_ID as string | undefined;
 let analyticsScriptsMounted = false;
+let previousPageUrl = "";
 
 export function trackSeoEvent(event: string, payload: Record<string, unknown> = {}) {
   if (typeof window === "undefined") return;
@@ -73,7 +74,8 @@ export default function SeoAnalytics() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (!window.localStorage.getItem(FIRST_LANDING_KEY)) window.localStorage.setItem(FIRST_LANDING_KEY, location.pathname);
+    const currentPath = `${location.pathname}${location.search}`;
+    if (!window.localStorage.getItem(FIRST_LANDING_KEY)) window.localStorage.setItem(FIRST_LANDING_KEY, currentPath);
     if (!window.localStorage.getItem(FIRST_REFERRER_KEY) && document.referrer) {
       window.localStorage.setItem(FIRST_REFERRER_KEY, document.referrer);
     }
@@ -85,6 +87,7 @@ export default function SeoAnalytics() {
       );
       if (Object.keys(utm).length) window.localStorage.setItem(FIRST_UTM_KEY, JSON.stringify(utm));
     }
+    trackPageView(currentPath);
     trackSeoEvent("seo_page_view", { path: location.pathname });
   }, [location.pathname, location.search]);
 
@@ -174,4 +177,28 @@ function getYandexClientId(counterId: number | undefined) {
     return undefined;
   }
   return clientId;
+}
+
+function trackPageView(path: string) {
+  if (typeof window === "undefined") return;
+
+  const currentUrl = `${window.location.origin}${path}`;
+  const referrer = previousPageUrl || document.referrer;
+  previousPageUrl = currentUrl;
+
+  const counterId = getYandexCounterId();
+  if (counterId && window.ym) {
+    window.ym(counterId, "hit", currentUrl, {
+      referer: referrer,
+      title: document.title,
+    });
+  }
+
+  window.dataLayer = window.dataLayer ?? [];
+  window.dataLayer.push({
+    event: "page_view",
+    page_location: currentUrl,
+    page_referrer: referrer,
+    page_title: document.title,
+  });
 }

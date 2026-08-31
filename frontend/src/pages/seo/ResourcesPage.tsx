@@ -12,6 +12,9 @@ const tools = [
 ];
 
 const commercialPages = [
+  "/direct/autoposting-social-media/",
+  "/direct/ai-post-generator/",
+  "/direct/threads-recommendations/",
   "/ai-for-threads/",
   "/ai-posts-for-threads/",
   "/automatic-threads-management/",
@@ -38,6 +41,8 @@ const nichePages = [
   "/for-lawyers/",
   "/for-photographers/",
   "/for-consultants/",
+  "/for-tutors/",
+  "/for-cosmetologists/",
 ];
 
 function pagesByPath(paths: string[]) {

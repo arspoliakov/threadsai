@@ -1,4 +1,7 @@
 export const seoLandingRoutePaths = [
+  "/direct/autoposting-social-media/",
+  "/direct/ai-post-generator/",
+  "/direct/threads-recommendations/",
   "/ai-for-threads/",
   "/ai-posts-for-threads/",
   "/automatic-threads-management/",
@@ -22,6 +25,8 @@ export const seoLandingRoutePaths = [
   "/for-lawyers/",
   "/for-photographers/",
   "/for-consultants/",
+  "/for-tutors/",
+  "/for-cosmetologists/",
   "/blog/",
   "/research/",
   "/compare/",

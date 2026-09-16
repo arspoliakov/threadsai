@@ -131,6 +131,14 @@ class Settings(BaseSettings):
         default=60 * 60 * 24,
         validation_alias="TELEGRAM_AUTH_MAX_AGE_SECONDS",
     )
+    telegram_bot_login_enabled: bool = Field(
+        default=True,
+        validation_alias="TELEGRAM_BOT_LOGIN_ENABLED",
+    )
+    telegram_login_challenge_ttl_seconds: int = Field(
+        default=300,
+        validation_alias="TELEGRAM_LOGIN_CHALLENGE_TTL_SECONDS",
+    )
     approved_telegram_ids: str = Field(
         default="641434769",
         validation_alias="APPROVED_TELEGRAM_IDS",

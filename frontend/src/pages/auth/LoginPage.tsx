@@ -12,6 +12,7 @@ import {
 } from "../../api/client";
 import { isAuthenticated } from "../../auth";
 import { getSeoAttribution, trackSeoEvent } from "../../components/SeoAnalytics";
+import { useTelegramBotLogin } from "../../hooks/useTelegramBotLogin";
 
 type LocationState = {
   from?: string;
@@ -55,6 +56,14 @@ export default function LoginPage() {
   );
   const canLogin = termsAccepted && metaNoticeAccepted;
 
+  const finishAuthenticated = useCallback(async () => {
+    trackSeoEvent("telegram_login_complete", getSeoAttribution());
+    toast.success("Вход через Telegram выполнен");
+    navigate(await getPostLoginDestination(state?.from), { replace: true });
+  }, [navigate, state?.from]);
+
+  const botLogin = useTelegramBotLogin(finishAuthenticated);
+
   const handleTelegramAuth = useCallback(
     async (user: TelegramAuthPayload) => {
       setError(null);
@@ -63,9 +72,7 @@ export default function LoginPage() {
       try {
         const response = await loginWithTelegram(user, getSeoAttribution());
         setStoredAuthToken(response.access_token);
-        trackSeoEvent("registration_complete", getSeoAttribution());
-        toast.success("Вход через Telegram выполнен");
-        navigate(await getPostLoginDestination(state?.from), { replace: true });
+        await finishAuthenticated();
       } catch (telegramError) {
         const message =
           telegramError instanceof LoginError
@@ -77,7 +84,7 @@ export default function LoginPage() {
         setIsLoading(false);
       }
     },
-    [navigate, state?.from],
+    [finishAuthenticated],
   );
 
   useEffect(() => {
@@ -102,9 +109,7 @@ export default function LoginPage() {
         webApp?.expand?.();
         const response = await loginWithTelegramWebApp(initData, getSeoAttribution());
         setStoredAuthToken(response.access_token);
-        trackSeoEvent("registration_complete", getSeoAttribution());
-        toast.success("Вход через Telegram выполнен");
-        navigate(await getPostLoginDestination(state?.from), { replace: true });
+        await finishAuthenticated();
         return true;
       } catch (telegramError) {
         const message =
@@ -120,7 +125,7 @@ export default function LoginPage() {
     }
 
     void tryTelegramWebAppLogin();
-  }, [canLogin, navigate, state?.from]);
+  }, [canLogin, finishAuthenticated]);
 
   useEffect(() => {
     if (!canLogin) {
@@ -186,12 +191,8 @@ export default function LoginPage() {
   }
 
   if (isAuthenticated()) {
-    return <Navigate to={state?.from || "/app"} replace />;
+    return <Navigate to={sanitizeReturnPath(state?.from)} replace />;
   }
-
-  const botLink = TELEGRAM_BOT_USERNAME
-    ? `https://t.me/${TELEGRAM_BOT_USERNAME.replace(/^@/, "")}?start=login`
-    : "https://t.me/";
 
   return (
     <main className="landing-shell relative grid min-h-screen overflow-hidden bg-[#070909] px-5 py-8 text-[#eff6ed] sm:px-8">
@@ -292,14 +293,7 @@ export default function LoginPage() {
                     Telegram-виджет не загрузился. Так бывает, если браузер, VPN или провайдер режет внешний
                     скрипт Telegram.
                   </p>
-                  <p className="mt-3 text-sm leading-6 text-white/54">
-                    Альтернативный вход: нажмите «Войти через бота», откройте Telegram и отправьте боту команду
-                    <span className="mx-1 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 font-mono text-[11px] text-white/76">
-                      /start
-                    </span>
-                    . Бот покажет кнопку кабинета и авторизует вас внутри Telegram.
-                  </p>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-5">
                     <button
                       type="button"
                       onClick={() => setWidgetKey((current) => current + 1)}
@@ -307,14 +301,6 @@ export default function LoginPage() {
                     >
                       попробовать снова
                     </button>
-                    <a
-                      href={botLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-full border border-white/14 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white/68 transition hover:border-white/40 hover:text-white"
-                    >
-                      войти через бота
-                    </a>
                   </div>
                 </div>
               ) : null}
@@ -322,22 +308,62 @@ export default function LoginPage() {
 
             {canLogin ? (
               <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-[#050807]/45 p-4 text-center">
-                <p className="mx-auto max-w-lg text-sm leading-6 text-white/58">
-                  Если кнопка Telegram выше не появилась или висит загрузка, используйте надежный вход через бота:
-                  откройте Telegram, нажмите <span className="text-white">Start</span> или отправьте{" "}
-                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 font-mono text-[11px] text-white/76">
-                    /start
-                  </span>
-                  , затем выберите «Открыть кабинет ThreadsGo».
-                </p>
-                <a
-                  href={botLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 inline-flex rounded-full bg-white px-6 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35]"
-                >
-                  войти через бота
-                </a>
+                {botLogin.challenge && ["waiting", "finishing"].includes(botLogin.phase) ? (
+                  <>
+                    <p className="text-sm font-medium text-white">Подтвердите вход в Telegram</p>
+                    <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-white/58">
+                      Нажмите «Да, войти» в сообщении бота, затем вернитесь в эту вкладку. Вход завершится автоматически.
+                    </p>
+                    <div className="mx-auto mt-4 w-fit rounded-2xl border border-[#70ff35]/30 bg-[#70ff35]/10 px-5 py-3">
+                      <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">код входа</span>
+                      <span className="font-mono text-2xl tracking-[0.25em] text-[#b7ff91]">{botLogin.challenge.display_code}</span>
+                    </div>
+                    {botLogin.message ? <p className="mt-3 text-sm text-white/58">{botLogin.message}</p> : null}
+                    <div className="mt-5 flex flex-wrap justify-center gap-3">
+                      <a
+                        href={botLogin.challenge.bot_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35]"
+                      >
+                        открыть Telegram ещё раз
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => void botLogin.checkNow()}
+                        className="rounded-full border border-white/14 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white/68 transition hover:border-white/40 hover:text-white"
+                      >
+                        проверить
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void botLogin.cancel()}
+                        className="rounded-full border border-white/10 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white/45 transition hover:text-white"
+                      >
+                        отменить
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mx-auto max-w-lg text-sm leading-6 text-white/58">
+                      Удобный вход через чат с ботом. Подтвердите вход одной кнопкой и вернитесь на сайт — эта вкладка авторизуется автоматически.
+                    </p>
+                    {botLogin.message ? <p className="mt-3 text-sm text-[#ffb4a9]">{botLogin.message}</p> : null}
+                    <button
+                      type="button"
+                      disabled={botLogin.phase === "starting"}
+                      onClick={() => {
+                        if (["expired", "denied", "cancelled"].includes(botLogin.phase)) botLogin.reset();
+                        const telegramWindow = window.open("about:blank", "_blank");
+                        void botLogin.start(telegramWindow);
+                      }}
+                      className="mt-4 inline-flex rounded-full bg-white px-6 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35] disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {botLogin.phase === "starting" ? "создаём вход…" : "войти через бота Telegram"}
+                    </button>
+                  </>
+                )}
               </div>
             ) : null}
           </div>
@@ -371,7 +397,14 @@ async function getPostLoginDestination(requestedPath?: string) {
     // The normal API interceptor will handle invalid access; keep a safe fallback here.
   }
 
-  return requestedPath || "/app";
+  return sanitizeReturnPath(requestedPath);
+}
+
+function sanitizeReturnPath(requestedPath?: string) {
+  if (!requestedPath) return "/app";
+  const normalized = requestedPath.replace(/\\/g, "/");
+  if (normalized === "/app" || normalized.startsWith("/app/")) return normalized;
+  return "/app";
 }
 
 function Spinner() {
@@ -400,27 +433,21 @@ function AgreementCheckbox({
   );
 }
 
-function loadTelegramWebAppScript() {
+async function loadTelegramWebAppScript() {
   if (window.Telegram?.WebApp) {
-    return Promise.resolve();
+    return;
   }
 
   const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://telegram.org/js/telegram-web-app.js"]');
-  if (existingScript) {
-    return new Promise<void>((resolve) => {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener("error", () => resolve(), { once: true });
-      window.setTimeout(resolve, 1200);
-    });
-  }
-
-  return new Promise<void>((resolve) => {
+  if (!existingScript) {
     const script = document.createElement("script");
     script.async = true;
     script.src = "https://telegram.org/js/telegram-web-app.js";
-    script.onload = () => resolve();
-    script.onerror = () => resolve();
     document.head.appendChild(script);
-    window.setTimeout(resolve, 1600);
-  });
+  }
+
+  const deadline = Date.now() + 4000;
+  while (!window.Telegram?.WebApp && Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+  }
 }

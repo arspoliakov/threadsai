@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import asyncio
 import hashlib
 import hmac
 import json
@@ -9,16 +10,18 @@ from urllib.parse import parse_qsl
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.api.deps import get_current_user_id, get_db
 from app.db.models import User
+from app.services import telegram_login as bot_login
 
 
 logger = logging.getLogger(__name__)
@@ -45,6 +48,7 @@ class AuthAttributionPayload(BaseModel):
 class TelegramAuthPayload(BaseModel):
     id: int
     first_name: str = Field(min_length=1)
+    last_name: str | None = None
     username: str | None = None
     photo_url: str | None = None
     auth_date: int
@@ -70,6 +74,29 @@ class CurrentUserResponse(BaseModel):
 class TelegramWebAppLoginRequest(BaseModel):
     init_data: str = Field(min_length=1)
     attribution: AuthAttributionPayload | None = None
+
+
+class TelegramBotStartRequest(BaseModel):
+    attribution: AuthAttributionPayload | None = None
+
+
+class TelegramBotChallengeRequest(BaseModel):
+    challenge_id: str = Field(min_length=1, max_length=64)
+    browser_secret: str = Field(min_length=1, max_length=128)
+
+
+class TelegramBotStartResponse(BaseModel):
+    challenge_id: str
+    browser_secret: str
+    bot_url: str
+    expires_at: datetime
+    poll_interval_ms: int = 3000
+    display_code: str
+
+
+class TelegramBotStatusResponse(BaseModel):
+    status: str
+    expires_at: datetime
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
@@ -166,6 +193,138 @@ async def telegram_webapp_login(
     return LoginResponse(access_token=token)
 
 
+@router.post(
+    "/telegram-bot/start",
+    response_model=TelegramBotStartResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit("10/minute")
+async def telegram_bot_login_start(
+    request: Request,
+    response: Response,
+    payload: TelegramBotStartRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TelegramBotStartResponse:
+    del request
+    response.headers["Cache-Control"] = "no-store"
+    username = settings.telegram_bot_username.strip().lstrip("@")
+    if not settings.telegram_bot_login_enabled or not settings.telegram_bot_token or not username:
+        raise _challenge_http_error(bot_login.ChallengeError("bot_unavailable", 503))
+    created = await bot_login.create_challenge(
+        session=db,
+        attribution=payload.attribution.model_dump() if payload.attribution else None,
+    )
+    return TelegramBotStartResponse(
+        challenge_id=created.challenge.id,
+        browser_secret=created.browser_secret,
+        bot_url=f"https://t.me/{username}?start=login_{created.bot_secret}",
+        expires_at=created.challenge.expires_at,
+        display_code=created.challenge.display_code,
+    )
+
+
+@router.post("/telegram-bot/status", response_model=TelegramBotStatusResponse)
+@limiter.limit("30/minute")
+async def telegram_bot_login_status(
+    request: Request,
+    response: Response,
+    payload: TelegramBotChallengeRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TelegramBotStatusResponse:
+    del request
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        challenge = await bot_login.get_browser_challenge(
+            session=db,
+            challenge_id=payload.challenge_id,
+            browser_secret=payload.browser_secret,
+        )
+    except bot_login.ChallengeError as exc:
+        raise _challenge_http_error(exc) from exc
+    return TelegramBotStatusResponse(
+        status=bot_login.browser_status(challenge),
+        expires_at=challenge.expires_at,
+    )
+
+
+@router.post("/telegram-bot/cancel", response_model=TelegramBotStatusResponse)
+@limiter.limit("10/minute")
+async def telegram_bot_login_cancel(
+    request: Request,
+    response: Response,
+    payload: TelegramBotChallengeRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TelegramBotStatusResponse:
+    del request
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        challenge = await bot_login.get_browser_challenge(
+            session=db,
+            challenge_id=payload.challenge_id,
+            browser_secret=payload.browser_secret,
+        )
+        current = await bot_login.cancel_challenge(session=db, challenge=challenge)
+    except bot_login.ChallengeError as exc:
+        raise _challenge_http_error(exc) from exc
+    return TelegramBotStatusResponse(status=current, expires_at=challenge.expires_at)
+
+
+@router.post("/telegram-bot/complete", response_model=LoginResponse)
+@limiter.limit("10/minute")
+async def telegram_bot_login_complete(
+    request: Request,
+    response: Response,
+    payload: TelegramBotChallengeRequest,
+    db: AsyncSession = Depends(get_db),
+) -> LoginResponse:
+    del request
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        challenge = await bot_login.get_browser_challenge(
+            session=db,
+            challenge_id=payload.challenge_id,
+            browser_secret=payload.browser_secret,
+        )
+        retry_token = bot_login.get_retry_token(challenge)
+        if retry_token:
+            if not settings.is_telegram_id_approved(challenge.telegram_id):
+                raise bot_login.ChallengeError("access_denied", 403)
+            return LoginResponse(access_token=retry_token)
+        current = bot_login.browser_status(challenge)
+        if current != "approved":
+            code = "challenge_pending" if current == "pending" else f"challenge_{current}"
+            raise bot_login.ChallengeError(code, 409 if current != "expired" else 410)
+        if challenge.telegram_id is None or not settings.is_telegram_id_approved(challenge.telegram_id):
+            raise bot_login.ChallengeError("access_denied", 403)
+        profile = challenge.telegram_profile_json or {}
+        user = await _get_or_create_verified_telegram_user(
+            telegram_id=challenge.telegram_id,
+            first_name=str(profile.get("first_name") or "Telegram"),
+            username=profile.get("username"),
+            photo_url=None,
+            attribution=challenge.attribution_json,
+            db=db,
+        )
+        await _sync_subscription_after_login(user=user, db=db)
+        token = create_access_token(
+            {
+                "sub": str(user.id),
+                "telegram_id": user.telegram_id,
+                "username": user.username,
+                "type": "access",
+            }
+        )
+        token = await bot_login.consume_challenge(
+            session=db,
+            challenge=challenge,
+            user_id=user.id,
+            token=token,
+        )
+        return LoginResponse(access_token=token)
+    except bot_login.ChallengeError as exc:
+        raise _challenge_http_error(exc) from exc
+
+
 @router.get("/me", response_model=CurrentUserResponse, status_code=status.HTTP_200_OK)
 async def get_current_user_profile(
     current_user_id: int = Depends(get_current_user_id),
@@ -201,7 +360,13 @@ def _validate_telegram_auth(payload: TelegramAuthPayload) -> None:
             detail="Telegram bot token is not configured",
         )
 
-    auth_datetime = datetime.fromtimestamp(payload.auth_date, tz=UTC)
+    try:
+        auth_datetime = datetime.fromtimestamp(payload.auth_date, tz=UTC)
+    except (OverflowError, OSError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram auth_date is invalid",
+        ) from exc
     auth_age_seconds = (datetime.now(UTC) - auth_datetime).total_seconds()
     if auth_age_seconds < 0 or auth_age_seconds > settings.telegram_auth_max_age_seconds:
         raise HTTPException(
@@ -251,7 +416,13 @@ def _validate_telegram_webapp_auth(init_data: str) -> dict[str, Any]:
             detail="Telegram WebApp auth_date is invalid",
         ) from exc
 
-    auth_datetime = datetime.fromtimestamp(auth_date, tz=UTC)
+    try:
+        auth_datetime = datetime.fromtimestamp(auth_date, tz=UTC)
+    except (OverflowError, OSError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram WebApp auth_date is invalid",
+        ) from exc
     auth_age_seconds = (datetime.now(UTC) - auth_datetime).total_seconds()
     if auth_age_seconds < 0 or auth_age_seconds > settings.telegram_auth_max_age_seconds:
         raise HTTPException(
@@ -304,36 +475,62 @@ def _validate_telegram_webapp_auth(init_data: str) -> dict[str, Any]:
 
 
 async def _get_or_create_telegram_user(payload: TelegramAuthPayload, db: AsyncSession) -> User:
-    stmt = select(User).where(User.telegram_id == payload.id).limit(1)
+    return await _get_or_create_verified_telegram_user(
+        telegram_id=payload.id,
+        first_name=payload.first_name,
+        username=payload.username,
+        photo_url=payload.photo_url,
+        attribution=payload.attribution.model_dump() if payload.attribution else None,
+        db=db,
+    )
+
+
+async def _get_or_create_verified_telegram_user(
+    *,
+    telegram_id: int,
+    first_name: str,
+    username: str | None,
+    photo_url: str | None,
+    attribution: dict[str, Any] | None,
+    db: AsyncSession,
+) -> User:
+    stmt = select(User).where(User.telegram_id == telegram_id).limit(1)
     user = await db.scalar(stmt)
 
     if user is None:
         user = User(
-            telegram_id=payload.id,
-            username=payload.username,
-            first_name=payload.first_name,
-            photo_url=payload.photo_url,
-            first_landing_path=_clean_optional_string(payload.attribution.first_landing) if payload.attribution else None,
-            first_referrer=_clean_optional_string(payload.attribution.referrer) if payload.attribution else None,
-            first_utm_json=_clean_string_dict(payload.attribution.utm) if payload.attribution else None,
-            first_analytics_json=_clean_string_dict(payload.attribution.analytics) if payload.attribution else None,
+            telegram_id=telegram_id,
+            username=username,
+            first_name=first_name,
+            photo_url=photo_url,
+            first_landing_path=_clean_optional_string(attribution.get("first_landing")) if attribution else None,
+            first_referrer=_clean_optional_string(attribution.get("referrer")) if attribution else None,
+            first_utm_json=_clean_string_dict(attribution.get("utm")) if attribution else None,
+            first_analytics_json=_clean_string_dict(attribution.get("analytics")) if attribution else None,
         )
         db.add(user)
     else:
-        user.username = payload.username
-        user.first_name = payload.first_name
-        user.photo_url = payload.photo_url
-        if payload.attribution is not None:
+        user.username = username
+        user.first_name = first_name
+        if photo_url is not None:
+            user.photo_url = photo_url
+        if attribution is not None:
             if not user.first_landing_path:
-                user.first_landing_path = _clean_optional_string(payload.attribution.first_landing)
+                user.first_landing_path = _clean_optional_string(attribution.get("first_landing"))
             if not user.first_referrer:
-                user.first_referrer = _clean_optional_string(payload.attribution.referrer)
+                user.first_referrer = _clean_optional_string(attribution.get("referrer"))
             if not user.first_utm_json:
-                user.first_utm_json = _clean_string_dict(payload.attribution.utm) or None
+                user.first_utm_json = _clean_string_dict(attribution.get("utm")) or None
             if not user.first_analytics_json:
-                user.first_analytics_json = _clean_string_dict(payload.attribution.analytics) or None
+                user.first_analytics_json = _clean_string_dict(attribution.get("analytics")) or None
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        user = await db.scalar(select(User).where(User.telegram_id == telegram_id).limit(1))
+        if user is None:
+            raise
     await db.refresh(user)
     return user
 
@@ -371,11 +568,17 @@ async def _sync_subscription_after_login(*, user: User, db: AsyncSession) -> Non
         if bot is None:
             return
 
-        await sync_user_subscription_after_login(bot=bot, user=user, session=db)
+        async with asyncio.timeout(3):
+            await sync_user_subscription_after_login(bot=bot, user=user, session=db)
     except Exception:
         # Authentication must stay available even when Telegram temporarily cannot
         # confirm channel membership. The regular reconciler will retry later.
         logger.exception("Could not synchronize subscription during login for user_id=%s.", user.id)
+        await db.rollback()
+
+
+def _challenge_http_error(exc: bot_login.ChallengeError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail={"code": exc.code})
 
 
 def create_access_token(payload: dict[str, Any]) -> str:

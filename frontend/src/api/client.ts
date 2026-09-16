@@ -199,12 +199,39 @@ export type BillingStatus = {
 export type TelegramAuthPayload = {
   id: number;
   first_name: string;
+  last_name?: string;
   username?: string;
   photo_url?: string;
   auth_date: number;
   hash: string;
   attribution?: AuthAttributionPayload;
 };
+
+export type TelegramBotChallenge = {
+  challenge_id: string;
+  browser_secret: string;
+  bot_url: string;
+  expires_at: string;
+  poll_interval_ms: number;
+  display_code: string;
+};
+
+export type TelegramBotChallengeStatus = {
+  status: "pending" | "approved" | "denied" | "cancelled" | "expired" | "consumed";
+  expires_at: string;
+};
+
+export class TelegramBotLoginError extends Error {
+  code: string;
+  retryAfterMs: number | null;
+
+  constructor(code: string, message: string, retryAfterMs: number | null = null) {
+    super(message);
+    this.name = "TelegramBotLoginError";
+    this.code = code;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
 
 export class LoginError extends Error {
   constructor(message: string) {
@@ -586,6 +613,81 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 export async function getBillingStatus(): Promise<BillingStatus> {
   const response = await apiClient.get<BillingStatus>("/api/v1/billing/status");
   return response.data;
+}
+
+const botLoginClient = axios.create({ baseURL: API_BASE_URL });
+
+function botLoginError(error: unknown): TelegramBotLoginError {
+  if (!axios.isAxiosError(error)) {
+    return new TelegramBotLoginError("network_error", "Не удалось связаться с сайтом. Попробуем ещё раз.");
+  }
+  const code = error.response?.data?.detail?.code || (error.response?.status === 429 ? "rate_limited" : "network_error");
+  const retryAfter = Number(error.response?.headers?.["retry-after"] || 0);
+  const messages: Record<string, string> = {
+    challenge_invalid: "Попытка входа не найдена. Начните вход заново.",
+    challenge_pending: "Подтверждение в Telegram ещё не получено.",
+    challenge_expired: "Время подтверждения истекло. Начните вход заново.",
+    challenge_denied: "Вы отменили вход в Telegram.",
+    challenge_cancelled: "Попытка входа отменена.",
+    challenge_consumed: "Эта попытка входа уже завершена. Начните новую.",
+    access_denied: "Вход сейчас недоступен для этого аккаунта. Обратитесь в поддержку.",
+    bot_unavailable: "Вход через бота временно недоступен. Попробуйте другой способ.",
+    rate_limited: "Слишком много проверок. Подождите немного.",
+    network_error: "Не удалось связаться с сайтом. Попробуем ещё раз.",
+  };
+  return new TelegramBotLoginError(
+    code,
+    messages[code] || "Не удалось завершить вход через Telegram.",
+    retryAfter > 0 ? retryAfter * 1000 : null,
+  );
+}
+
+export async function startTelegramBotLogin(attribution?: AuthAttributionPayload): Promise<TelegramBotChallenge> {
+  try {
+    const response = await botLoginClient.post<TelegramBotChallenge>("/api/v1/auth/telegram-bot/start", { attribution });
+    return response.data;
+  } catch (error) {
+    throw botLoginError(error);
+  }
+}
+
+export async function getTelegramBotLoginStatus(
+  challenge: Pick<TelegramBotChallenge, "challenge_id" | "browser_secret">,
+): Promise<TelegramBotChallengeStatus> {
+  try {
+    const response = await botLoginClient.post<TelegramBotChallengeStatus>(
+      "/api/v1/auth/telegram-bot/status",
+      challenge,
+    );
+    return response.data;
+  } catch (error) {
+    throw botLoginError(error);
+  }
+}
+
+export async function completeTelegramBotLogin(
+  challenge: Pick<TelegramBotChallenge, "challenge_id" | "browser_secret">,
+): Promise<LoginResponse> {
+  try {
+    const response = await botLoginClient.post<LoginResponse>("/api/v1/auth/telegram-bot/complete", challenge);
+    return response.data;
+  } catch (error) {
+    throw botLoginError(error);
+  }
+}
+
+export async function cancelTelegramBotLogin(
+  challenge: Pick<TelegramBotChallenge, "challenge_id" | "browser_secret">,
+): Promise<TelegramBotChallengeStatus> {
+  try {
+    const response = await botLoginClient.post<TelegramBotChallengeStatus>(
+      "/api/v1/auth/telegram-bot/cancel",
+      challenge,
+    );
+    return response.data;
+  } catch (error) {
+    throw botLoginError(error);
+  }
 }
 
 export async function refreshBillingStatus(): Promise<BillingStatus> {

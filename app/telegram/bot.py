@@ -1,14 +1,15 @@
 import asyncio
 import logging
 
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, F
 from aiogram.exceptions import TelegramAPIError
-from aiogram.filters import Command
-from aiogram.types import ChatMemberUpdated, InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+from aiogram.filters import Command, CommandObject
+from aiogram.types import CallbackQuery, ChatMemberUpdated, InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.services.subscriptions import activate_user_subscription, handle_user_left_tariff_chat
+from app.services.telegram_login import ChallengeError, bind_bot_challenge, decide_challenge
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,12 @@ async def status_handler(message: Message) -> None:
 
 
 @dp.message(Command("start"))
-async def start_handler(message: Message) -> None:
+async def start_handler(message: Message, command: CommandObject) -> None:
+    argument = (command.args or "").strip()
+    if argument.startswith("login_"):
+        await _handle_login_start(message, argument.removeprefix("login_"))
+        return
+
     app_url = settings.public_app_url.rstrip("/")
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -42,10 +48,95 @@ async def start_handler(message: Message) -> None:
     )
     await message.answer(
         "ThreadsGo готов.\n\n"
-        "Если Telegram-виджет на сайте не открылся, войдите отсюда: нажмите «Открыть кабинет ThreadsGo». "
-        "Telegram передаст безопасные данные входа, а сайт выдаст вам сессию без пароля.",
+        "Для входа в браузере начните авторизацию на сайте — бот покажет отдельную кнопку подтверждения. "
+        "Кнопка ниже открывает самостоятельный кабинет внутри Telegram.",
         reply_markup=keyboard,
     )
+
+
+async def _handle_login_start(message: Message, bot_secret: str) -> None:
+    sender = message.from_user
+    if sender is None or sender.is_bot or message.chat.type != "private":
+        await message.answer("Подтвердить вход можно только в личном чате с ботом.")
+        return
+    profile = {
+        "first_name": sender.first_name,
+        "last_name": sender.last_name,
+        "username": sender.username,
+        "language_code": sender.language_code,
+    }
+    try:
+        async with AsyncSessionLocal() as session:
+            challenge = await bind_bot_challenge(
+                session=session,
+                bot_secret=bot_secret,
+                telegram_id=int(sender.id),
+                profile=profile,
+            )
+    except ChallengeError as exc:
+        text = (
+            "Время подтверждения истекло. Вернитесь на сайт и начните вход заново."
+            if exc.code == "challenge_expired"
+            else "Эта ссылка входа недействительна или уже использована. Начните вход на сайте заново."
+        )
+        await message.answer(text)
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Да, войти", callback_data=f"tga:ok:{challenge.id}"),
+                InlineKeyboardButton(text="Отменить", callback_data=f"tga:no:{challenge.id}"),
+            ]
+        ]
+    )
+    await message.answer(
+        "Подтвердить вход в ThreadsGo?\n\n"
+        f"Код на сайте: {challenge.display_code}\n"
+        f"Сайт: {settings.public_app_url.rstrip('/')}\n\n"
+        "Подтверждайте только вход, который вы сами начали. Код должен совпадать с кодом во вкладке сайта.",
+        reply_markup=keyboard,
+    )
+
+
+@dp.callback_query(F.data.startswith("tga:"))
+async def telegram_login_callback(callback: CallbackQuery) -> None:
+    sender = callback.from_user
+    data = callback.data or ""
+    parts = data.split(":", 2)
+    if len(parts) != 3 or parts[1] not in {"ok", "no"}:
+        await callback.answer("Некорректная кнопка входа.", show_alert=True)
+        return
+    approve = parts[1] == "ok"
+    try:
+        async with AsyncSessionLocal() as session:
+            await decide_challenge(
+                session=session,
+                challenge_id=parts[2],
+                telegram_id=int(sender.id),
+                approve=approve,
+            )
+    except ChallengeError as exc:
+        messages = {
+            "challenge_expired": "Время входа истекло. Начните заново на сайте.",
+            "access_denied": "Вход сейчас недоступен для этого аккаунта.",
+            "challenge_cancelled": "Эта попытка уже отменена.",
+            "challenge_consumed": "Вход уже выполнен.",
+        }
+        await callback.answer(messages.get(exc.code, "Эта попытка входа больше недоступна."), show_alert=True)
+        return
+
+    result_text = (
+        "Готово! Теперь вернитесь во вкладку сайта, где вы начали вход. Авторизация завершится автоматически."
+        if approve
+        else "Вход отменён. Можно вернуться на сайт и начать новую попытку."
+    )
+    await callback.answer("Вход подтверждён" if approve else "Вход отменён")
+    if callback.message is not None:
+        try:
+            await callback.message.edit_text(result_text, reply_markup=None)
+        except TelegramAPIError:
+            logger.warning("Could not edit Telegram login confirmation message for user_id=%s", sender.id)
 
 
 @dp.chat_member()

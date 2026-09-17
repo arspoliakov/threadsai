@@ -79,7 +79,7 @@ export default function BillingPage() {
       toast.success(
         refreshed.subscription_status
           ? "Тариф подтвержден, лимиты обновлены"
-          : "Оплата пока не найдена. Если вы только что оплатили, подождите минуту и повторите проверку.",
+          : "Доступ пока не найден. Завершите активацию в Tribute и запросите доступ к каналу, затем повторите проверку.",
       );
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Не удалось проверить оплату. Попробуйте ещё раз через минуту."));
@@ -116,8 +116,8 @@ export default function BillingPage() {
         <div className="max-w-3xl">
           <h1 className="font-display text-4xl leading-tight text-[#111] sm:text-5xl">Выберите свой формат работы</h1>
           <p className="mt-4 text-base leading-7 text-[#5f675f]">
-            Оплата идет через Telegram-сервис Tribute. Он сам выдает доступ, управляет пробным периодом и отменой
-            подписки. ThreadsGo просто смотрит, есть ли вы в закрытом канале тарифа.
+            Оплата идет через Telegram-сервис Tribute. После подключения тарифа ThreadsGo получает подтверждение от
+            Tribute, а при ручной проверке дополнительно сверяет доступ к закрытому каналу тарифа.
           </p>
         </div>
 
@@ -217,8 +217,8 @@ export default function BillingPage() {
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
             <h3 className="text-base font-semibold text-[#111]">Когда включится доступ после оплаты?</h3>
             <p className="mt-2 text-sm leading-6 text-[#5f675f]">
-              Обычно сразу после вступления в закрытый Telegram-канал тарифа. Если кабинет уже открыт, нажмите
-              «Проверить оплату» выше. Резервная автоматическая сверка выполняется каждые 15 минут.
+              После привязки карты завершите активацию в Tribute и нажмите кнопку доступа к закрытому каналу. Затем
+              вернитесь в ThreadsGo и нажмите «Проверить оплату». Резервная сверка выполняется автоматически.
             </p>
           </div>
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
@@ -234,7 +234,14 @@ export default function BillingPage() {
 }
 
 function formatSubscriptionLabel(billing: BillingStatus) {
-  const phaseLabel = billing.subscription_phase === "trial" ? "пробный период" : "оплаченный доступ";
+  const phaseLabel =
+    billing.subscription_phase === "trial"
+      ? "пробный период"
+      : billing.subscription_phase === "gift"
+        ? "подарочный доступ"
+        : billing.subscription_phase === "cancelled"
+          ? "доступ до конца оплаченного периода"
+          : "оплаченный доступ";
   const expiresLabel = billing.subscription_expires_at
     ? ` до ${new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(new Date(billing.subscription_expires_at))}`
     : "";

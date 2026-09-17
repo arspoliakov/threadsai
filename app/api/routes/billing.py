@@ -1,4 +1,6 @@
 import hmac
+import json
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -62,11 +64,12 @@ async def tribute_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    _validate_tribute_webhook_secret(request)
+    raw_body = await request.body()
+    _validate_tribute_webhook_signature(request, raw_body)
 
     try:
-        payload = await request.json()
-    except ValueError as exc:
+        payload = json.loads(raw_body)
+    except (ValueError, UnicodeDecodeError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook JSON") from exc
 
     if not isinstance(payload, dict):
@@ -77,12 +80,14 @@ async def tribute_webhook(
 
 
 def _build_billing_status(current_user: User) -> BillingStatusRead:
+    expires_at = _latest_expiration(
+        current_user.subscription_expires_at,
+        current_user.complimentary_access_expires_at,
+    )
     return BillingStatusRead(
         subscription_status=current_user.subscription_status,
         subscription_phase=current_user.subscription_phase,
-        subscription_expires_at=current_user.subscription_expires_at.isoformat()
-        if current_user.subscription_expires_at
-        else None,
+        subscription_expires_at=expires_at.isoformat() if expires_at else None,
         tariff_plan=current_user.tariff_plan,
         accounts_limit=current_user.tariff_accounts_limit,
         posts_per_day_limit=current_user.tariff_posts_per_day,
@@ -90,6 +95,13 @@ def _build_billing_status(current_user: User) -> BillingStatusRead:
         queue_days=current_user.tariff_queue_days,
         plans=_build_plan_reads(),
     )
+
+
+def _latest_expiration(*values: datetime | None) -> datetime | None:
+    available = [value for value in values if value is not None]
+    if not available:
+        return None
+    return max(available, key=lambda value: value if value.tzinfo else value.replace(tzinfo=UTC))
 
 
 def _build_plan_reads() -> list[BillingPlanRead]:
@@ -113,10 +125,21 @@ def _build_plan_reads() -> list[BillingPlanRead]:
     return sorted(plans, key=lambda plan: plan_order.get(plan.name, 99))
 
 
-def _validate_tribute_webhook_secret(request: Request) -> None:
+def _validate_tribute_webhook_signature(request: Request, raw_body: bytes) -> None:
     expected_secret = settings.tribute_webhook_secret.strip()
     if not expected_secret:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Tribute webhook is not configured")
+
+    signature = request.headers.get("trbt-signature", "").strip()
+    if signature.lower().startswith("sha256="):
+        signature = signature[7:]
+    expected_signature = hmac.new(
+        expected_secret.encode("utf-8"),
+        raw_body,
+        "sha256",
+    ).hexdigest()
+    if signature and hmac.compare_digest(signature.lower(), expected_signature):
+        return
 
     provided_secret = (
         request.headers.get("x-tribute-webhook-secret")
@@ -129,4 +152,4 @@ def _validate_tribute_webhook_secret(request: Request) -> None:
         provided_secret = auth_header[7:].strip()
 
     if not hmac.compare_digest(provided_secret, expected_secret):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook secret")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")

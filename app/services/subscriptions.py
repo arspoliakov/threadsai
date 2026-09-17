@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from aiogram import Bot
@@ -134,6 +134,15 @@ async def handle_user_left_tariff_chat(
         )
         return False
 
+    if _apply_active_complimentary_access(user):
+        await session.commit()
+        logger.info(
+            "Subscription channel leave preserved complimentary access for user_id=%s telegram_id=%s.",
+            user.id,
+            telegram_id,
+        )
+        return False
+
     await disable_user_subscription(user=user, session=session)
     logger.info("Subscription disabled for user_id=%s telegram_id=%s.", user.id, telegram_id)
     return True
@@ -152,6 +161,11 @@ async def sync_user_subscription_after_login(
     """Immediately recover a Tribute subscription whose join event arrived before registration."""
     if user.telegram_id is None or user.subscription_status:
         return user.subscription_status
+
+    if _apply_active_complimentary_access(user):
+        await session.commit()
+        await session.refresh(user)
+        return True
 
     membership_check = await check_tariff_membership_for_user(
         bot=bot,
@@ -197,6 +211,11 @@ async def refresh_user_subscription(
             user.id,
         )
         return user.subscription_status
+
+    if _apply_active_complimentary_access(user):
+        await session.commit()
+        await session.refresh(user)
+        return True
 
     if user.subscription_status:
         await disable_user_subscription(user=user, session=session)
@@ -266,6 +285,12 @@ async def reconcile_known_user_subscriptions(*, bot: Bot, session: AsyncSession)
             )
             continue
 
+        previous_state = _user_subscription_snapshot(user)
+        if _apply_active_complimentary_access(user):
+            if previous_state != _user_subscription_snapshot(user):
+                changed_count += 1
+            continue
+
         if user.subscription_status:
             await disable_user_subscription(user=user, session=session)
             changed_count += 1
@@ -278,7 +303,9 @@ async def reconcile_known_user_subscriptions(*, bot: Bot, session: AsyncSession)
 
 
 async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: AsyncSession) -> bool:
-    event_type = _normalize_event_type(_first_string(payload, ["type"], ["event"], ["event_type"], ["data", "type"]))
+    event_type = _normalize_event_type(
+        _first_string(payload, ["name"], ["type"], ["event"], ["event_type"], ["data", "type"])
+    )
     telegram_id = _first_int(
         payload,
         ["telegram_id"],
@@ -291,6 +318,7 @@ async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: Asy
         ["data", "telegram_id"],
         ["data", "user", "id"],
         ["payload", "user", "id"],
+        ["payload", "telegram_user_id"],
     )
     chat_id = _first_int(
         payload,
@@ -302,6 +330,7 @@ async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: Asy
         ["subscription", "chat_id"],
         ["data", "chat_id"],
         ["data", "channel", "id"],
+        ["payload", "channel_id"],
     )
     plan_name = _first_string(
         payload,
@@ -314,6 +343,7 @@ async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: Asy
         ["data", "plan"],
         ["data", "tariff"],
         ["data", "subscription", "name"],
+        ["payload", "subscription_name"],
     )
 
     if telegram_id is None:
@@ -337,12 +367,8 @@ async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: Asy
         ["subscription", "period_ends_at"],
         ["data", "expires_at"],
         ["data", "subscription", "expires_at"],
+        ["payload", "expires_at"],
     )
-
-    if _is_cancel_event(event_type):
-        await disable_user_subscription(user=user, session=session)
-        logger.info("Tribute webhook disabled subscription for user_id=%s event=%s.", user.id, event_type)
-        return True
 
     tariff = get_tariff_for_chat(chat_id) if chat_id is not None else None
     if tariff is None:
@@ -359,9 +385,20 @@ async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: Asy
         await session.commit()
         return False
 
-    phase = _subscription_phase_from_event(event_type)
+    if _is_cancel_event(event_type) and not _is_future(user.subscription_expires_at):
+        if _apply_active_complimentary_access(user):
+            await session.commit()
+        else:
+            await disable_user_subscription(user=user, session=session)
+        logger.info("Tribute webhook ended subscription for user_id=%s event=%s.", user.id, event_type)
+        return True
+
+    phase = _subscription_phase_from_event(
+        event_type,
+        _first_string(payload, ["payload", "type"], ["data", "type"]),
+    )
     _apply_tariff(user, tariff)
-    user.subscription_phase = phase
+    user.subscription_phase = "cancelled" if _is_cancel_event(event_type) else phase
     now = datetime.now(UTC)
     if phase == "trial" and user.subscription_trial_started_at is None:
         user.subscription_trial_started_at = _first_datetime(payload, ["created_at"], ["started_at"], ["data", "created_at"]) or now
@@ -371,6 +408,42 @@ async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: Asy
     await session.commit()
     logger.info("Tribute webhook applied for user_id=%s plan=%s phase=%s event=%s.", user.id, tariff.name, phase, event_type)
     return True
+
+
+async def grant_complimentary_access(
+    *,
+    user: User,
+    session: AsyncSession,
+    plan_name: str,
+    days: int,
+    reason: str,
+) -> datetime:
+    if days <= 0:
+        raise ValueError("days must be positive")
+
+    tariff = get_tariff_by_name(plan_name)
+    if tariff is None:
+        raise ValueError(f"Unknown tariff plan: {plan_name}")
+
+    now = datetime.now(UTC)
+    current_expiration = _as_utc(user.complimentary_access_expires_at)
+    starts_at = current_expiration if current_expiration and current_expiration > now else now
+    expires_at = starts_at + timedelta(days=days)
+    user.complimentary_access_expires_at = expires_at
+    user.complimentary_access_plan = tariff.name
+    user.complimentary_access_reason = reason.strip()[:255] or None
+    _apply_tariff(user, tariff)
+    user.subscription_phase = "gift"
+    await session.commit()
+    await session.refresh(user)
+    logger.info(
+        "Complimentary access granted for user_id=%s plan=%s until=%s reason=%s.",
+        user.id,
+        tariff.name,
+        expires_at.isoformat(),
+        user.complimentary_access_reason,
+    )
+    return expires_at
 
 
 async def disable_user_subscription(*, user: User, session: AsyncSession) -> None:
@@ -430,6 +503,20 @@ def _apply_tariff(user: User, tariff: TariffLimits) -> None:
     user.tariff_queue_days = tariff.queue_days
 
 
+def _apply_active_complimentary_access(user: User, *, now: datetime | None = None) -> bool:
+    if not _is_future(user.complimentary_access_expires_at, now=now):
+        return False
+
+    tariff = get_tariff_by_name(user.complimentary_access_plan)
+    if tariff is None:
+        logger.warning("Complimentary access has unknown plan for user_id=%s.", user.id)
+        return False
+
+    _apply_tariff(user, tariff)
+    user.subscription_phase = "gift"
+    return True
+
+
 def _user_subscription_snapshot(user: User) -> tuple[bool, str, int, int, int, int]:
     return (
         user.subscription_status,
@@ -443,11 +530,11 @@ def _user_subscription_snapshot(user: User) -> tuple[bool, str, int, int, int, i
 
 def _normalize_plan_name(plan_name: str) -> str:
     normalized = plan_name.strip().lower()
-    if "agency" in normalized:
+    if "agency" in normalized or "агент" in normalized:
         return "agency"
-    if "pro" in normalized:
+    if "pro" in normalized or "проф" in normalized:
         return "pro"
-    if "basic" in normalized or "creator" in normalized:
+    if any(marker in normalized for marker in ("basic", "creator", "start", "старт", "базов")):
         return "basic"
     return normalized
 
@@ -456,7 +543,10 @@ def _normalize_event_type(event_type: str | None) -> str:
     return (event_type or "unknown").strip().lower()
 
 
-def _subscription_phase_from_event(event_type: str) -> str:
+def _subscription_phase_from_event(event_type: str, payload_type: str | None = None) -> str:
+    normalized_payload_type = _normalize_event_type(payload_type)
+    if normalized_payload_type in {"trial", "gift", "regular"}:
+        return normalized_payload_type
     if "trial" in event_type:
         return "trial"
     return "regular"
@@ -464,6 +554,17 @@ def _subscription_phase_from_event(event_type: str) -> str:
 
 def _is_cancel_event(event_type: str) -> bool:
     return any(marker in event_type for marker in ("cancel", "expire", "unsubscribe", "deleted", "left"))
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+def _is_future(value: datetime | None, *, now: datetime | None = None) -> bool:
+    normalized = _as_utc(value)
+    return normalized is not None and normalized > (now or datetime.now(UTC))
 
 
 def _first_string(payload: dict[str, Any], *paths: list[str]) -> str | None:

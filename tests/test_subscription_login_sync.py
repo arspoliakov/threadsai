@@ -3,14 +3,18 @@ from __future__ import annotations
 import unittest
 import hashlib
 import hmac
+import json
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 from fastapi import HTTPException
+from starlette.requests import Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import Settings
 from app.api import auth
+from app.api.routes import billing
 from app.db.base import Base
 from app.db.models import User
 from app.services import subscriptions
@@ -104,6 +108,80 @@ class SubscriptionLoginSyncTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(user.subscription_status)
             self.assertEqual(user.tariff_plan, "none")
             self.assertEqual(user.tariff_accounts_limit, 0)
+
+    async def test_complimentary_access_survives_membership_refresh(self) -> None:
+        async with self.session_factory() as session:
+            user = User(telegram_id=778, first_name="Affected customer")
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
+            expires_at = await subscriptions.grant_complimentary_access(
+                user=user,
+                session=session,
+                plan_name="basic",
+                days=3,
+                reason="service recovery",
+            )
+            active = await subscriptions.refresh_user_subscription(
+                bot=FakeBot(None),
+                user=user,
+                session=session,
+            )
+
+            self.assertTrue(active)
+            self.assertTrue(user.subscription_status)
+            self.assertEqual(user.subscription_phase, "gift")
+            self.assertEqual(user.tariff_plan, "basic")
+            self.assertGreater(expires_at, datetime.now(UTC) + timedelta(days=2))
+
+    async def test_official_tribute_trial_payload_activates_start_plan(self) -> None:
+        async with self.session_factory() as session:
+            user = User(telegram_id=779, first_name="Trial customer")
+            session.add(user)
+            await session.commit()
+
+            expires_at = datetime.now(UTC) + timedelta(days=3)
+            applied = await subscriptions.apply_tribute_webhook_payload(
+                payload={
+                    "name": "new_subscription",
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "sent_at": datetime.now(UTC).isoformat(),
+                    "payload": {
+                        "telegram_user_id": 779,
+                        "subscription_name": "Стартовый тариф",
+                        "channel_id": 614,
+                        "expires_at": expires_at.isoformat(),
+                        "type": "trial",
+                    },
+                },
+                session=session,
+            )
+
+            self.assertTrue(applied)
+            self.assertTrue(user.subscription_status)
+            self.assertEqual(user.subscription_phase, "trial")
+            self.assertEqual(user.tariff_plan, "basic")
+            self.assertEqual(user.tribute_last_event_type, "new_subscription")
+
+    def test_official_tribute_signature_is_accepted(self) -> None:
+        payload = json.dumps({"name": "new_subscription"}, separators=(",", ":")).encode()
+        secret = "tribute-api-key"
+        signature = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/v1/billing/tribute/webhook",
+                "headers": [(b"trbt-signature", signature.encode())],
+            }
+        )
+        previous_secret = billing.settings.tribute_webhook_secret
+        billing.settings.tribute_webhook_secret = secret
+        try:
+            billing._validate_tribute_webhook_signature(request, payload)
+        finally:
+            billing.settings.tribute_webhook_secret = previous_secret
 
     def test_allowlist_is_optional_after_billing_launch(self) -> None:
         open_settings = Settings(

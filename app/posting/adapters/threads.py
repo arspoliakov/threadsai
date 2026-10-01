@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
 import random
 import threading
 import time
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, TypeVar
@@ -76,9 +78,6 @@ class BrowserFingerprintProfile:
 
     width: int
     height: int
-    canvas_noise: int
-    canvas_x: int
-    canvas_y: int
 
 
 class ThreadsAdapter(BasePostingAdapter):
@@ -218,15 +217,11 @@ class ThreadsAdapter(BasePostingAdapter):
                     driver,
                     username=detected_username or account.username,
                 )
-                self._share_posts_chain(driver, _normalize_posts_chain(task), task.media_url)
-                self._raise_if_deadline_exceeded(deadline_at)
-                published_post_url = self._verify_published_post(
-                    driver,
+                published_post_url = self._share_posts_chain(
+                    driver, _normalize_posts_chain(task), task.media_url,
                     username=detected_username or account.username,
-                    expected_text=_normalize_posts_chain(task)[0],
                     existing_post_urls=existing_post_urls,
-                    deadline_at=deadline_at,
-                    ip_watchdog=ip_watchdog,
+                    deadline_at=deadline_at, ip_watchdog=ip_watchdog,
                 )
                 logger.info(
                     "Threads publish flow completed and verified for task #%s: %s",
@@ -411,14 +406,12 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_argument("--disable-in-process-stack-traces")
         options.add_argument("--disable-logging")
         options.add_argument("--no-zygote")
-        options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
         options.add_argument("--webrtc-ip-handling-policy=disable_non_proxied_udp")
         options.add_argument(f"--window-size={fingerprint_profile.width},{fingerprint_profile.height}")
         options.add_argument(f"--user-data-dir={user_data_dir}")
         options.add_argument("--disk-cache-size=52428800")
         options.add_argument("--media-cache-size=1")
-        options.add_argument("--blink-settings=imagesEnabled=false")
         options.add_argument("--disable-notifications")
         options.add_argument("--disable-popup-blocking")
         options.add_argument("--disable-background-networking")
@@ -433,9 +426,12 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_experimental_option(
             "prefs",
             {
-                "profile.managed_default_content_settings.images": 2,
+                # Explicitly reset preferences left by older persistent profiles.
+                "profile.managed_default_content_settings.images": 1,
+                "profile.default_content_setting_values.images": 1,
+                "profile.managed_default_content_settings.plugins": 1,
+                "profile.default_content_setting_values.plugins": 1,
                 "profile.managed_default_content_settings.stylesheets": 1,
-                "profile.managed_default_content_settings.plugins": 2,
                 "profile.managed_default_content_settings.popups": 2,
                 "profile.managed_default_content_settings.notifications": 2,
                 "profile.managed_default_content_settings.media_stream": 2,
@@ -443,9 +439,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 "profile.managed_default_content_settings.media_stream_camera": 2,
                 "profile.managed_default_content_settings.sound": 2,
                 "profile.default_content_setting_values.autoplay": 2,
-                "profile.default_content_setting_values.images": 2,
                 "profile.default_content_setting_values.stylesheets": 1,
-                "profile.default_content_setting_values.plugins": 2,
                 "profile.default_content_setting_values.media_stream": 2,
                 "profile.default_content_setting_values.notifications": 2,
                 "profile.default_content_setting_values.sound": 2,
@@ -456,8 +450,7 @@ class ThreadsAdapter(BasePostingAdapter):
             options.add_argument(f"--load-extension={proxy_extension_path}")
 
         try:
-            options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
-            options.add_experimental_option("useAutomationExtension", False)
+            options.add_experimental_option("excludeSwitches", ["enable-logging"])
         except Exception:
             pass
 
@@ -470,7 +463,6 @@ class ThreadsAdapter(BasePostingAdapter):
             setattr(driver, "_threadsai_user_data_dir", user_data_dir)
             setattr(driver, "_threadsai_persistent_profile", account_id is not None)
             setattr(driver, "_threadsai_profile_lock", profile_lock)
-            self._apply_stealth_scripts(driver, fingerprint_profile)
             return driver
         except WebDriverException as exc:
             if profile_lock is not None:
@@ -497,151 +489,18 @@ class ThreadsAdapter(BasePostingAdapter):
                 self._remove_directory_safely(user_data_dir)
             raise ProxyNetworkException(f"Chrome/proxy driver startup failed: {exc}") from exc
 
-    def _apply_stealth_scripts(
-        self,
-        driver: WebDriver,
-        fingerprint_profile: BrowserFingerprintProfile,
-    ) -> None:
-        script = f"""
-                Object.defineProperty(navigator, 'webdriver', {{
-                  get: () => undefined
-                }});
-                Object.defineProperty(navigator, 'plugins', {{
-                  get: () => [1, 2, 3, 4, 5]
-                }});
-                Object.defineProperty(navigator, 'languages', {{
-                  get: () => ['ru-RU', 'ru', 'en-US', 'en']
-                }});
-                window.chrome = window.chrome || {{ runtime: {{}} }};
-
-                try {{
-                  const canvasNoise = {fingerprint_profile.canvas_noise};
-                  const canvasX = {fingerprint_profile.canvas_x};
-                  const canvasY = {fingerprint_profile.canvas_y};
-                  const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
-                  CanvasRenderingContext2D.prototype.getImageData = function(...args) {{
-                    const imageData = originalGetImageData.apply(this, args);
-                    for (let i = 0; i < imageData.data.length; i += 64) {{
-                      imageData.data[i] = imageData.data[i] ^ canvasNoise;
-                    }}
-                    return imageData;
-                  }};
-                  const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-                  HTMLCanvasElement.prototype.toDataURL = function(...args) {{
-                    const context = this.getContext('2d');
-                    if (context) {{
-                      context.fillStyle = 'rgba(1,1,1,0.01)';
-                      context.fillRect(canvasX % Math.max(1, this.width), canvasY % Math.max(1, this.height), 1, 1);
-                    }}
-                    return originalToDataURL.apply(this, args);
-                  }};
-                }} catch (_) {{}}
-
-                try {{
-                  Object.defineProperty(window, 'RTCPeerConnection', {{
-                    configurable: true,
-                    value: undefined
-                  }});
-                  Object.defineProperty(window, 'webkitRTCPeerConnection', {{
-                    configurable: true,
-                    value: undefined
-                  }});
-                }} catch (_) {{}}
-
-                const stopMedia = (node) => {{
-                  if (!node) return;
-                  const mediaNodes = node.matches && node.matches('video,audio')
-                    ? [node]
-                    : Array.from(node.querySelectorAll ? node.querySelectorAll('video,audio') : []);
-
-                  for (const media of mediaNodes) {{
-                    try {{
-                      media.preload = 'none';
-                      media.autoplay = false;
-                      media.muted = true;
-                      media.pause();
-                      media.removeAttribute('src');
-                      media.querySelectorAll('source').forEach((source) => source.removeAttribute('src'));
-                      media.load();
-                    }} catch (_) {{}}
-                  }}
-                }};
-
-                try {{
-                  Object.defineProperty(HTMLMediaElement.prototype, 'preload', {{
-                    configurable: true,
-                    get() {{ return 'none'; }},
-                    set() {{ return 'none'; }}
-                  }});
-                }} catch (_) {{}}
-
-                try {{
-                  HTMLMediaElement.prototype.play = function() {{
-                    stopMedia(this);
-                    return Promise.resolve();
-                  }};
-                }} catch (_) {{}}
-
-                new MutationObserver((mutations) => {{
-                  for (const mutation of mutations) {{
-                    mutation.addedNodes.forEach(stopMedia);
-                  }}
-                }}).observe(document.documentElement, {{ childList: true, subtree: true }});
-                """
-        driver.execute_cdp_cmd(
-            "Page.addScriptToEvaluateOnNewDocument",
-            {"source": script},
-        )
-
     def _apply_network_blocking(self, driver: WebDriver) -> None:
-        # Chrome prefs are the first line of defense. CDP blocking catches CSS/media URLs
-        # that still slip through content settings and saves proxy traffic.
+        # Save large media transfers without altering scripts, images or fonts.
         driver.execute_cdp_cmd("Network.enable", {})
         driver.execute_cdp_cmd(
             "Network.setBlockedURLs",
-            {
-                "urls": [
-                    "*.jpg",
-                    "*.jpeg",
-                    "*.png",
-                    "*.gif",
-                    "*.webp",
-                    "*.svg",
-                    "*.ico",
-                    "*.mp4",
-                    "*.webm",
-                    "*.mov",
-                    "*.avi",
-                    "*.m3u8",
-                    "*.m4v",
-                    "*.3gp",
-                    "*.ts",
-                    "*.mp3",
-                    "*.wav",
-                    "*.m4a",
-                    "*.aac",
-                    "*.opus",
-                    "*.woff",
-                    "*.woff2",
-                    "*.ttf",
-                    "*.otf",
-                    "*video*",
-                    "*Video*",
-                    "*audio*",
-                    "*Audio*",
-                    "*mime=video*",
-                    "*mime=audio*",
-                    "*video_dashinit*",
-                    "*bytestart*",
-                    "*byteend*",
-                    "*fbcdn.net/v/*",
-                    "*cdninstagram.com/v/*",
-                    "*scontent*.cdninstagram.com/v/*",
-                    "*scontent*.fbcdn.net/v/*",
-                ]
-            },
+            {"urls": [
+                pattern
+                for extension in ("mp4", "webm", "mov", "avi", "m3u8", "m4v", "3gp",
+                                  "mp3", "wav", "m4a", "aac", "opus")
+                for pattern in (f"*.{extension}", f"*.{extension}?*")
+            ]},
         )
-        logger.info("Chrome network blocking enabled for images, fonts, audio and video")
 
     def _authenticate_with_cookies(self, driver: WebDriver, account: Account) -> None:
         cookies = self._load_cookies(account)
@@ -649,9 +508,31 @@ class ThreadsAdapter(BasePostingAdapter):
         if not cookies:
             raise ValueError("Threads publishing requires cookies_encrypted JSON cookies.")
 
+        snapshot_hash = hashlib.sha256(
+            json.dumps(cookies, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+        profile_dir = getattr(driver, "_threadsai_user_data_dir", None)
+        marker = Path(profile_dir) / "threadsai-session.json" if profile_dir is not None else None
+        previous_hash = None
+        if marker is not None:
+            try:
+                previous_hash = json.loads(marker.read_text(encoding="utf-8")).get("snapshot_hash")
+            except (OSError, ValueError, AttributeError):
+                pass
+
         driver.get(self.BASE_URL)
         self._wait_for_dom(driver)
+        if previous_hash == snapshot_hash:
+            # A stale export must never overwrite cookies refreshed by Threads.
+            # An expired saved session needs a NEW export, not replay of the old one.
+            self._assert_authenticated_session(driver)
+            self._assert_no_blocking_challenge(driver)
+            self._require_session_identity(driver, account)
+            logger.info("Using existing browser session for account #%s", account.id)
+            return
+
         current_host = urlparse(driver.current_url).hostname or "www.threads.net"
+        driver.delete_all_cookies()
         added_cookies_count = 0
 
         for cookie in cookies:
@@ -679,6 +560,32 @@ class ThreadsAdapter(BasePostingAdapter):
         self._wait_for_dom(driver)
         self._assert_authenticated_session(driver)
         self._assert_no_blocking_challenge(driver)
+        self._require_session_identity(driver, account)
+        if marker is not None:
+            try:
+                temporary = marker.with_suffix(".tmp")
+                temporary.write_text(json.dumps({"snapshot_hash": snapshot_hash}), encoding="utf-8")
+                temporary.replace(marker)
+            except OSError as exc:
+                # Stop rather than silently reimporting stale cookies on every run.
+                raise RuntimeError("Could not persist browser session metadata.") from exc
+
+    def _require_session_identity(self, driver: WebDriver, account: Account) -> str:
+        try:
+            detected = WebDriverWait(driver, min(10, self.timeout_seconds)).until(
+                lambda current_driver: self._extract_authenticated_username(current_driver)
+            )
+        except TimeoutException as exc:
+            raise SessionExpiredException(
+                "Не удалось подтвердить владельца сессии Threads. Обновите данные входа."
+            ) from exc
+        configured = (account.username or "").strip().lstrip("@")
+        placeholders = {"", "pending_from_session", "из сессии"}
+        if not detected:
+            raise SessionExpiredException("Не удалось подтвердить владельца сессии Threads. Обновите данные входа.")
+        if configured.casefold() not in placeholders and configured.casefold() != detected.casefold():
+            raise SessionExpiredException("Сессия принадлежит другому профилю Threads. Проверьте данные входа.")
+        return detected
 
     def _assert_authenticated_session(self, driver: WebDriver) -> None:
         last_reason = "login page detected"
@@ -877,77 +784,111 @@ class ThreadsAdapter(BasePostingAdapter):
 
         return str(result).strip() if result else None
 
-    def _share_posts_chain(self, driver: WebDriver, posts_chain: list[str], media_url: str | None) -> None:
+    def _share_posts_chain(
+        self, driver: WebDriver, posts_chain: list[str], media_url: str | None,
+        *, username: str | None, existing_post_urls: set[str],
+        deadline_at: float | None, ip_watchdog: ProxyIpWatchdog | None,
+    ) -> str:
         if not posts_chain:
             raise ValueError("Threads posting task has an empty posts_chain.")
-
         published_count = 0
-
+        root_url = None
+        parent_url = None
+        seen_urls = set(existing_post_urls)
         for index, text in enumerate(posts_chain):
+            attempts_before = getattr(driver, "_threadsai_submission_attempts", 0)
             try:
+                self._raise_if_deadline_exceeded(deadline_at)
+                self._raise_if_proxy_ip_changed(ip_watchdog)
                 if index == 0:
                     self._share_thread(driver, text, media_url)
                 else:
-                    self._reply_to_latest_visible_thread(driver, text)
+                    self._reply_to_verified_thread(driver, text, parent_url, posts_chain[index - 1])
                 published_count += 1
+                verified_url = self._verify_published_post(
+                    driver, username=username, expected_text=text,
+                    existing_post_urls=seen_urls, deadline_at=deadline_at,
+                    ip_watchdog=ip_watchdog, parent_url=parent_url,
+                )
+                root_url = root_url or verified_url
+                parent_url = verified_url
+                seen_urls.add(verified_url)
             except Exception as exc:
+                if isinstance(exc, PublicationVerificationPending):
+                    raise
+                if getattr(driver, "_threadsai_submission_attempts", 0) > attempts_before:
+                    raise PublicationVerificationPending(
+                        "Результат отправки части цепочки не подтверждён. Проверьте последние посты вручную."
+                    ) from exc
                 if published_count > 0:
                     raise ThreadChainPartialSuccess(
-                        f"Threads chain failed after {published_count}/{len(posts_chain)} posts: {exc}",
+                        f"Threads chain stopped after {published_count}/{len(posts_chain)} submissions: {exc}",
                         published_count=published_count,
                     ) from exc
                 raise
+        assert root_url is not None
+        return root_url
+
+    def _prepare_composer_text(self, driver: WebDriver, text: str) -> None:
+        self._type_thread_text(driver, text)
+        # Allow the reactive editor to settle, then validate its complete value.
+        time.sleep(min(10.0, max(2.0, len(text) / 60)))
+        self._wait_until_editor_contains_text(driver, text)
+        driver._threadsai_expected_editor_text = text
 
     def _share_thread(self, driver: WebDriver, text: str, media_url: str | None) -> None:
         driver.get(self.BASE_URL)
         self._wait_for_dom(driver)
-        logger.info("Threads page loaded before opening composer")
-        time.sleep(random.uniform(1.4, 3.6))
-
+        self._assert_no_blocking_challenge(driver)
         self._open_thread_composer(driver)
-        time.sleep(random.uniform(1.8, 4.2))
-        self._type_thread_text(driver, text)
-        time.sleep(random.uniform(4.0, 8.0))
-
+        self._prepare_composer_text(driver, text)
         if media_url:
             self._safe_send_keys(driver, By.XPATH, self.XPATHS["upload_photo"], media_url)
-            logger.info("Threads media path attached")
-            time.sleep(random.uniform(2.0, 4.0))
-
         self._submit_thread(driver)
 
-    def _reply_to_latest_visible_thread(self, driver: WebDriver, text: str) -> None:
-        self._open_reply_composer(driver)
-        self._type_thread_text(driver, text)
+    def _reply_to_verified_thread(
+        self, driver: WebDriver, text: str, parent_url: str, parent_text: str,
+    ) -> None:
+        driver.get(parent_url)
+        self._wait_for_dom(driver)
+        self._assert_no_blocking_challenge(driver)
+        self._open_reply_composer(driver, parent_url, parent_text)
+        self._prepare_composer_text(driver, text)
         self._submit_thread(driver)
 
-    def _open_reply_composer(self, driver: WebDriver) -> None:
-        reply_locators = [
-            (By.CSS_SELECTOR, '[aria-label="Reply"]'),
-            (By.CSS_SELECTOR, '[aria-label*="Reply"]'),
-            (By.CSS_SELECTOR, '[aria-label*="reply"]'),
-            (By.CSS_SELECTOR, '[aria-label*="Ответ"]'),
-            (By.CSS_SELECTOR, '[aria-label*="ответ"]'),
-            (By.XPATH, '//*[@aria-label="Reply" or contains(@aria-label, "Reply") or contains(@aria-label, "Ответ")]/ancestor::*[@role="button"][1]'),
-            (By.XPATH, '//*[contains(text(), "Reply") or contains(text(), "Ответить")]/ancestor::*[@role="button"][1]'),
-        ]
-        last_error: Exception | None = None
-
-        for by, selector in reply_locators:
-            try:
-                self._js_click_first_match(driver, by, selector)
-                logger.info("Threads reply trigger clicked: %s", selector)
-
-                if self._wait_for_composer_editor(driver, timeout_seconds=8) is not None:
-                    logger.info("Threads reply editor is ready")
-                    return
-            except (TimeoutException, WebDriverException, StaleElementReferenceException) as exc:
-                last_error = exc
-
-        if last_error is not None:
-            raise TimeoutException(f"Could not open Threads reply composer: {last_error}") from last_error
-
-        raise TimeoutException("Could not open Threads reply composer.")
+    def _open_reply_composer(self, driver: WebDriver, parent_url: str, parent_text: str) -> None:
+        button = WebDriverWait(driver, self.timeout_seconds).until(
+            lambda current_driver: current_driver.execute_script(
+                r"""
+                const path = new URL(arguments[0]).pathname.replace(/\/$/, '');
+                const expected = arguments[1];
+                const normalize = text => text.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+                for (const link of document.querySelectorAll('a[href*="/post/"]')) {
+                  if (new URL(link.href).pathname.replace(/\/$/, '') !== path) continue;
+                  for (let card = link.parentElement; card && card !== document.body; card = card.parentElement) {
+                    const paths = new Set(Array.from(card.querySelectorAll('a[href*="/post/"]'))
+                      .map(a => new URL(a.href).pathname.replace(/\/$/, '')));
+                    if (paths.size > 1) break;
+                    if (!normalize(card.innerText || '').includes(expected)) continue;
+                    const controls = Array.from(card.querySelectorAll('[aria-label], button, [role="button"]'));
+                    for (const control of controls) {
+                      const label = (control.getAttribute('aria-label') || control.innerText || '').trim();
+                      if (!/^(reply|ответить|ответ)(\b|\s|$)/i.test(label)) continue;
+                      const target = control.closest('button, [role="button"]');
+                      if (!target || target.disabled || target.getAttribute('aria-disabled') === 'true') continue;
+                      if (target.getClientRects().length) return target;
+                    }
+                  }
+                }
+                return null;
+                """,
+                parent_url, _normalize_verification_text(parent_text),
+            )
+        )
+        self._scroll_to_element(driver, button)
+        button.click()
+        if self._wait_for_composer_editor(driver, timeout_seconds=8) is None:
+            raise TimeoutException("Reply editor did not open for the verified parent post.")
 
     def _open_thread_composer(self, driver: WebDriver) -> None:
         last_error: Exception | None = None
@@ -960,7 +901,7 @@ class ThreadsAdapter(BasePostingAdapter):
 
         for by, selector in self.COMPOSER_TRIGGER_LOCATORS:
             try:
-                self._js_click_first_match(driver, by, selector)
+                self._click_first_visible_match(driver, by, selector)
                 logger.info("Threads composer trigger clicked: %s", selector)
 
                 if self._wait_for_composer_editor(driver, timeout_seconds=8) is not None:
@@ -973,7 +914,7 @@ class ThreadsAdapter(BasePostingAdapter):
             try:
                 self._dismiss_threads_overlays(driver)
                 self._assert_no_blocking_challenge(driver)
-                clicked_target = self._js_click_composer_trigger(driver)
+                clicked_target = self._click_composer_trigger(driver)
                 logger.info(
                     "Threads composer trigger clicked by strict DOM scan on attempt %s: %s",
                     attempt,
@@ -1017,7 +958,7 @@ class ThreadsAdapter(BasePostingAdapter):
             pass
 
         try:
-            driver.execute_script(
+            target = driver.execute_script(
                 r"""
                 const labels = [
                   'not now',
@@ -1044,17 +985,18 @@ class ThreadsAdapter(BasePostingAdapter):
                     style.display !== 'none' &&
                     style.visibility !== 'hidden'
                   ) {
-                    element.click();
-                    return true;
+                    return element;
                   }
                 }
-                return false;
+                return null;
                 """
             )
+            if target is not None:
+                target.click()
         except WebDriverException:
             pass
 
-    def _js_click_composer_trigger(self, driver: WebDriver) -> str:
+    def _click_composer_trigger(self, driver: WebDriver) -> str:
         result = driver.execute_script(
             r"""
             const exactTriggerLabels = [
@@ -1212,16 +1154,16 @@ class ThreadsAdapter(BasePostingAdapter):
             const target = candidates[0];
             if (!target) return null;
 
-            target.element.scrollIntoView({ block: 'center', inline: 'nearest' });
-            target.element.click();
-            return target.text || target.element.tagName;
+            return { element: target.element, text: target.text || target.element.tagName };
             """
         )
 
         if not result:
             raise TimeoutException("Threads composer trigger was not found by DOM scan.")
 
-        return str(result)[:160]
+        self._scroll_to_element(driver, result["element"])
+        result["element"].click()
+        return str(result["text"])[:160]
 
     def _is_composer_editor_present(self, driver: WebDriver) -> bool:
         return self._wait_for_composer_editor(driver, timeout_seconds=4) is not None
@@ -1256,7 +1198,10 @@ class ThreadsAdapter(BasePostingAdapter):
         raise TimeoutException("Could not type text into Threads composer.")
 
     def _submit_thread(self, driver: WebDriver) -> None:
-        time.sleep(random.uniform(2.5, 6.0))
+        expected_text = getattr(driver, "_threadsai_expected_editor_text", None)
+        if not isinstance(expected_text, str) or not expected_text.strip():
+            raise ValueError("Publication requires validated composer text.")
+        self._wait_until_editor_contains_text(driver, expected_text)
         self._assert_no_blocking_challenge(driver)
         self._click_submit_button(driver)
         logger.info("Threads publish button clicked")
@@ -1267,9 +1212,11 @@ class ThreadsAdapter(BasePostingAdapter):
             lambda current_driver: self._find_submit_button(current_driver)
         )
         self._scroll_to_element(driver, button)
+        self._wait_until_editor_contains_text(driver, driver._threadsai_expected_editor_text)
         # Once dispatched, a failed click response does not prove that Meta
         # rejected the post. Never dispatch another click/hotkey automatically.
         driver._threadsai_submission_attempted = True
+        driver._threadsai_submission_attempts = getattr(driver, "_threadsai_submission_attempts", 0) + 1
         button.click()
 
     def _find_submit_button(self, driver: WebDriver) -> WebElement | None:
@@ -1324,7 +1271,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 raise TimeoutException("Composer editor is not active before submit hotkey.")
 
             self._scroll_to_element(driver, editor)
-            driver.execute_script("arguments[0].click();", editor)
+            editor.click()
             self._wait_until_editor_has_focus(driver, editor)
             ActionChains(driver).key_down(Keys.CONTROL).send_keys(Keys.ENTER).key_up(Keys.CONTROL).perform()
 
@@ -1351,6 +1298,7 @@ class ThreadsAdapter(BasePostingAdapter):
         existing_post_urls: set[str],
         deadline_at: float | None,
         ip_watchdog: ProxyIpWatchdog | None,
+        parent_url: str | None = None,
     ) -> str:
         normalized_username = (username or "").strip().lstrip("@")
         if not normalized_username:
@@ -1360,7 +1308,7 @@ class ThreadsAdapter(BasePostingAdapter):
         if not expected_normalized:
             raise RuntimeError("Threads publication could not be verified because the post text is empty.")
 
-        profile_url = f"{self.BASE_URL.rstrip('/')}/@{normalized_username}"
+        profile_url = parent_url or f"{self.BASE_URL.rstrip('/')}/@{normalized_username}"
         for attempt in range(5):
             self._raise_if_deadline_exceeded(deadline_at)
             self._raise_if_proxy_ip_changed(ip_watchdog)
@@ -1372,7 +1320,11 @@ class ThreadsAdapter(BasePostingAdapter):
                 expected_normalized,
                 excluded_urls=existing_post_urls,
             )
-            if post_url and self._post_url_matches_expected_text(
+            belongs_to_owner = (
+                post_url is not None
+                and urlparse(post_url).path.split("/")[1].casefold() == f"@{normalized_username}".casefold()
+            )
+            if belongs_to_owner and self._post_url_matches_expected_text(
                 driver,
                 post_url=post_url,
                 expected_normalized=expected_normalized,
@@ -1424,60 +1376,39 @@ class ThreadsAdapter(BasePostingAdapter):
         *,
         excluded_urls: set[str],
     ) -> str | None:
-        containers: list[WebElement] = []
-        seen_ids: set[str] = set()
-        for selector in (
-            'div[role="article"]',
-            "article",
-            '[data-pressable-container="true"]',
-            'div:has(a[href*="/post/"])',
-        ):
-            try:
-                elements = driver.find_elements(By.CSS_SELECTOR, selector)
-            except WebDriverException:
-                continue
-
-            for element in elements[:20]:
-                if element.id in seen_ids:
-                    continue
-                seen_ids.add(element.id)
-                containers.append(element)
-
-        expected_prefix = expected_normalized[:160]
-        normalized_excluded_urls = {_normalize_threads_post_url(url) for url in excluded_urls}
-        for container in containers:
-            try:
-                container_text = _normalize_verification_text(container.text)
-                if len(container_text) < 20 or expected_prefix not in container_text:
-                    continue
-                links = container.find_elements(By.CSS_SELECTOR, 'a[href*="/post/"]')
-            except (StaleElementReferenceException, WebDriverException):
-                continue
-
-            for link in links:
-                href = link.get_attribute("href") or ""
-                if "/post/" in href and _normalize_threads_post_url(href) not in normalized_excluded_urls:
-                    return href
-
-        return None
+        return driver.execute_script(
+            r"""
+            const expected = arguments[0];
+            const excluded = new Set(arguments[1].map(u => new URL(u).pathname.replace(/\/$/, '')));
+            const normalize = text => text.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+            for (const link of document.querySelectorAll('a[href*="/post/"]')) {
+              const path = new URL(link.href).pathname.replace(/\/$/, '');
+              if (excluded.has(path)) continue;
+              for (let card = link.parentElement; card && card !== document.body; card = card.parentElement) {
+                const paths = new Set(Array.from(card.querySelectorAll('a[href*="/post/"]'))
+                  .map(a => new URL(a.href).pathname.replace(/\/$/, '')));
+                if (paths.size > 1) break;
+                if (card.getClientRects().length && normalize(card.innerText || '').includes(expected)) {
+                  return link.href;
+                }
+              }
+            }
+            return null;
+            """,
+            expected_normalized, list(excluded_urls),
+        )
 
     def _post_url_matches_expected_text(
-        self,
-        driver: WebDriver,
-        *,
-        post_url: str,
-        expected_normalized: str,
+        self, driver: WebDriver, *, post_url: str, expected_normalized: str,
     ) -> bool:
         try:
             driver.get(post_url)
             self._wait_for_dom(driver)
-            expected_prefix = expected_normalized[:160]
-            return bool(
-                WebDriverWait(driver, 10).until(
-                    lambda current_driver: expected_prefix
-                    in _normalize_verification_text(current_driver.find_element(By.TAG_NAME, "body").text)
-                )
-            )
+            return bool(WebDriverWait(driver, 10).until(
+                lambda current_driver: _normalize_threads_post_url(
+                    self._find_matching_post_url(current_driver, expected_normalized, excluded_urls=set()) or ""
+                ) == _normalize_threads_post_url(post_url)
+            ))
         except (StaleElementReferenceException, TimeoutException, WebDriverException):
             return False
 
@@ -1505,24 +1436,24 @@ class ThreadsAdapter(BasePostingAdapter):
         except (StaleElementReferenceException, WebDriverException):
             return False
 
-    def _js_click_first_match(self, driver: WebDriver, by: str, selector: str) -> None:
+    def _click_first_visible_match(self, driver: WebDriver, by: str, selector: str) -> None:
         def click_visible_element() -> None:
             elements = WebDriverWait(driver, self.timeout_seconds).until(
                 EC.presence_of_all_elements_located((by, selector))
             )
 
             for element in elements:
-                if not element.is_displayed():
+                if not element.is_displayed() or not element.is_enabled():
                     continue
 
                 self._scroll_to_element(driver, element)
-                driver.execute_script("arguments[0].click();", element)
+                element.click()
                 return
 
-            raise TimeoutException(f"No visible element for JS click: {selector}")
+            raise TimeoutException(f"No enabled visible element for click: {selector}")
 
         self._retry_on_stale(
-            f"js_click_first_match:{selector}",
+            f"click_first_visible_match:{selector}",
             click_visible_element,
             retries=3,
         )
@@ -1551,7 +1482,7 @@ class ThreadsAdapter(BasePostingAdapter):
                         EC.element_to_be_clickable((by, selector))
                     )
                     self._scroll_to_element(driver, fresh_element)
-                    driver.execute_script("arguments[0].click();", fresh_element)
+                    fresh_element.click()
                 return
             except (StaleElementReferenceException, ElementClickInterceptedException) as exc:
                 last_error = exc
@@ -1613,18 +1544,17 @@ class ThreadsAdapter(BasePostingAdapter):
 
                 self._scroll_to_element(driver, element)
                 self._focus_composer_editor(driver, element)
-
+                self._wait_until_editor_has_focus(driver, element)
+                self._select_editor_contents(driver)
                 try:
-                    self._wait_until_editor_has_focus(driver, element)
                     self._paste_text_like_human(driver, value)
                     self._wait_until_editor_contains_text(driver, value)
                     return
                 except (TimeoutException, WebDriverException) as typing_error:
-                    logger.warning("Threads clipboard-style input failed, falling back to JS input: %s", typing_error)
-
-                if not self._inject_text_with_javascript(driver, element, value):
-                    raise TimeoutException(f"Could not inject text into composer editor: {selector}")
-
+                    logger.warning("Clipboard input failed; replacing text through keyboard: %s", typing_error)
+                self._select_editor_contents(driver)
+                element.send_keys(Keys.BACKSPACE)
+                element.send_keys(value)
                 self._wait_until_editor_contains_text(driver, value)
                 return
             except (StaleElementReferenceException, ElementClickInterceptedException, WebDriverException) as exc:
@@ -1637,30 +1567,11 @@ class ThreadsAdapter(BasePostingAdapter):
         raise TimeoutException(f"Editor is not ready for ActionChains input: {selector}")
 
     def _focus_composer_editor(self, driver: WebDriver, element: WebElement) -> bool:
-        try:
-            return bool(
-                driver.execute_script(
-                    """
-                    const element = arguments[0];
-                    element.scrollIntoView({ block: 'center', inline: 'nearest' });
-                    element.click();
-                    element.focus();
+        element.click()
+        return self._element_has_focus(driver, element)
 
-                    const selection = window.getSelection();
-                    const range = document.createRange();
-                    range.selectNodeContents(element);
-                    range.collapse(false);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-
-                    const active = document.activeElement;
-                    return active === element || element.contains(active);
-                    """,
-                    element,
-                )
-            )
-        except WebDriverException:
-            return False
+    def _select_editor_contents(self, driver: WebDriver) -> None:
+        ActionChains(driver).key_down(Keys.CONTROL).send_keys("a").key_up(Keys.CONTROL).perform()
 
     def _paste_text_like_human(self, driver: WebDriver, value: str) -> None:
         self._write_text_to_browser_clipboard(driver, value)
@@ -1673,7 +1584,7 @@ class ThreadsAdapter(BasePostingAdapter):
             driver.execute_cdp_cmd(
                 "Browser.grantPermissions",
                 {
-                    "origin": self.BASE_URL.rstrip("/"),
+                    "origin": "{0.scheme}://{0.netloc}".format(urlparse(driver.current_url)),
                     "permissions": ["clipboardReadWrite", "clipboardSanitizedWrite"],
                 },
             )
@@ -1730,7 +1641,7 @@ class ThreadsAdapter(BasePostingAdapter):
         raise TimeoutException(f"Threads action failed without explicit error: {action_name}")
 
     def _scroll_to_element(self, driver: WebDriver, element: WebElement) -> None:
-        driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element)
+        ActionChains(driver).scroll_to_element(element).perform()
 
     def _wait_until_editor_has_focus(self, driver: WebDriver, element: WebElement) -> None:
         WebDriverWait(driver, 5).until(
@@ -1753,17 +1664,16 @@ class ThreadsAdapter(BasePostingAdapter):
             return False
 
     def _wait_until_editor_contains_text(self, driver: WebDriver, expected_text: str) -> None:
-        expected_prefix = expected_text.strip()[:24]
-        if not expected_prefix:
-            return
-
+        expected = _normalize_editor_text(expected_text)
+        if not expected:
+            raise ValueError("Cannot publish empty text.")
         WebDriverWait(driver, 8).until(
             lambda current_driver: any(
-                expected_prefix in self._read_element_text(element)
+                _normalize_editor_text(self._read_element_text(element)) == expected
                 for element in self._find_visible_editors(current_driver)
             )
         )
-        logger.info("Threads editor contains inserted text")
+        logger.info("Threads editor contains the complete expected text")
 
     def _find_visible_editors(self, driver: WebDriver) -> list[WebElement]:
         best_editor = self._find_best_visible_editor(driver)
@@ -1862,64 +1772,6 @@ class ThreadsAdapter(BasePostingAdapter):
         except (TimeoutException, WebDriverException):
             return None
 
-    def _inject_text_with_javascript(self, driver: WebDriver, element, value: str) -> bool:
-        try:
-            return bool(driver.execute_script(
-                """
-                const element = arguments[0];
-                const text = arguments[1];
-                const lines = text.split('\\n');
-
-                element.scrollIntoView({ block: 'center', inline: 'nearest' });
-                element.click();
-                element.focus();
-
-                const selection = window.getSelection();
-                const range = document.createRange();
-                range.selectNodeContents(element);
-                range.collapse(false);
-                selection.removeAllRanges();
-                selection.addRange(range);
-
-                let inserted = false;
-                try {
-                  inserted = document.execCommand('insertText', false, text);
-                } catch (_) {
-                  inserted = false;
-                }
-
-                if (!inserted || !element.innerText.includes(lines[0])) {
-                  element.innerHTML = '';
-                  for (let index = 0; index < lines.length; index += 1) {
-                    if (index > 0) {
-                      element.appendChild(document.createElement('br'));
-                    }
-                    element.appendChild(document.createTextNode(lines[index]));
-                  }
-                }
-
-                for (const eventName of ['beforeinput', 'input', 'keyup', 'change']) {
-                  let event;
-                  if (eventName === 'beforeinput' || eventName === 'input') {
-                    event = new InputEvent(eventName, {
-                      bubbles: true,
-                      cancelable: true,
-                      inputType: 'insertText',
-                      data: text
-                    });
-                  } else {
-                    event = new Event(eventName, { bubbles: true });
-                  }
-                  element.dispatchEvent(event);
-                }
-                element.dispatchEvent(new Event('change', { bubbles: true }));
-                return (element.innerText || element.textContent || '').includes(lines[0]);
-                """,
-                element,
-                value,
-            ))
-        except WebDriverException:
-            return False
 
     def _extract_authenticated_username(self, driver: WebDriver) -> str | None:
         candidates: list[str] = []
@@ -2308,9 +2160,6 @@ def _build_fingerprint_profile(account_id: int | None) -> BrowserFingerprintProf
     return BrowserFingerprintProfile(
         width=width,
         height=height,
-        canvas_noise=randomizer.randint(1, 3),
-        canvas_x=randomizer.randint(1, 11),
-        canvas_y=randomizer.randint(1, 11),
     )
 
 
@@ -2329,8 +2178,13 @@ def _get_directory_size(path: Path) -> int:
     return total_size
 
 
+def _normalize_editor_text(value: str) -> str:
+    # Preserve case and all content; browsers may render line breaks as spaces.
+    return " ".join(unicodedata.normalize("NFC", value).split())
+
+
 def _normalize_verification_text(value: str) -> str:
-    return " ".join(value.casefold().split())
+    return " ".join(unicodedata.normalize("NFC", value).lower().split())
 
 
 def _normalize_threads_post_url(value: str) -> str:

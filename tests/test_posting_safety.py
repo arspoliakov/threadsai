@@ -158,8 +158,9 @@ class PostingFailureSafetyTest(unittest.TestCase):
 
     def test_failed_submit_never_falls_back_to_second_submission(self):
         adapter = ThreadsAdapter()
-        driver = SimpleNamespace()
+        driver = SimpleNamespace(_threadsai_expected_editor_text="Example")
         with patch("app.posting.adapters.threads.time.sleep"), \
+             patch.object(adapter, "_wait_until_editor_contains_text"), \
              patch.object(adapter, "_assert_no_blocking_challenge"), \
              patch.object(adapter, "_click_submit_button", side_effect=WebDriverException("lost response")) as click, \
              patch.object(adapter, "_submit_thread_with_hotkey") as hotkey:
@@ -170,10 +171,11 @@ class PostingFailureSafetyTest(unittest.TestCase):
 
     def test_uncertain_click_is_marked_before_dispatch(self):
         adapter = ThreadsAdapter()
-        driver = SimpleNamespace()
+        driver = SimpleNamespace(_threadsai_expected_editor_text="Example")
         button = Mock()
         button.click.side_effect = WebDriverException("disconnected")
         with patch("app.posting.adapters.threads.WebDriverWait") as wait, \
+             patch.object(adapter, "_wait_until_editor_contains_text"), \
              patch.object(adapter, "_scroll_to_element"):
             wait.return_value.until.return_value = button
             with self.assertRaises(WebDriverException):

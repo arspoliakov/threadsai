@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from selenium.common.exceptions import StaleElementReferenceException, WebDriverException
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
@@ -124,16 +125,7 @@ class ThreadsTrendScraper:
         for round_index in range(scroll_rounds):
             self.adapter._raise_if_deadline_exceeded(deadline_at)
             scroll_step = random.randint(SCROLL_STEP_MIN_PX, SCROLL_STEP_MAX_PX)
-            driver.execute_script(
-                """
-                window.scrollBy({
-                  top: arguments[0],
-                  left: 0,
-                  behavior: 'smooth'
-                });
-                """,
-                scroll_step,
-            )
+            ActionChains(driver).scroll_by_amount(0, scroll_step).perform()
             logger.info("Threads feed soft-scroll %s/%s by %s px", round_index + 1, scroll_rounds, scroll_step)
 
             pause_seconds = random.uniform(1.8, 5.5)

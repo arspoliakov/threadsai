@@ -13,6 +13,7 @@ import {
   type Platform,
 } from "../../api/client";
 import { trackSeoEvent } from "../../components/SeoAnalytics";
+import AccountRiskNotice from "../../components/AccountRiskNotice";
 
 const THREADS_PLATFORM: Platform = "threads";
 const SESSION_USERNAME_PLACEHOLDER = "pending_from_session";
@@ -122,6 +123,7 @@ export default function InfrastructurePage() {
           </button>
         </div>
       </header>
+      <AccountRiskNotice />
 
       <section className="grid overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#07100e] text-white shadow-sm lg:grid-cols-[0.95fr_1.05fr]">
         <div className="p-5 sm:p-6">

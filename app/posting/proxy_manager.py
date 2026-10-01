@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 
 from app.core.config import settings
 from app.db.models import (
@@ -26,8 +26,9 @@ from app.db.models import (
 from app.db.session import AsyncSessionLocal
 from app.parsers.scraper import scrape_trends
 from app.parsers.trend_analyzer import analyze_and_save_trends
-from app.posting.exceptions import RetryablePostingException
-from app.posting.service import execute_posting_task
+from app.posting.exceptions import RetryablePostingException, SessionExpiredException
+from app.posting.service import execute_posting_task, _notify_account_owner_about_session
+from app.posting.safety import extend_cooldown, next_safe_publish_at
 from app.posting.scheduler import (
     _count_account_success_today,
     _is_project_in_active_window,
@@ -83,6 +84,7 @@ class ProxyManager:
     def __init__(self) -> None:
         self._manager_task: asyncio.Task[None] | None = None
         self._worker_tasks: dict[int, asyncio.Task[None]] = {}
+        self._worker_stop_events: dict[int, asyncio.Event] = {}
         self._stop_event = asyncio.Event()
 
     def start(self) -> None:
@@ -94,6 +96,8 @@ class ProxyManager:
 
     async def stop(self) -> None:
         self._stop_event.set()
+        for event in self._worker_stop_events.values():
+            event.set()
 
         tasks = [task for task in [self._manager_task, *self._worker_tasks.values()] if task is not None]
         if tasks:
@@ -115,6 +119,7 @@ class ProxyManager:
 
         self._manager_task = None
         self._worker_tasks.clear()
+        self._worker_stop_events.clear()
 
     async def _run(self) -> None:
         logger.info(
@@ -131,15 +136,23 @@ class ProxyManager:
                 for account_id, proxy_url in active_accounts:
                     task = self._worker_tasks.get(account_id)
                     if task is None or task.done():
+                        worker_stop_event = asyncio.Event()
+                        self._worker_stop_events[account_id] = worker_stop_event
                         self._worker_tasks[account_id] = asyncio.create_task(
-                            run_account_worker(account_id, proxy_url, self._stop_event),
+                            run_account_worker(account_id, proxy_url, worker_stop_event),
                             name=f"account-worker:{account_id}",
                         )
 
                 for account_id, task in list(self._worker_tasks.items()):
                     if account_id not in active_account_ids:
-                        task.cancel()
-                        self._worker_tasks.pop(account_id, None)
+                        # Cancelling asyncio.to_thread does not stop Selenium. Let
+                        # the in-flight result be recorded before stopping this worker.
+                        event = self._worker_stop_events.get(account_id)
+                        if event is not None:
+                            event.set()
+                        if task.done():
+                            self._worker_tasks.pop(account_id, None)
+                            self._worker_stop_events.pop(account_id, None)
 
                 await asyncio.wait_for(
                     self._stop_event.wait(),
@@ -295,6 +308,12 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
     now = datetime.now(UTC)
 
     async with AsyncSessionLocal() as session:
+        busy = await session.scalar(select(PostingTask.id).where(
+            PostingTask.account_id == account_id,
+            PostingTask.status == PostingTaskStatus.RUNNING,
+        ).limit(1))
+        if busy is not None:
+            return None
         candidate_rows = list(
             (
                 await session.execute(
@@ -305,6 +324,8 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
                     .where(
                         PostingTask.status == PostingTaskStatus.QUEUED,
                         PostingTask.account_id == account_id,
+                        Account.project_id == Project.id,
+                        Account.owner_id == Project.owner_id,
                         PostingTask.scheduled_at.is_not(None),
                         PostingTask.scheduled_at <= now,
                         Account.status == AccountStatus.ACTIVE,
@@ -327,17 +348,39 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
                 continue
 
             if (
-                not publish_now_requested
-                and await _count_account_success_today(project, account.id, session)
+                await _count_account_success_today(project, account.id, session)
                 >= _project_posts_per_day(project, user.tariff_posts_per_day)
             ):
                 task.scheduled_at = _next_project_active_start(project, now + timedelta(days=1))
                 continue
 
-            task.status = PostingTaskStatus.RUNNING
-            task.started_at = now
-            task.finished_at = None
-            task.error_message = None
+            daily_limit = _project_posts_per_day(project, user.tariff_posts_per_day)
+            chain_length = len(task.posts_chain or []) or 1
+            if chain_length > daily_limit:
+                task.status = PostingTaskStatus.DRAFT
+                task.error_message = "Цепочка превышает дневной лимит действий профиля. Сократите число частей перед публикацией."
+                continue
+            safe_at = await next_safe_publish_at(account, daily_limit, session, now, incoming_actions=chain_length)
+            if safe_at > now:
+                task.scheduled_at = safe_at
+                task.error_message = "Защитная пауза: соблюдаем интервал и лимит публикаций профиля."
+                continue
+
+            # Reserve the account atomically, including manual publication requests.
+            reservation = await session.execute(update(Account).where(
+                Account.id == account.id,
+                Account.status == AccountStatus.ACTIVE,
+                or_(Account.cooldown_until.is_(None), Account.cooldown_until <= now),
+            ).values(cooldown_until=now + timedelta(minutes=settings.posting_min_interval_minutes)))
+            if reservation.rowcount != 1:
+                await session.rollback()
+                return None
+            claim = await session.execute(update(PostingTask).where(
+                PostingTask.id == task.id, PostingTask.status == PostingTaskStatus.QUEUED,
+            ).values(status=PostingTaskStatus.RUNNING, started_at=now, finished_at=None, error_message=None))
+            if claim.rowcount != 1:
+                await session.rollback()
+                return None
             if publish_now_requested:
                 task.generation_metadata = {
                     key: value
@@ -366,6 +409,7 @@ async def claim_oldest_scraping_operation_for_account(account_id: int) -> int | 
                         ProjectOperation.status == ProjectOperationStatus.QUEUED,
                         Account.status == AccountStatus.ACTIVE,
                         Account.platform == Platform.THREADS,
+                        or_(Account.cooldown_until.is_(None), Account.cooldown_until <= datetime.now(UTC)),
                         Account.cookies_encrypted.is_not(None),
                         Account.assigned_port.is_not(None),
                         Project.is_active.is_(True),
@@ -464,14 +508,45 @@ async def execute_scraping_operation(
             await session.commit()
             logger.info("Project scraping operation %s completed.", operation.id)
             return None
+        except SessionExpiredException as exc:
+            await session.rollback()
+            failed_operation = await session.get(ProjectOperation, operation_id)
+            account = await session.get(Account, account_id) if account_id is not None else None
+            if account is not None:
+                account.status = AccountStatus.COOKIES_EXPIRED
+                account.last_error = str(exc)
+            if failed_operation is not None:
+                failed_operation.status = ProjectOperationStatus.FAILED
+                failed_operation.message = "Сбор идей остановлен: профиль требует ручной проверки доступа."
+                failed_operation.finished_at = datetime.now(UTC)
+            await session.commit()
+            if account is not None:
+                # Reload relationships for the notification without async lazy loading.
+                from sqlalchemy.orm import joinedload
+                account = await session.scalar(select(Account).options(
+                    joinedload(Account.project).joinedload(Project.owner),
+                ).where(Account.id == account_id))
+                await _notify_account_owner_about_session(account)
+            return None
         except RetryablePostingException as exc:
             await session.rollback()
             retry_operation = await session.get(ProjectOperation, operation_id)
+            account = await session.get(Account, account_id) if account_id is not None else None
+            retry_count = int((retry_operation.result_json or {}).get("retry_count", 0)) + 1 if retry_operation else 1
+            if account is not None:
+                extend_cooldown(account, datetime.now(UTC) + timedelta(minutes=30))
+                if retry_count >= settings.posting_max_retries:
+                    account.status = AccountStatus.ERROR
+                    account.last_error = str(exc)
             if retry_operation is not None:
-                retry_operation.status = ProjectOperationStatus.QUEUED
-                retry_operation.message = "Сбор идей временно отложен и продолжится автоматически."
-                retry_operation.result_json = {"error": str(exc), "retryable": True}
-                retry_operation.finished_at = None
+                exhausted = retry_count >= settings.posting_max_retries
+                retry_operation.status = ProjectOperationStatus.FAILED if exhausted else ProjectOperationStatus.QUEUED
+                retry_operation.message = (
+                    "Сбор идей остановлен после нескольких ошибок. Проверьте доступ к профилю."
+                    if exhausted else "Сбор идей временно отложен и продолжится автоматически."
+                )
+                retry_operation.result_json = {"error": str(exc), "retryable": not exhausted, "retry_count": retry_count}
+                retry_operation.finished_at = datetime.now(UTC) if exhausted else None
                 await session.commit()
             logger.warning("Project scraping operation %s returned to queue: %s", operation_id, exc)
             return str(exc) if _is_proxy_failure_message(str(exc)) else None
@@ -497,6 +572,7 @@ async def record_proxy_failure(account_id: int, error_message: str) -> None:
             return
 
         account.proxy_error_count += 1
+        extend_cooldown(account, datetime.now(UTC) + timedelta(minutes=30))
         account.last_error = error_message[:2000]
 
         if account.proxy_error_count >= PROXY_FAILURE_THRESHOLD:

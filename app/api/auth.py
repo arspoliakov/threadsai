@@ -105,7 +105,7 @@ async def login(request: Request, payload: LoginRequest) -> LoginResponse:
     client_host = request.client.host if request.client else "unknown"
     logger.info("Login attempt from %s", client_host)
 
-    if payload.password != settings.web_admin_password:
+    if not settings.web_admin_password or not settings.web_admin_token or not hmac.compare_digest(payload.password.encode("utf-8"), settings.web_admin_password.encode("utf-8")):
         logger.info("Login failed from %s: invalid password", client_host)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -582,6 +582,7 @@ def _challenge_http_error(exc: bot_login.ChallengeError) -> HTTPException:
 
 
 def create_access_token(payload: dict[str, Any]) -> str:
+    _require_jwt_secret()
     expires_at = datetime.now(UTC) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
     token_payload = {
         **payload,
@@ -604,6 +605,7 @@ def create_access_token(payload: dict[str, Any]) -> str:
 
 
 def verify_access_token(token: str) -> dict[str, Any]:
+    _require_jwt_secret()
     try:
         encoded_header, encoded_payload, encoded_signature = token.split(".")
     except ValueError as exc:
@@ -619,12 +621,23 @@ def verify_access_token(token: str) -> dict[str, Any]:
     if not hmac.compare_digest(_base64url_encode(expected_signature), encoded_signature):
         raise ValueError("Invalid token signature")
 
-    payload = json.loads(_base64url_decode(encoded_payload))
-    expires_at = int(payload.get("exp", 0))
+    try:
+        header = json.loads(_base64url_decode(encoded_header))
+        payload = json.loads(_base64url_decode(encoded_payload))
+        if not isinstance(header, dict) or header.get("alg") != "HS256" or not isinstance(payload, dict):
+            raise ValueError("Invalid token payload")
+        expires_at = int(payload.get("exp", 0))
+    except (TypeError, ValueError, UnicodeError, OverflowError) as exc:
+        raise ValueError("Malformed token payload") from exc
     if expires_at < int(datetime.now(UTC).timestamp()):
         raise ValueError("Token expired")
 
     return payload
+
+
+def _require_jwt_secret() -> None:
+    if len(settings.jwt_secret_key) < 32 or settings.jwt_secret_key == "change-me-local-jwt-secret":
+        raise ValueError("JWT_SECRET_KEY must contain at least 32 characters and must not use the development default.")
 
 
 def _base64url_encode(value: bytes) -> str:

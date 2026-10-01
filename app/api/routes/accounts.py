@@ -1,10 +1,12 @@
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db, require_active_subscription
-from app.db.models import Account, AccountStatus, PostingTask, Project, User
+from app.api.auth import limiter
+from app.db.models import Account, AccountStatus, PostingTask, PostingTaskStatus, Project, User
+from datetime import UTC, datetime
 from app.posting.exceptions import SessionExpiredException
 from app.posting.scheduler import schedule_account_queue_refill
 from app.posting.session_checker import check_session_in_subprocess
@@ -135,6 +137,8 @@ async def update_account_status(
 ) -> AccountRead:
     account = await _get_owned_account(account_id, current_user_id, db)
 
+    _require_session_check_for_resume(account, payload.status)
+
     account.status = payload.status
     account.last_error = payload.last_error
     await db.commit()
@@ -168,6 +172,7 @@ async def update_account(
 
     previous_project_id = account.project_id
     previous_status = account.status
+    _require_session_check_for_resume(account, payload.status)
     prepared_payload = prepare_account_update(payload)
 
     for key, value in prepared_payload.model_dump(exclude_unset=True).items():
@@ -206,12 +211,20 @@ async def unlink_account_from_project(
     response_model=AccountSessionCheckRead,
     status_code=status.HTTP_200_OK,
 )
+@limiter.limit("3/minute")
 async def check_account_session(
     account_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ) -> AccountSessionCheckRead:
     account = await _get_owned_account(account_id, current_user_id, db)
+
+    running_task = await db.scalar(select(PostingTask.id).where(
+        PostingTask.account_id == account.id, PostingTask.status == PostingTaskStatus.RUNNING,
+    ).limit(1))
+    if running_task is not None:
+        raise HTTPException(status_code=409, detail="Профиль сейчас публикует пост. Дождитесь завершения перед проверкой доступа.")
 
     if account.platform.value != "threads":
         raise HTTPException(
@@ -225,6 +238,15 @@ async def check_account_session(
             account.username = result.detected_username
         account.status = AccountStatus.ACTIVE
         account.last_error = None
+        await db.execute(update(PostingTask).where(
+            PostingTask.account_id == account.id,
+            PostingTask.status == PostingTaskStatus.QUEUED,
+        ).values(retry_count=0))
+        await db.execute(update(PostingTask).where(
+            PostingTask.account_id == account.id,
+            PostingTask.status == PostingTaskStatus.QUEUED,
+            PostingTask.scheduled_at.is_(None),
+        ).values(scheduled_at=account.cooldown_until or datetime.now(UTC)))
         await db.commit()
         await db.refresh(account)
         if account.project_id is not None:
@@ -295,6 +317,11 @@ async def _get_owned_project(project_id: int, owner_id: int, db: AsyncSession) -
         )
         .limit(1)
     )
+
+
+def _require_session_check_for_resume(account: Account, status: AccountStatus | None) -> None:
+    if status == AccountStatus.ACTIVE and account.status != AccountStatus.ACTIVE:
+        raise HTTPException(status_code=409, detail="Сначала проверьте доступ через «Проверить и возобновить».")
 
 
 async def _get_owned_account(account_id: int, owner_id: int, db: AsyncSession) -> Account:

@@ -91,6 +91,8 @@ class Settings(BaseSettings):
         default=1,
         validation_alias="MAX_CONCURRENT_BROWSERS",
     )
+    posting_min_interval_minutes: int = Field(default=60, ge=15, validation_alias="POSTING_MIN_INTERVAL_MINUTES")
+    posting_max_retries: int = Field(default=3, ge=1, le=5, validation_alias="POSTING_MAX_RETRIES")
     proxy_failure_threshold: int = Field(
         default=3,
         validation_alias="PROXY_FAILURE_THRESHOLD",
@@ -108,15 +110,15 @@ class Settings(BaseSettings):
         validation_alias="PROXY_EXTENSIONS_DIR",
     )
     web_admin_token: str = Field(
-        default="dev-admin-token",
+        default="",
         validation_alias="WEB_ADMIN_TOKEN",
     )
     web_admin_password: str = Field(
-        default="Arsarsars5!",
+        default="",
         validation_alias="WEB_ADMIN_PASSWORD",
     )
     jwt_secret_key: str = Field(
-        default="change-me-local-jwt-secret",
+        default="",
         validation_alias="JWT_SECRET_KEY",
     )
     data_encryption_key: str = Field(

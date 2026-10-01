@@ -48,6 +48,7 @@ from app.posting.exceptions import (
     ThreadChainPartialSuccess,
 )
 from app.services.proxy_pool import build_threads_proxy_url_for_account
+from app.posting.profile_lock import ProfileLock
 
 
 SCREENSHOTS_DIR = Path("./data/screenshots")
@@ -206,6 +207,11 @@ class ThreadsAdapter(BasePostingAdapter):
                 self._raise_if_proxy_ip_changed(ip_watchdog)
                 logger.info("Threads auth completed for task #%s", task.id)
                 detected_username = self._extract_authenticated_username(driver)
+                configured_username = (account.username or "").strip().lstrip("@")
+                if detected_username and configured_username not in {"", "pending_from_session", "из сессии", "Из сессии"} and detected_username.casefold() != configured_username.casefold():
+                    raise SessionExpiredException("Данные входа принадлежат другому профилю Threads. Проверьте username и cookies вручную.")
+                if not detected_username and configured_username in {"", "pending_from_session", "из сессии", "Из сессии"}:
+                    raise SessionExpiredException("Не удалось подтвердить имя профиля Threads. Проверьте доступ и имя профиля вручную.")
                 self._raise_if_deadline_exceeded(deadline_at)
                 self._raise_if_proxy_ip_changed(ip_watchdog)
                 existing_post_urls = self._get_profile_post_urls(
@@ -239,9 +245,17 @@ class ThreadsAdapter(BasePostingAdapter):
                 RetryablePostingException,
                 SessionExpiredException,
                 ThreadChainPartialSuccess,
-            ):
+            ) as exc:
+                if isinstance(exc, RetryablePostingException) and driver is not None and getattr(driver, "_threadsai_submission_attempted", False):
+                    raise PublicationVerificationPending(
+                        "Отправка начата, но результат не подтверждён. Проверьте последние посты вручную; автоматический повтор остановлен."
+                    ) from exc
                 raise
             except Exception as exc:
+                if driver is not None and getattr(driver, "_threadsai_submission_attempted", False):
+                    raise PublicationVerificationPending(
+                        "Связь потеряна после начала отправки. Проверьте последние посты вручную; автоматический повтор остановлен."
+                    ) from exc
                 self._raise_if_proxy_ip_changed(ip_watchdog)
                 if self._is_deadline_exceeded(deadline_at):
                     raise PostingDeadlineExceeded(
@@ -725,6 +739,9 @@ class ThreadsAdapter(BasePostingAdapter):
         return False
 
     def _assert_no_blocking_challenge(self, driver: WebDriver) -> None:
+        restriction_text = self._find_account_restriction_text(driver)
+        if restriction_text:
+            raise SessionExpiredException(f"Threads requires manual confirmation: {restriction_text}")
         if self._wait_for_composer_editor(driver, timeout_seconds=1) is not None:
             return
 
@@ -736,6 +753,28 @@ class ThreadsAdapter(BasePostingAdapter):
             "Threads requires manual confirmation before publishing. "
             f"Visible challenge: {challenge_text}. Refresh cookies after passing this screen manually."
         )
+
+    def _find_account_restriction_text(self, driver: WebDriver) -> str | None:
+        try:
+            result = driver.execute_script("""
+                const markers = ['try again later', 'too many requests',
+                  'your account has been suspended', 'your account has been disabled',
+                  'temporarily blocked', 'action blocked', 'попробуйте позже',
+                  'ваш аккаунт заблокирован', 'ваш аккаунт приостановлен'];
+                for (const element of document.querySelectorAll('h1, h2, [role="alert"], [role="dialog"], [aria-modal="true"]')) {
+                  const rect = element.getBoundingClientRect();
+                  const style = getComputedStyle(element);
+                  if (!rect.width || !rect.height || style.display === 'none' || style.visibility === 'hidden') continue;
+                  const copy = element.cloneNode(true);
+                  for (const editor of copy.querySelectorAll('[contenteditable], textarea, input, [role="textbox"]')) editor.remove();
+                  const text = (copy.textContent || '').replace(/\\s+/g, ' ').trim();
+                  if (markers.some(marker => text.toLowerCase().includes(marker))) return text.slice(0, 220);
+                }
+                return null;
+            """)
+        except WebDriverException:
+            return None
+        return str(result).strip() if result else None
 
     def _find_blocking_challenge_text(self, driver: WebDriver) -> str | None:
         try:
@@ -1218,27 +1257,20 @@ class ThreadsAdapter(BasePostingAdapter):
 
     def _submit_thread(self, driver: WebDriver) -> None:
         time.sleep(random.uniform(2.5, 6.0))
-        try:
-            self._click_submit_button(driver)
-            logger.info("Threads publish button clicked")
-        except (TimeoutException, WebDriverException, StaleElementReferenceException) as exc:
-            logger.warning("Threads publish button click failed, falling back to hotkey: %s", exc)
-            self._submit_thread_with_hotkey(driver)
-
+        self._assert_no_blocking_challenge(driver)
+        self._click_submit_button(driver)
+        logger.info("Threads publish button clicked")
         self._wait_after_publish_submit(driver)
 
     def _click_submit_button(self, driver: WebDriver) -> None:
-        def click_button() -> None:
-            button = WebDriverWait(driver, 10).until(
-                lambda current_driver: self._find_submit_button(current_driver)
-            )
-            self._scroll_to_element(driver, button)
-            try:
-                button.click()
-            except WebDriverException:
-                ActionChains(driver).move_to_element(button).pause(random.uniform(0.15, 0.45)).click().perform()
-
-        self._retry_on_stale("click_submit_button", click_button, retries=3)
+        button = WebDriverWait(driver, 10).until(
+            lambda current_driver: self._find_submit_button(current_driver)
+        )
+        self._scroll_to_element(driver, button)
+        # Once dispatched, a failed click response does not prove that Meta
+        # rejected the post. Never dispatch another click/hotkey automatically.
+        driver._threadsai_submission_attempted = True
+        button.click()
 
     def _find_submit_button(self, driver: WebDriver) -> WebElement | None:
         try:
@@ -1307,7 +1339,8 @@ class ThreadsAdapter(BasePostingAdapter):
             )
             logger.info("Threads publish submit acknowledged by UI")
         except TimeoutException:
-            raise TimeoutException("Threads UI did not confirm publication after submit.")
+            self._assert_no_blocking_challenge(driver)
+            raise PublicationVerificationPending("Threads не подтвердил результат отправки. Проверьте последние посты вручную.")
 
     def _verify_published_post(
         self,
@@ -1896,9 +1929,10 @@ class ThreadsAdapter(BasePostingAdapter):
             candidates.append(current_path.split("/", maxsplit=2)[1])
 
         selectors = [
-            'a[href^="/@"]',
-            'a[href*="threads.net/@"]',
-            '[role="link"][href^="/@"]',
+            'a[href^="/@"][aria-label="Profile"]',
+            'a[href^="/@"][aria-label="Профиль"]',
+            'nav a[href^="/@"]',
+            '[role="navigation"] a[href^="/@"]',
         ]
         for selector in selectors:
             try:
@@ -1915,9 +1949,15 @@ class ThreadsAdapter(BasePostingAdapter):
         try:
             script_result = driver.execute_script(
                 """
-                const bodyText = document.body ? document.body.innerText : "";
-                const match = bodyText.match(/@[a-zA-Z0-9._]{2,30}/);
-                return match ? match[0] : null;
+                for (const link of document.querySelectorAll('a[href]')) {
+                  const label = [link.getAttribute('aria-label') || '',
+                    ...Array.from(link.querySelectorAll('svg')).map(svg => svg.getAttribute('aria-label') || svg.querySelector('title')?.textContent || '')
+                  ].join(' ').trim().toLowerCase();
+                  if (!['profile', 'профиль'].includes(label)) continue;
+                  const path = new URL(link.href).pathname;
+                  if (path.startsWith('/@')) return path.split('/')[1];
+                }
+                return null;
                 """
             )
             if isinstance(script_result, str):
@@ -2243,13 +2283,13 @@ def _normalize_posts_chain(task: PostingTask) -> list[str]:
     return posts_chain or ([fallback] if fallback else [])
 
 
-def _get_profile_lock(account_id: int | None) -> threading.Lock | None:
+def _get_profile_lock(account_id: int | None) -> ProfileLock | None:
     if account_id is None:
         return None
 
     with PROFILE_LOCKS_GUARD:
         if account_id not in PROFILE_LOCKS:
-            PROFILE_LOCKS[account_id] = threading.Lock()
+            PROFILE_LOCKS[account_id] = ProfileLock(CHROME_PROFILES_DIR / f"account_{account_id}.lock")
 
         return PROFILE_LOCKS[account_id]
 

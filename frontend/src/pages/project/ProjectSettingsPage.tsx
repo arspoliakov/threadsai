@@ -17,6 +17,7 @@ import {
   type Project,
 } from "../../api/client";
 import { trackSeoEvent } from "../../components/SeoAnalytics";
+import AccountRiskNotice from "../../components/AccountRiskNotice";
 
 const timezoneOptions = [
   { value: "Europe/Moscow", label: "Москва — Europe/Moscow" },
@@ -249,8 +250,6 @@ export default function ProjectSettingsPage() {
     try {
       const savePromise = updateAccount(accountId, {
         cookies_encrypted: normalizedCookies,
-        status: "active",
-        last_error: null,
       });
       toast.promise(savePromise, {
         loading: "Обновляем данные входа...",
@@ -636,6 +635,7 @@ export default function ProjectSettingsPage() {
 
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
           <h2 className="font-display text-3xl">Добавить профиль в проект</h2>
+          <div className="mt-3"><AccountRiskNotice /></div>
           <p className="mt-3 text-sm leading-6 text-[#66645d]">
             В списке только свободные профили. Если список пуст, сначала добавьте профиль в разделе «Аккаунты».
           </p>

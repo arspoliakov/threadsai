@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project
+from app.core.config import settings
+from app.posting.safety import extend_cooldown
 from app.posting.adapters.base import BasePostingAdapter
 from app.posting.adapters.threads import ThreadsAdapter
 from app.posting.exceptions import (
@@ -37,9 +39,27 @@ QUARANTINE_ERROR_MARKERS = (
     "content is not available",
     "http error 500",
     "error 500",
+    "try again later",
+    "too many requests",
+    "temporarily blocked",
+    "account suspended",
+    "account disabled",
+    "action blocked",
+    "попробуйте позже",
+    "аккаунт заблокирован",
+    "аккаунт приостановлен",
 )
 
 HARD_QUARANTINE_ERROR_MARKERS = (
+    "try again later",
+    "too many requests",
+    "temporarily blocked",
+    "account suspended",
+    "account disabled",
+    "action blocked",
+    "попробуйте позже",
+    "аккаунт заблокирован",
+    "аккаунт приостановлен",
     "manual verification",
     "manual confirmation",
     "confirm you're human",
@@ -140,6 +160,7 @@ async def execute_posting_task(
         task.finished_at = datetime.now(UTC)
         task.error_message = None
         account.last_used_at = task.finished_at
+        extend_cooldown(account, task.finished_at + timedelta(minutes=settings.posting_min_interval_minutes))
         account.last_error = None
         await session.commit()
         await session.refresh(task)
@@ -153,10 +174,18 @@ async def execute_posting_task(
     except ThreadChainPartialSuccess as exc:
         error_message = str(exc)
         await _mark_partial_success(session, task, account, error_message, exc.published_count)
+        if _should_quarantine_account(error_message, task.retry_count):
+            account.status = AccountStatus.ERROR
+            await session.commit()
+            await _notify_account_owner_about_quarantine(account, task, error_message)
         return task
     except PublicationVerificationPending as exc:
         error_message = str(exc)
-        await _mark_partial_success(session, task, account, error_message, 1)
+        await _mark_partial_success(session, task, account, error_message, 0)
+        task.generation_metadata = {**(task.generation_metadata or {}), "publication_confirmation_pending": True}
+        account.status = AccountStatus.ERROR
+        await session.commit()
+        await _notify_account_owner_about_quarantine(account, task, error_message)
         return task
     except RetryablePostingException as exc:
         error_message = str(exc)
@@ -180,6 +209,7 @@ async def _mark_failed(session: AsyncSession, task: PostingTask, error_message: 
     task.retry_count += 1
     if task.account is not None:
         task.account.last_error = error_message
+        task.account.status = AccountStatus.ERROR
     await session.commit()
     await session.refresh(task)
 
@@ -191,7 +221,8 @@ async def _mark_retryable(
     error_message: str,
 ) -> None:
     is_proxy_rotation = _is_proxy_rotation_retry(error_message)
-    retry_delay = timedelta(minutes=5 if is_proxy_rotation else 30)
+    retry_delay = timedelta(minutes=min(240, 30 * (2 ** min(task.retry_count, 3))))
+    extend_cooldown(account, datetime.now(UTC) + retry_delay)
     task.status = PostingTaskStatus.QUEUED
     task.started_at = None
     task.finished_at = None
@@ -222,7 +253,7 @@ async def _mark_account_needs_review(
     task.finished_at = None
     task.scheduled_at = None
     task.error_message = (
-        "Публикация остановлена: Threads показал экран проверки или не открыл окно публикации. "
+        "Публикация остановлена: требуется проверка доступа или исчерпан лимит повторных попыток. "
         "Профиль поставлен на защитную паузу до ручной проверки."
     )
     task.retry_count += 1
@@ -240,11 +271,12 @@ async def _mark_partial_success(
     task.status = PostingTaskStatus.PARTIAL_SUCCESS
     task.finished_at = datetime.now(UTC)
     task.error_message = error_message
-    metadata = task.generation_metadata if isinstance(task.generation_metadata, dict) else {}
+    metadata = dict(task.generation_metadata) if isinstance(task.generation_metadata, dict) else {}
     metadata["partial_success"] = True
     metadata["published_chain_items"] = published_count
     task.generation_metadata = metadata
     account.last_used_at = task.finished_at
+    extend_cooldown(account, task.finished_at + timedelta(minutes=settings.posting_min_interval_minutes))
     account.last_error = error_message
     await session.commit()
     await session.refresh(task)
@@ -310,8 +342,8 @@ async def _notify_account_owner_about_quarantine(
         f"Проект: {project_name}\n"
         f"Аккаунт: @{username}\n"
         f"Задача: #{task.id}\n\n"
-        "Почему: Threads показал подозрительный экран или не дал открыть окно публикации. "
-        "Мы не продолжаем ретраи бесконечно, потому что это может ухудшить состояние аккаунта.\n\n"
+        "Почему: возникла ошибка доступа, исчерпан лимит попыток или результат отправки не подтверждён. "
+        "Проверьте профиль и последние посты вручную, чтобы избежать повторных публикаций.\n\n"
         "Что сделать:\n"
         "1. Открой Threads вручную и проверь, что профиль живой.\n"
         "2. Если есть проверка Meta, пройди её.\n"
@@ -360,12 +392,15 @@ def _account_proxy_url(account: Account) -> str | None:
 
 def _should_quarantine_account(error_message: str, retry_count: int = 0) -> bool:
     normalized = error_message.casefold()
+    # Meta restrictions take priority even if the exception also mentions a proxy.
+    if any(marker in normalized for marker in HARD_QUARANTINE_ERROR_MARKERS):
+        return True
+    if retry_count >= settings.posting_max_retries - 1:
+        return True
     if _is_proxy_rotation_retry(error_message):
         return False
     if _is_proxy_transport_retry(error_message):
         return False
-    if any(marker in normalized for marker in HARD_QUARANTINE_ERROR_MARKERS):
-        return True
     if any(marker in normalized for marker in QUARANTINE_ERROR_MARKERS):
         return retry_count >= 2
     return False

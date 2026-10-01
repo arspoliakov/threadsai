@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+import hmac
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -27,7 +28,7 @@ async def get_current_admin(
             detail="Missing bearer token",
         )
 
-    if credentials.credentials == settings.web_admin_token:
+    if settings.web_admin_token and hmac.compare_digest(credentials.credentials.encode("utf-8"), settings.web_admin_token.encode("utf-8")):
         return "admin"
 
     from app.api.auth import verify_access_token

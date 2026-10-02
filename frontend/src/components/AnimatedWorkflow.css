@@ -1,0 +1,13 @@
+.tg-workflow-step { transition: transform 350ms ease, border-color 350ms ease, background-color 350ms ease, box-shadow 350ms ease; }
+.tg-workflow-step[data-active="true"] { border-color: #8baa96; color: #315b46; background-color: #edf3ef; box-shadow: 0 8px 20px rgba(49, 91, 70, .07); transform: translateY(-3px); }
+.tg-workflow-step:focus-visible { outline: 2px solid #5c8b71; outline-offset: 4px; }
+.tg-workflow-track { position: relative; }
+.tg-workflow-track::before { content: ""; position: absolute; height: 1px; top: 50%; left: 10%; right: 10%; background: #b7ccbe; }
+.tg-workflow-paper { box-shadow: 0 18px 40px rgba(30, 60, 45, .04); }
+.tg-workflow-content-stage { grid-area: 1 / 1; visibility: hidden; opacity: 0; transform: translateY(6px); transition: opacity 300ms ease, transform 300ms ease; }
+.tg-workflow-content-stage[data-active="true"] { visibility: visible; opacity: 1; transform: none; }
+:root[data-theme="dark"] .tg-workflow-step[data-active="true"] { border-color: #78a58d; color: #c5ead4; background-color: #183025; box-shadow: 0 8px 20px rgba(0, 0, 0, .15); }
+:root[data-theme="dark"] .tg-workflow-track::before { background-color: #355342; }
+@media (prefers-reduced-motion: reduce) {
+  .tg-workflow-step, .tg-workflow-content-stage { transition: none; transform: none !important; }
+}

@@ -1,0 +1,46 @@
+/* Dashboard-only illustration palette; movement comes from shared tg-* classes. */
+.dashboard-view {
+  --dashboard-art-paper: #fffef9;
+  --dashboard-art-back: #eff4ed;
+  --dashboard-art-edge: #cedccd;
+  --dashboard-art-ink: #294b3a;
+  --dashboard-art-muted: #a5b9a8;
+  --dashboard-art-wash: #e6f2e2;
+  --dashboard-art-accent: #b5f58b;
+}
+:root[data-theme="dark"] .dashboard-view {
+  --dashboard-art-paper: #203a2c;
+  --dashboard-art-back: #172c21;
+  --dashboard-art-edge: #416450;
+  --dashboard-art-ink: #d1e5d6;
+  --dashboard-art-muted: #71977f;
+  --dashboard-art-wash: #1b3827;
+  --dashboard-art-accent: #9fdb78;
+}
+.dashboard-illustration { display: block; width: min(100%, 340px); height: auto; margin: 0 auto 1rem; }
+.dashboard-art-shadow { fill: var(--dashboard-art-ink); opacity: .06; }
+.dashboard-art-wash { fill: var(--dashboard-art-wash); }
+.dashboard-art-back { fill: var(--dashboard-art-back); stroke: var(--dashboard-art-edge); stroke-width: 1.5; }
+.dashboard-art-paper { fill: var(--dashboard-art-paper); stroke: var(--dashboard-art-edge); stroke-width: 1.5; }
+.dashboard-art-accent { fill: var(--dashboard-art-accent); }
+.dashboard-art-muted { fill: var(--dashboard-art-muted); }
+.dashboard-art-spark { fill: var(--dashboard-art-accent); stroke: var(--dashboard-art-ink); stroke-width: 1.5; stroke-linejoin: round; }
+.dashboard-art-ink, .dashboard-art-line, .dashboard-art-soft-line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.dashboard-art-ink { stroke: var(--dashboard-art-ink); stroke-width: 1.8; }
+.dashboard-art-line { stroke: var(--dashboard-art-muted); stroke-width: 4; }
+.dashboard-art-soft-line { stroke: var(--dashboard-art-muted); stroke-width: 3; }
+.dashboard-next-step { position: relative; }
+.dashboard-next-step > section { border-color: var(--dashboard-art-edge); }
+.dashboard-project-grid > article:nth-child(2) { animation-delay: 40ms; }
+.dashboard-project-grid > article:nth-child(3) { animation-delay: 80ms; }
+.dashboard-project-grid > article:nth-child(n + 4) { animation-delay: 120ms; }
+.dashboard-view h2 { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-project-grid > article { animation-delay: 0ms; }
+}
+@media (max-width: 639px) {
+  .dashboard-illustration { width: min(100%, 240px); }
+}
+@media (forced-colors: active) {
+  .dashboard-illustration { display: none; }
+}

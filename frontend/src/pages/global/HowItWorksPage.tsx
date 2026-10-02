@@ -22,7 +22,7 @@ const notes = [
 export default function HowItWorksPage() {
   return (
     <section className="space-y-5">
-      <header className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm sm:p-6">
+      <header className="tg-reveal grid items-center gap-5 rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm sm:p-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="max-w-3xl">
           <h1 className="font-display text-4xl leading-[0.95] tracking-[-0.04em] text-[#111] sm:text-5xl">
             Как звучат посты от нейросети?
@@ -32,6 +32,7 @@ export default function HowItWorksPage() {
             Человек сначала читает интересную мысль, потом заходит в профиль — и уже там видит, куда можно перейти.
           </p>
         </div>
+        <img src="/images/threadsgo-creative-flow-v1.webp" width="1536" height="1024" alt="" loading="lazy" decoding="async" className="tg-illustration mx-auto w-full max-w-sm object-contain" />
       </header>
 
       <section className="grid gap-4 md:grid-cols-2">
@@ -56,7 +57,7 @@ export default function HowItWorksPage() {
           />
           <SmallCard
             title="Аккаунт"
-            text="Подключите готовый профиль Threads через экспорт данных входа. Пароль передавать не нужно."
+            text="Войдите в свой профиль в отдельном окне браузера или импортируйте данные входа. Затем проверьте подключение в проекте."
           />
         </div>
       </section>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { AppIcon } from "../components/AppIcons";
+import { AnimatedWorkflow } from "../components/AnimatedWorkflow";
 
 const steps = [
   [
@@ -172,6 +173,17 @@ export default function LandingPage() {
                 <p className="mt-3 text-sm leading-7 text-[#60716a]">{text}</p>
               </article>
             ))}
+          </div>
+          <div id="workflow-example" className="tg-reveal mt-14 grid scroll-mt-8 items-center gap-8 lg:grid-cols-[1fr_1.05fr] lg:gap-12">
+            <div className="min-w-0">
+              <figure className="overflow-hidden rounded-[2rem] border border-[#dbe6dd] bg-[#edf3ef]">
+                <img src="/images/threadsgo-creative-flow-v1.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async"
+                  className="tg-illustration aspect-[3/2] w-full object-contain" />
+              </figure>
+              <h3 className="mt-6 text-2xl font-semibold tracking-tight">От мысли — к готовому тексту.</h3>
+              <p className="mt-3 max-w-lg text-sm leading-7 text-[#60716a]">Помощник берёт на себя подготовку. Вы выбираете направление, проверяете слова и управляете тем, что попадёт в вашу ленту.</p>
+            </div>
+            <AnimatedWorkflow />
           </div>
         </div>
       </section>

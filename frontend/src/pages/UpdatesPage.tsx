@@ -10,7 +10,7 @@ export default function UpdatesPage() {
       <Link to="/" className="font-display text-2xl">ThreadsGo</Link>
       <div className="flex flex-wrap items-center gap-5 text-sm text-[#53604f]"><Link to="/pricing/">Тарифы</Link><Link to="/app">Личный кабинет →</Link><ThemeToggle /></div>
     </nav>
-    <header className="mx-auto max-w-5xl px-5 pb-12 pt-8 sm:px-8 sm:pt-14">
+    <header className="tg-reveal mx-auto max-w-5xl px-5 pb-12 pt-8 sm:px-8 sm:pt-14">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#4f7442]">Сервис развивается</p>
       <h1 className="mt-4 font-display text-5xl leading-none tracking-[-0.04em] sm:text-6xl">Что нового в ThreadsGo</h1>
       <p className="mt-6 max-w-2xl text-base leading-7 text-[#657160]">Новые возможности и улучшения, которые уже появились в сервисе. Рассказываем, что изменилось и как это поможет в работе.</p>
@@ -23,7 +23,9 @@ export default function UpdatesPage() {
           <h2 className="mt-3 font-display text-3xl leading-tight tracking-[-0.025em]">{update.title}</h2>
           <p className="mt-4 text-sm leading-7 text-[#5d6957]">{update.description}</p>
           <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-[#46533f]">{update.details.map(detail => <li key={detail}>{detail}</li>)}</ul>
-          {"action" in update && update.action ? <Link to={update.action.to} className="mt-6 inline-flex rounded-full bg-[#18351e] px-5 py-3 text-sm text-white transition hover:bg-[#305d28]">{update.action.label} →</Link> : null}
+          {"action" in update && update.action ? update.action.to.includes("#")
+            ? <a href={update.action.to} className="mt-6 inline-flex rounded-full bg-[#18351e] px-5 py-3 text-sm text-white transition hover:bg-[#305d28]">{update.action.label} →</a>
+            : <Link to={update.action.to} className="mt-6 inline-flex rounded-full bg-[#18351e] px-5 py-3 text-sm text-white transition hover:bg-[#305d28]">{update.action.label} →</Link> : null}
         </div>
       </article>)}
     </section>

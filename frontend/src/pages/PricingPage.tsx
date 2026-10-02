@@ -15,7 +15,7 @@ export default function PricingPage() {
             <Link to="/login">Войти</Link>
           </div>
         </nav>
-        <header className="max-w-3xl py-14 sm:py-20">
+        <header className="tg-reveal max-w-3xl py-14 sm:py-20">
           <p className="text-sm text-[#315b46]">
             От первого черновика до регулярных публикаций
           </p>
@@ -46,7 +46,7 @@ export default function PricingPage() {
               <Link
                 to="/register?intent=start"
                 data-analytics-cta="start_trial"
-                className="home-primary mt-auto flex w-full text-center"
+                className="home-primary tg-action mt-auto flex w-full text-center"
               >
                 {key === "basic"
                   ? "Начать пробный период"

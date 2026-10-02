@@ -16,6 +16,8 @@ import { BotStatusCard } from "../components/BotStatusCard";
 import { DismissibleTip } from "../components/DismissibleTip";
 import { trackSeoEvent } from "../components/SeoAnalytics";
 import { JourneyNextStep } from "../components/JourneyNextStep";
+import { DashboardWelcome } from "../components/DashboardWelcome";
+import "./dashboard-polish.css";
 
 type NewProjectDraft = {
   name: string;
@@ -111,7 +113,7 @@ export default function Dashboard() {
   const nextProject = useMemo(() => getNextProject(summary), [summary]);
 
   return (
-    <section className="space-y-4 sm:space-y-5">
+    <section className="dashboard-view space-y-4 sm:space-y-5">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="font-display text-4xl leading-[0.95] tracking-[-0.045em] text-[#111] sm:text-5xl">
@@ -127,7 +129,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => setIsCreateOpen(true)}
-              className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#141815] px-5 text-sm text-white shadow-sm transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
+              className="tg-action inline-flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#141815] px-5 text-sm text-white shadow-sm transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
             >
               <PlusIcon />
               Создать проект
@@ -136,7 +138,7 @@ export default function Dashboard() {
               type="button"
               onClick={() => void loadSummary()}
               disabled={isLoading}
-              className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] shadow-sm transition hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
+              className="tg-action inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] shadow-sm transition hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
             >
               {isLoading ? <Spinner /> : <RefreshIcon />}
               Обновить
@@ -148,9 +150,9 @@ export default function Dashboard() {
       {!isLoading && summary && summary.projects.length > 0 ? (() => {
         const attentionProject = summary.projects.find((project) => project.active_accounts_count === 0)
           || summary.projects.find((project) => !project.next_post_time);
-        return attentionProject ? <JourneyNextStep title={`Продолжите настройку «${attentionProject.name}»`}
+        return attentionProject ? <div className="dashboard-next-step tg-reveal" key={attentionProject.id}><JourneyNextStep title={`Продолжите настройку «${attentionProject.name}»`}
           description={attentionProject.active_accounts_count === 0 ? "У проекта пока нет рабочего профиля Threads. Откройте проект — подскажем, как подключить профиль и подготовить первый пост." : "Ближайший пост пока не запланирован. Откройте проект и пройдите следующий шаг до первого текста."}
-          action="Продолжить" to={`/app/projects/${attentionProject.id}`} /> : null;
+          action="Продолжить" to={`/app/projects/${attentionProject.id}`} /></div> : null;
       })() : null}
 
       {summary?.projects.length !== 0 ? (
@@ -201,7 +203,7 @@ export default function Dashboard() {
         </DismissibleTip>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+      <div className="dashboard-project-grid grid gap-3 lg:grid-cols-2 2xl:grid-cols-3" aria-busy={isLoading}>
         {isLoading ? (
           <SkeletonProjects />
         ) : loadError ? (
@@ -305,7 +307,7 @@ export function CreateProjectModal({
   const [description, setDescription] = useState("");
   const [globalStyle, setGlobalStyle] = useState("");
   const [saveError, setSaveError] = useState("");
-  const [previousFocus] = useState(() => document.activeElement);
+  const [previousFocus] = useState(() => typeof document === "undefined" ? null : document.activeElement);
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -375,7 +377,7 @@ export function CreateProjectModal({
             first?.focus();
           }
         }}
-        className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] shadow-[0_30px_120px_rgba(0,0,0,0.30)]"
+        className="tg-reveal max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] shadow-[0_30px_120px_rgba(0,0,0,0.30)]"
       >
         <header className="flex items-start justify-between gap-4 border-b border-[#e3e7df] p-6">
           <div>
@@ -500,7 +502,7 @@ function StatsWidget({
   value: string;
 }) {
   return (
-    <article className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <article className="tg-interactive-card rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm transition hover:shadow-md">
       <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#eef4ec] text-[#111]">
         {icon}
       </div>
@@ -522,7 +524,7 @@ function ProjectCard({
   onDelete: () => void;
 }) {
   return (
-    <article className="group relative overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#fbfcf7] p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#141815] hover:shadow-md">
+    <article className="tg-reveal tg-interactive-card group relative overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#fbfcf7] p-5 shadow-sm transition hover:border-[#141815] hover:shadow-md">
       <div className="absolute right-[-70px] top-[-70px] h-44 w-44 rounded-full bg-[#70ff35]/12 blur-3xl transition group-hover:bg-[#0076ff]/16" />
       <div className="relative flex min-h-40 flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-5">
@@ -549,7 +551,7 @@ function ProjectCard({
             </button>
             <Link
               to={`/app/projects/${project.id}`}
-              className="grid h-11 w-11 place-items-center rounded-2xl bg-[#101413] text-white transition group-hover:bg-[#70ff35] group-hover:text-[#07100e]"
+              className="tg-action grid h-11 w-11 place-items-center rounded-2xl bg-[#101413] text-white transition group-hover:bg-[#70ff35] group-hover:text-[#07100e]"
               aria-label={`Открыть проект ${project.name}`}
             >
               <ArrowIcon />
@@ -621,10 +623,12 @@ function Metric({
 function SkeletonProjects() {
   return (
     <>
+      <p className="sr-only" role="status">Загружаем проекты…</p>
       {[1, 2, 3].map((item) => (
         <div
           key={item}
-          className="min-h-40 animate-pulse rounded-[24px] border border-[#dfe4dc] bg-white/70 p-5 shadow-sm"
+          aria-hidden="true"
+          className="min-h-40 animate-pulse motion-reduce:animate-none rounded-[24px] border border-[#dfe4dc] bg-white/70 p-5 shadow-sm"
         >
           <div className="h-10 w-10 rounded-2xl bg-[#dfe4dc]" />
           <div className="mt-8 h-8 w-3/4 rounded-full bg-[#dfe4dc]" />
@@ -636,49 +640,7 @@ function SkeletonProjects() {
 }
 
 function EmptyProjects({ onCreate }: { onCreate: () => void }) {
-  return (
-    <div className="overflow-hidden rounded-[24px] border border-[#dbe6dd] bg-white shadow-sm lg:col-span-2 2xl:col-span-3">
-      <div className="grid items-center gap-8 p-6 sm:p-10 lg:grid-cols-[1fr_20rem]">
-        <div className="text-center lg:text-left">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#eef4ec] lg:mx-0">
-            <FolderIcon />
-          </div>
-          <p className="mt-5 font-display text-3xl text-[#111]">
-            Давайте создадим ваш первый проект
-          </p>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#667066] lg:mx-0">
-            Начните с названия и темы. Настроить голос поможет нейросеть, а
-            подключить профиль можно следующим шагом.
-          </p>
-          <button
-            type="button"
-            onClick={onCreate}
-            className="mt-6 inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
-          >
-            <PlusIcon />
-            Создать проект
-          </button>
-        </div>
-        <ol className="space-y-3 rounded-2xl bg-[#f1f6f2] p-5 text-left">
-          {[
-            "Название и тема проекта",
-            "Ваш стиль — вручную или с ИИ",
-            "Профиль Threads и расписание",
-          ].map((step, i) => (
-            <li
-              key={step}
-              className="flex items-center gap-3 text-sm text-[#49705a]"
-            >
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-xs font-semibold">
-                {i + 1}
-              </span>
-              {step}
-            </li>
-          ))}
-        </ol>
-      </div>
-    </div>
-  );
+  return <DashboardWelcome onCreate={onCreate} />;
 }
 
 function LoadError({
@@ -689,7 +651,7 @@ function LoadError({
   onRetry: () => void;
 }) {
   return (
-    <div className="rounded-[24px] border border-[#e8c7c2] bg-[#fff7f5] p-6 lg:col-span-2 2xl:col-span-3">
+    <div role="alert" className="tg-reveal rounded-[24px] border border-[#e8c7c2] bg-[#fff7f5] p-6 lg:col-span-2 2xl:col-span-3">
       <p className="font-display text-3xl text-[#111]">
         Проекты пока не загрузились
       </p>
@@ -699,7 +661,7 @@ function LoadError({
       <button
         type="button"
         onClick={onRetry}
-        className="mt-5 h-11 rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
+        className="tg-action mt-5 h-11 rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
       >
         Попробовать снова
       </button>
@@ -858,7 +820,7 @@ function formatDateTime(value: string | null | undefined) {
 
 function Spinner() {
   return (
-    <span className="h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />
+    <span aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none rounded-full border border-current border-t-transparent" />
   );
 }
 

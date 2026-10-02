@@ -4,6 +4,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Manrope";
+  src: url("/fonts/manrope-variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Unbounded";
+  src: url("/fonts/unbounded-variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+}
+
 @layer components {
   .home-primary {
     @apply inline-flex min-h-12 items-center justify-center gap-5 rounded-xl bg-[#315b46] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#244735];
@@ -81,8 +97,22 @@ body {
   min-width: 0;
   min-height: 100vh;
   background: #f6f6f2;
-  font-family: Aptos, "Segoe UI", sans-serif;
+  font-family: "Manrope", "Segoe UI", Arial, sans-serif;
 }
+
+/* The expressive face is reserved for marketing headlines; forms and the
+   workspace keep the compact reading face, especially on narrow screens. */
+.home-hero h1,
+.home-heading {
+  font-family: "Unbounded", "Manrope", "Segoe UI", sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+}
+.home-hero h1 { font-size: clamp(1.9rem, 4.5vw, 3.8rem); }
+.home-heading { font-size: clamp(1.5rem, 3vw, 2.25rem); }
+.auth-refresh h1 { overflow-wrap: break-word; }
 
 html {
   scroll-behavior: smooth;

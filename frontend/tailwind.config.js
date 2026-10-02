@@ -12,8 +12,9 @@ export default {
         slateblue: "#56657a",
       },
       fontFamily: {
-        display: ["Aptos", "Segoe UI", "sans-serif"],
-        body: ["Aptos", "Segoe UI", "sans-serif"],
+        display: ["Manrope", "Segoe UI", "Arial", "sans-serif"],
+        body: ["Manrope", "Segoe UI", "Arial", "sans-serif"],
+        sans: ["Manrope", "Segoe UI", "Arial", "sans-serif"],
       },
       boxShadow: {
         panel: "0 24px 70px rgba(60, 45, 31, 0.12)",

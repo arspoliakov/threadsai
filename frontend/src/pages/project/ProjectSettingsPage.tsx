@@ -131,11 +131,13 @@ export default function ProjectSettingsPage() {
     setIsBinding(true);
 
     try {
-      await toast.promise(updateAccount(Number(selectedAccountId), { project_id: projectId }), {
+      const action = updateAccount(Number(selectedAccountId), { project_id: projectId });
+      toast.promise(action, {
         loading: "Добавляем профиль...",
         success: "Профиль добавлен в проект",
         error: (error) => getApiErrorMessage(error, "Не удалось добавить профиль."),
       });
+      await action;
       trackSeoEvent("threads_account_connected", {
         method: "existing_profile",
         project_id: projectId,
@@ -143,6 +145,8 @@ export default function ProjectSettingsPage() {
       });
       setSelectedAccountId("");
       await loadSettings({ silent: true });
+    } catch {
+      // The promise toast displays the error; leave the current state available for retry.
     } finally {
       setIsBinding(false);
     }
@@ -289,12 +293,16 @@ export default function ProjectSettingsPage() {
     setUnlinkingAccountId(accountId);
 
     try {
-      await toast.promise(unlinkAccount(accountId), {
+      const action = unlinkAccount(accountId);
+      toast.promise(action, {
         loading: "Отключаем профиль...",
         success: "Профиль отключен от проекта",
         error: (error) => getApiErrorMessage(error, "Не удалось отключить профиль."),
       });
+      await action;
       await loadSettings({ silent: true });
+    } catch {
+      // The promise toast displays the error; leave the current state available for retry.
     } finally {
       setUnlinkingAccountId(null);
     }

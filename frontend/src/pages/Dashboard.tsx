@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -11,11 +11,15 @@ import {
   type DashboardProjectSummary,
   type DashboardSummary,
 } from "../api/client";
+import { StyleAssistant } from "../components/StyleAssistant";
 import { BotStatusCard } from "../components/BotStatusCard";
 import { DismissibleTip } from "../components/DismissibleTip";
 import { trackSeoEvent } from "../components/SeoAnalytics";
 
+type NewProjectDraft = { name: string; description: string; global_style_body?: string };
+
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -45,37 +49,40 @@ export default function Dashboard() {
     void loadSummary({ silent: true });
   }, []);
 
-  async function handleCreateProject(payload: { name: string; description: string }) {
-    await toast.promise(
-      createProject({
-        name: payload.name,
-        slug: createSafeSlug(payload.name),
-        description: payload.description || null,
-        is_active: true,
-      }),
-      {
-        loading: "Создаем проект...",
-        success: "Проект создан",
-        error: (error) => getApiErrorMessage(error, "Не удалось создать проект."),
-      },
-    );
-
+  async function handleCreateProject(payload: NewProjectDraft) {
+    const creation = createProject({
+      name: payload.name,
+      slug: createSafeSlug(payload.name),
+      description: payload.description || null,
+      global_style_body: payload.global_style_body,
+      is_active: true,
+    });
+    toast.promise(creation, {
+      loading: "Создаем проект...",
+      success: "Проект создан",
+      error: (error) => getApiErrorMessage(error, "Не удалось создать проект."),
+    });
+    const project = await creation;
     setIsCreateOpen(false);
     trackSeoEvent("project_created", { source: "dashboard" });
-    await loadSummary({ silent: true });
+    navigate(`/app/projects/${project.id}`);
   }
 
   async function handleDeleteProject(project: DashboardProjectSummary) {
     setDeletingProjectId(project.id);
 
     try {
-      await toast.promise(deleteProject(project.id), {
+      const deletion = deleteProject(project.id);
+      toast.promise(deletion, {
         loading: "Удаляем проект...",
         success: "Проект удален. Аккаунты вернулись в общий пул.",
         error: (error) => getApiErrorMessage(error, "Не удалось удалить проект."),
       });
+      await deletion;
       setProjectToDelete(null);
       await loadSummary({ silent: true });
+    } catch {
+      // The promise toast displays the error; keep the dialog open for retry.
     } finally {
       setDeletingProjectId(null);
     }
@@ -230,15 +237,27 @@ function getCurrentAction(summary: DashboardSummary | null, isLoading: boolean) 
   return "Следим за публикациями";
 }
 
-function CreateProjectModal({
+export function CreateProjectModal({
   onClose,
   onSubmit,
 }: {
   onClose: () => void;
-  onSubmit: (payload: { name: string; description: string }) => Promise<void>;
+  onSubmit: (payload: NewProjectDraft) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [globalStyle, setGlobalStyle] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [previousFocus] = useState(() => document.activeElement);
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, []);
+
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -251,7 +270,10 @@ function CreateProjectModal({
 
     setIsSaving(true);
     try {
-      await onSubmit({ name: name.trim(), description: description.trim() });
+      setSaveError("");
+      await onSubmit({ name: name.trim(), description: description.trim(), global_style_body: globalStyle.trim() || undefined });
+    } catch (error) {
+      setSaveError(getApiErrorMessage(error, "Не удалось создать проект. Данные остались в форме."));
     } finally {
       setIsSaving(false);
     }
@@ -261,19 +283,29 @@ function CreateProjectModal({
     <div className="fixed inset-0 z-50 grid place-items-end bg-[#070909]/55 p-3 backdrop-blur-sm sm:place-items-center sm:p-5">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-xl overflow-hidden rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] shadow-[0_30px_120px_rgba(0,0,0,0.30)]"
+        role="dialog" aria-modal="true" aria-labelledby="new-project-title"
+        onKeyDown={event => {
+          if (event.key === "Escape" && !isSaving) { event.preventDefault(); onClose(); }
+          if (event.key !== "Tab") return;
+          const fields = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [href]"));
+          const first = fields[0]; const last = fields[fields.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }}
+        className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] shadow-[0_30px_120px_rgba(0,0,0,0.30)]"
       >
         <header className="flex items-start justify-between gap-4 border-b border-[#e3e7df] p-6">
           <div>
-            <h2 className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]">Новый проект</h2>
+            <h2 id="new-project-title" className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]">Новый проект</h2>
             <p className="mt-3 text-sm leading-6 text-[#667066]">
-              Проект хранит свой стиль, аккаунты, очередь публикаций и актуальные темы.
+              Опишите, о чём писать и для кого. Общий голос можно настроить с помощью нейросети ниже.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[#dfe4dc] bg-white text-[#141815] transition hover:bg-[#141815] hover:text-white"
+            disabled={isSaving}
             aria-label="Закрыть"
           >
             <CloseIcon />
@@ -284,6 +316,7 @@ function CreateProjectModal({
           <label className="block">
             <span className="text-sm text-[#3f463f]">Название</span>
             <input
+              autoFocus
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Например: проект для эксперта"
@@ -297,8 +330,8 @@ function CreateProjectModal({
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Коротко опишите продукт, аудиторию, задачу и желаемый тон."
-              rows={7}
+              placeholder="Например: помогаю начинающим предпринимателям вести учёт. Пишем о деньгах, налогах и типичных ошибках."
+              rows={3}
               className="mt-2 w-full resize-y rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6 outline-none transition focus:border-[#141815]"
               disabled={isSaving}
             />
@@ -306,6 +339,15 @@ function CreateProjectModal({
               Чем понятнее описание, тем меньше абстрактных постов получится на выходе.
             </span>
           </label>
+          <StyleAssistant disabled={isSaving} onApply={setGlobalStyle} />
+          {globalStyle ? <div className="space-y-3 rounded-2xl border border-[#dfe4dc] bg-white p-4">
+            <label className="block text-sm text-[#3f463f]">Общий стиль, который сохранится вместе с проектом
+              <textarea value={globalStyle} onChange={event => setGlobalStyle(event.target.value)} disabled={isSaving} rows={6} maxLength={6000} className="mt-2 w-full rounded-2xl border border-[#dfe4dc] p-3 text-sm leading-6" />
+            </label>
+            <p className="text-xs leading-5 text-[#667066]">При создании проекта этот текст заменит общий стиль для всех ваших проектов. Темы и настройки других проектов сохранятся.</p>
+            <button type="button" disabled={isSaving} onClick={() => setGlobalStyle("")} className="text-sm underline">Создать без изменения общего стиля</button>
+          </div> : null}
+          {saveError ? <p role="alert" className="rounded-xl bg-[#fff0eb] p-3 text-sm text-[#9a3524]">{saveError}</p> : null}
         </div>
 
         <footer className="grid gap-3 border-t border-[#e3e7df] p-6 sm:flex sm:justify-end">

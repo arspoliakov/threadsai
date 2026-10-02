@@ -271,6 +271,7 @@ export type Project = {
 export type ConversionMode = "bio_link" | "pinned_post" | "none";
 
 export type ProjectCreatePayload = {
+  global_style_body?: string;
   name: string;
   slug: string;
   description?: string | null;
@@ -283,7 +284,7 @@ export type ProjectCreatePayload = {
   is_active?: boolean;
 };
 
-export type ProjectUpdatePayload = Partial<ProjectCreatePayload> & {
+export type ProjectUpdatePayload = Partial<Omit<ProjectCreatePayload, "global_style_body">> & {
   niche?: string | null;
   target_audience?: string | null;
   tone_of_voice?: string | null;
@@ -725,6 +726,35 @@ export async function deleteProject(id: number): Promise<void> {
 
 export async function getProjectDashboard(id: number): Promise<ProjectDashboard> {
   const response = await apiClient.get<ProjectDashboard>(`/api/v1/projects/${id}/dashboard`);
+  return response.data;
+}
+
+export type StyleAnswers = {
+  tone: "friendly" | "expert" | "direct" | "warm";
+  perspective: "personal" | "team" | "neutral";
+  length: "short" | "balanced";
+  humor: "none" | "light" | "ironic";
+  selling: "none" | "rare" | "soft";
+  restrictions: string;
+  example: string;
+};
+
+export function getStyleAssistantErrorMessage(error: unknown): string {
+  const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+  if (status === 429) return "Слишком много запросов. Подождите минуту; дневной лимит — 20 генераций.";
+  if (status === 409) return "Помощник уже готовит стиль. Дождитесь результата.";
+  if (status === 504) return "Нейросеть не успела ответить. Ответы остались в форме — попробуйте ещё раз.";
+  if (status === 502) return "Не удалось подготовить стиль. Ответы остались в форме — повторите запрос или заполните стиль вручную.";
+  return getApiErrorMessage(error, "Не удалось подготовить стиль. Ответы остались в форме — попробуйте ещё раз.");
+}
+
+export async function assistGlobalStyle(answers: StyleAnswers): Promise<{ body: string }> {
+  const response = await apiClient.post<{ body: string }>("/api/v1/prompts/global/assist", answers, { timeout: 45000 });
+  return response.data;
+}
+
+export async function applyGlobalStyle(body: string): Promise<GlobalPrompt> {
+  const response = await apiClient.put<GlobalPrompt>("/api/v1/prompts/global/style", { body });
   return response.data;
 }
 

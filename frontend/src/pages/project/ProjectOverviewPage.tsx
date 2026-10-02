@@ -49,7 +49,7 @@ export default function ProjectOverviewPage() {
       ]);
       setDashboard(dashboardResult);
       setOperations(operationsResult);
-      setHasGlobalPrompt(promptsResult.some((prompt) => prompt.is_active && prompt.body.trim().length > 0));
+      setHasGlobalPrompt(promptsResult.some((prompt) => prompt.is_active && prompt.prompt_type === "virality" && prompt.body.trim().length > 0));
     } catch (loadError) {
       const message = getApiErrorMessage(loadError, "Не удалось загрузить проект. Попробуйте ещё раз.");
       toast.error(message);
@@ -332,13 +332,13 @@ function ReadinessChecklist({
     {
       title: "Опишите проект",
       done: Boolean(dashboard.project.description && dashboard.project.description.length >= 30),
-      hint: "Что предлагаете, кому это нужно и как должен звучать профиль.",
+      hint: "Что предлагаете, кому это нужно и какие темы раскрывать.",
       to: `/app/projects/${projectId}/settings`,
     },
     {
       title: "Выберите общий стиль",
       done: hasGlobalPrompt,
-      hint: "Спокойный, дерзкий, экспертный или свой тон для всех проектов.",
+      hint: "Ответьте на несколько вопросов — нейросеть соберёт общий голос для всех проектов.",
       to: "/app/settings",
     },
     {
@@ -825,7 +825,7 @@ function getProjectSystemStatus({
   if (activeAccounts === 0) {
     return {
       title: "ждет профиль",
-      description: "Подключите хотя бы один Threads-профиль. Без него система может готовить тексты, но не сможет их публиковать.",
+      description: "Подключите рабочий Threads-профиль, чтобы собирать идеи, готовить и публиковать посты. Общий стиль можно настроить уже сейчас.",
       dotClass: "bg-[#9aa39a]",
       pulse: false,
     };

@@ -37,6 +37,13 @@ class ProjectBase(BaseModel):
 
 class ProjectCreate(ProjectBase):
     slug: str | None = Field(default=None, max_length=120)
+    global_style_body: str | None = Field(default=None, min_length=10, max_length=6000)
+
+    @field_validator("global_style_body", mode="before")
+    @classmethod
+    def strip_global_style(cls, value: str | None) -> str | None:
+        return value.strip() if isinstance(value, str) else value
+
 
 
 class ProjectUpdate(BaseModel):

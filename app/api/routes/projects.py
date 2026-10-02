@@ -28,6 +28,7 @@ from app.db.models import (
 from app.db.repositories.projects import ProjectRepository
 from app.posting.scheduler import calculate_next_account_slot, schedule_project_queue_refill
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
+from app.services.style_assistant import stage_global_style
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -118,10 +119,11 @@ async def create_project(
         raw_value=payload.slug or payload.name,
     )
     repository = ProjectRepository(db)
-    project = await repository.create_project(payload.model_copy(update={"slug": safe_slug}))
-    project.owner_id = current_user_id
-    await db.commit()
-    await db.refresh(project)
+    if payload.global_style_body is not None:
+        if not payload.global_style_body.strip():
+            raise HTTPException(422, "Стиль не может быть пустым")
+        await stage_global_style(db, current_user_id, payload.global_style_body)
+    project = await repository.create_project(payload.model_copy(update={"slug": safe_slug}), owner_id=current_user_id)
 
     return project
 

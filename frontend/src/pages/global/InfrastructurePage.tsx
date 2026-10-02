@@ -70,12 +70,16 @@ export default function InfrastructurePage() {
     setUnlinkingId(accountId);
 
     try {
-      await toast.promise(unlinkAccount(accountId), {
+      const action = unlinkAccount(accountId);
+      toast.promise(action, {
         loading: "Отключаем профиль от проекта...",
         success: "Профиль снова доступен для других проектов",
         error: (error) => getApiErrorMessage(error, "Не удалось отключить профиль от проекта."),
       });
+      await action;
       await loadAccounts();
+    } catch {
+      // The promise toast displays the error; leave the current state available for retry.
     } finally {
       setUnlinkingId(null);
     }
@@ -85,13 +89,17 @@ export default function InfrastructurePage() {
     setDeletingId(accountId);
 
     try {
-      await toast.promise(deleteAccount(accountId), {
+      const action = deleteAccount(accountId);
+      toast.promise(action, {
         loading: "Удаляем профиль...",
         success: "Профиль удален",
         error: (error) => getApiErrorMessage(error, "Не удалось удалить профиль."),
       });
+      await action;
       setAccountToDelete(null);
       await loadAccounts();
+    } catch {
+      // The promise toast displays the error; leave the current state available for retry.
     } finally {
       setDeletingId(null);
     }

@@ -9,8 +9,8 @@ class ProjectRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def create_project(self, data: ProjectCreate) -> Project:
-        project = Project(**data.model_dump())
+    async def create_project(self, data: ProjectCreate, *, owner_id: int) -> Project:
+        project = Project(**data.model_dump(exclude={"global_style_body"}), owner_id=owner_id)
         self.session.add(project)
         await self.session.commit()
         await self.session.refresh(project)
@@ -25,4 +25,3 @@ class ProjectRepository:
         stmt = select(Project).order_by(Project.created_at.desc())
         result = await self.session.scalars(stmt)
         return list(result.all())
-

@@ -78,12 +78,16 @@ export default function ProjectQueuePage() {
     setCancellingId(taskId);
 
     try {
-      await toast.promise(cancelTask(taskId), {
+      const action = cancelTask(taskId);
+      toast.promise(action, {
         loading: "Отменяем публикацию...",
         success: "Публикация отменена",
         error: (error) => getApiErrorMessage(error, "Не удалось отменить публикацию."),
       });
+      await action;
       await loadTasks({ silent: true });
+    } catch {
+      // The promise toast displays the error; leave the current state available for retry.
     } finally {
       setCancellingId(null);
     }
@@ -99,13 +103,17 @@ export default function ProjectQueuePage() {
     setPublishingId(taskId);
 
     try {
-      await toast.promise(publishTaskNow(taskId), {
+      const action = publishTaskNow(taskId);
+      toast.promise(action, {
         loading: "Запускаем публикацию...",
         success: "Публикация запущена",
         error: (error) => getApiErrorMessage(error, "Не удалось запустить публикацию сейчас."),
       });
+      await action;
       trackSeoEvent("publication_requested", { project_id: projectId, task_id: taskId });
       await loadTasks({ silent: true });
+    } catch {
+      // The promise toast displays the error; leave the current state available for retry.
     } finally {
       setPublishingId(null);
     }

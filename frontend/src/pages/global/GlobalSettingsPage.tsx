@@ -3,11 +3,10 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
-  createGlobalPrompt,
+  applyGlobalStyle,
   getActiveGlobalPrompts,
-  updateGlobalPrompt,
-  type GlobalPrompt,
 } from "../../api/client";
+import { StyleAssistant } from "../../components/StyleAssistant";
 import { DismissibleTip } from "../../components/DismissibleTip";
 
 const DEFAULT_GLOBAL_PROMPT = `Ты — редактор ThreadsGo. Пиши как живой человек, а не как рекламный отдел.
@@ -31,7 +30,6 @@ Brand safety:
 верни только готовый пост на русском языке, если конкретная функция не просит JSON.`;
 
 export default function GlobalSettingsPage() {
-  const [prompt, setPrompt] = useState<GlobalPrompt | null>(null);
   const [body, setBody] = useState(DEFAULT_GLOBAL_PROMPT);
   const [savedBody, setSavedBody] = useState(DEFAULT_GLOBAL_PROMPT);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,8 +43,7 @@ export default function GlobalSettingsPage() {
 
       try {
         const prompts = await getActiveGlobalPrompts();
-        const activePrompt = prompts[0] ?? null;
-        setPrompt(activePrompt);
+        const activePrompt = prompts.find(item => item.prompt_type === "virality") ?? null;
         const loadedBody = activePrompt?.body || DEFAULT_GLOBAL_PROMPT;
         setBody(loadedBody);
         setSavedBody(loadedBody);
@@ -82,21 +79,8 @@ export default function GlobalSettingsPage() {
     setIsSaving(true);
 
     try {
-      const savedPrompt = prompt
-        ? await updateGlobalPrompt(prompt.id, {
-            title: "Пользовательский стиль генерации",
-            body,
-            is_active: true,
-          })
-        : await createGlobalPrompt({
-            prompt_type: "virality",
-            title: "Пользовательский стиль генерации",
-            body,
-            version: "1.0.0",
-            is_active: true,
-          });
-
-      setPrompt(savedPrompt);
+      const savedPrompt = await applyGlobalStyle(body);
+      setBody(savedPrompt.body);
       setSavedBody(savedPrompt.body);
       toast.success("Настройки стиля сохранены");
     } catch {
@@ -167,6 +151,11 @@ export default function GlobalSettingsPage() {
         </div>
       ) : null}
 
+      {!loadError ? <StyleAssistant disabled={isLoading || isSaving} onApply={generated => {
+        setBody(generated);
+        toast.info("Стиль добавлен в редактор. Сохраните его, чтобы применить ко всем проектам.");
+      }} /> : null}
+
       <form onSubmit={handleSubmit} className={`${loadError ? "hidden" : "block"} overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-white shadow-sm`}>
         <header className="flex flex-col gap-4 border-b border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
@@ -190,6 +179,7 @@ export default function GlobalSettingsPage() {
 
         <div className="grid gap-6 p-5 lg:grid-cols-[1fr_18rem] sm:p-6">
           <textarea
+            aria-label="Глобальный стиль постов"
             value={body}
             onChange={(event) => setBody(event.target.value)}
             disabled={isLoading || isSaving}

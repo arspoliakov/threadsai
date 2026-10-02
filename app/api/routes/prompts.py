@@ -1,16 +1,55 @@
 from datetime import datetime
+import asyncio
+import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id, get_db
+from app.api.deps import get_current_user_id, get_db, require_active_subscription
+from app.api.auth import limiter
 from app.core.default_prompts import DEFAULT_GLOBAL_PROMPT
-from app.db.models import GlobalPrompt, Project, ProjectPrompt, PromptType
+from app.db.models import GlobalPrompt, Project, ProjectPrompt, PromptType, User
+from app.services.style_assistant import StyleAnswers, generate_style_preview, stage_global_style
 
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
+logger = logging.getLogger(__name__)
+_assistant_users: set[int] = set()
+
+
+async def _assistant_user(request: Request, user: User = Depends(require_active_subscription)) -> User:
+    request.state.style_assistant_user = user.id
+    return user
+
+
+def _assistant_limit_key(request: Request) -> str:
+    return f"style-assistant:{request.state.style_assistant_user}"
+
+
+class StylePreviewRead(BaseModel):
+    body: str
+
+
+@router.post("/global/assist", response_model=StylePreviewRead)
+@limiter.limit("3/minute;20/day", key_func=_assistant_limit_key)
+async def assist_global_style(request: Request, response: Response, payload: StyleAnswers,
+                              user: User = Depends(_assistant_user)) -> StylePreviewRead:
+    response.headers["Cache-Control"] = "no-store"
+    if user.id in _assistant_users:
+        raise HTTPException(409, "Помощник уже готовит стиль. Дождитесь результата.")
+    _assistant_users.add(user.id)
+    try:
+        body = await asyncio.wait_for(generate_style_preview(payload), timeout=40)
+        return StylePreviewRead(body=body)
+    except TimeoutError:
+        raise HTTPException(504, "Нейросеть не успела ответить. Ответы сохранены в форме — попробуйте ещё раз.") from None
+    except Exception as exc:
+        logger.warning("Style assistant failed: %s", type(exc).__name__)
+        raise HTTPException(502, "Не удалось подготовить стиль. Попробуйте ещё раз или заполните его вручную.") from None
+    finally:
+        _assistant_users.discard(user.id)
 
 
 class GlobalPromptCreate(BaseModel):
@@ -36,6 +75,20 @@ class GlobalPromptRead(GlobalPromptCreate):
     owner_id: int | None
     created_at: datetime
     updated_at: datetime
+
+
+class GlobalStyleApply(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    body: str = Field(min_length=1, max_length=30000)
+
+
+@router.put("/global/style", response_model=GlobalPromptRead)
+async def apply_global_style(payload: GlobalStyleApply, db: AsyncSession = Depends(get_db),
+                             current_user_id: int = Depends(get_current_user_id)) -> GlobalPromptRead:
+    prompt = await stage_global_style(db, current_user_id, payload.body)
+    await db.commit()
+    await db.refresh(prompt)
+    return prompt
 
 
 class ProjectPromptCreate(BaseModel):

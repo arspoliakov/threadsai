@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { AppIcon } from "../components/AppIcons";
@@ -37,9 +37,22 @@ const examples = [
 
 export default function LandingPage() {
   const [selected, setSelected] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        menuButton.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [menuOpen]);
   return (
     <main className="home-refresh relative overflow-hidden bg-[#f8faf9] text-[#162b25]">
-      <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
+      <header className="relative z-20 mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-8">
         <Link
           to="/"
           className="flex items-center gap-2.5 text-xl font-bold tracking-tight"
@@ -53,7 +66,7 @@ export default function LandingPage() {
         </Link>
         <nav
           aria-label="Основная навигация"
-          className="flex items-center gap-2 text-sm font-medium sm:gap-5"
+          className="hidden items-center gap-2 text-sm font-medium sm:flex sm:gap-5"
         >
           <a href="#how-it-works" className="hidden text-[#60716a] md:block">
             Как это работает
@@ -72,6 +85,20 @@ export default function LandingPage() {
             Войти
           </Link>
         </nav>
+        <div className="flex items-center gap-2 sm:hidden">
+          <ThemeToggle />
+          <button ref={menuButton} type="button" aria-expanded={menuOpen} aria-controls="mobile-public-navigation" aria-label={menuOpen ? "Закрыть меню" : "Открыть меню"} onClick={() => setMenuOpen((open) => !open)} className="grid h-11 w-11 place-items-center rounded-xl border border-[#d5e0d9] bg-white text-[#49705a]">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">{menuOpen ? <path d="m6 6 12 12M6 18 18 6" /> : <path d="M4 6h16M4 12h16M4 18h16" />}</svg>
+          </button>
+        </div>
+        {menuOpen ? <nav id="mobile-public-navigation" aria-label="Основная навигация на телефоне" className="grid w-full gap-1 rounded-2xl border border-[#dbe6dd] bg-white p-2 text-sm font-medium sm:hidden" onClick={() => setMenuOpen(false)}>
+          <a href="#how-it-works" className="rounded-xl px-4 py-3 hover:bg-[#edf3ef]">Как это работает</a>
+          <Link to="/pricing/" className="rounded-xl px-4 py-3 hover:bg-[#edf3ef]">Тарифы</Link>
+          <Link to="/updates/" className="rounded-xl px-4 py-3 hover:bg-[#edf3ef]">Что нового</Link>
+          <Link to="/blog/" className="rounded-xl px-4 py-3 hover:bg-[#edf3ef]">Материалы о Threads</Link>
+          <Link to="/login" className="rounded-xl px-4 py-3 hover:bg-[#edf3ef]">Войти в кабинет</Link>
+          <Link to="/register?intent=start" className="home-primary mt-1">Попробовать 3 дня</Link>
+        </nav> : null}
       </header>
       <section className="home-hero mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-12 sm:px-8 sm:pt-20 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:pb-24">
         <div>

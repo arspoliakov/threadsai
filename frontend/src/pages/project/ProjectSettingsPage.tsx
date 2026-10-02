@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -42,6 +42,7 @@ const timezoneOptions = [
 const timezoneOptionValues = new Set(timezoneOptions.map((option) => option.value));
 
 export default function ProjectSettingsPage() {
+  const location = useLocation();
   const { id } = useParams();
   const projectId = Number(id);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -69,6 +70,12 @@ export default function ProjectSettingsPage() {
   const [unlinkingAccountId, setUnlinkingAccountId] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tariffPostsPerDayLimit, setTariffPostsPerDayLimit] = useState(20);
+
+  useEffect(() => {
+    if (!isLoading && location.hash === "#profiles") {
+      document.getElementById("profiles")?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, [isLoading, location.hash]);
 
   async function loadSettings({ silent = false }: { silent?: boolean } = {}) {
     setIsLoading(true);
@@ -607,7 +614,7 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
+        <section id="profiles" className="scroll-mt-28 rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-4">
             <div>
               <h2 className="font-display text-3xl">Подключенные профили</h2>
@@ -620,7 +627,7 @@ export default function ProjectSettingsPage() {
             ) : projectAccounts.length === 0 ? (
               <EmptyState
                 title="Профили еще не подключены"
-                description="Выберите свободный профиль из общего пула справа."
+                description="Выберите свободный профиль в блоке «Добавить профиль в проект» ниже или рядом. Если профиля ещё нет, сначала войдите в Threads в разделе «Профили»."
               />
             ) : (
               <div className="grid gap-3">
@@ -645,8 +652,11 @@ export default function ProjectSettingsPage() {
           <h2 className="font-display text-3xl">Добавить профиль в проект</h2>
           <div className="mt-3"><AccountRiskNotice /></div>
           <p className="mt-3 text-sm leading-6 text-[#66645d]">
-            В списке только свободные профили. Если список пуст, сначала добавьте профиль в разделе «Аккаунты».
+            В списке только свободные профили. Сначала добавьте профиль, затем выберите его здесь и нажмите «Добавить профиль».
           </p>
+          <Link to="/app/infrastructure" className="mt-4 inline-flex min-h-11 items-center rounded-full border border-[#151515] px-4 text-sm text-[#151515] transition hover:bg-[#151515] hover:text-white">
+            {freeAccounts.length === 0 ? "Подключить профиль Threads" : "Открыть все профили"}
+          </Link>
 
           <label className="mt-6 grid gap-2">
             <span className="field-label">Свободный профиль</span>
@@ -682,6 +692,11 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
       </div>
+      {!isLoading && project ? (
+        <Link to={`/app/projects/${projectId}`} className="inline-flex min-h-11 items-center rounded-full bg-[#151515] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">
+          Вернуться к следующему шагу
+        </Link>
+      ) : null}
     </section>
   );
 }

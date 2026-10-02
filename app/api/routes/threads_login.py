@@ -67,6 +67,8 @@ async def finish(token: str = Header(alias="X-Login-Window"), db: AsyncSession =
         duplicate = await db.scalar(select(Account.id).where(Account.owner_id==user.id, Account.platform==Platform.THREADS, func.lower(Account.username)==room["username"].lower()).limit(1))
         if duplicate:
             raise HTTPException(409, "Этот профиль уже добавлен. Используйте его карточку.")
+        # The user may have closed the window while verification was running.
+        login_window.access(user.id, token)
         account = Account(owner_id=user.id, platform=Platform.THREADS, username=room["username"],
                           status=AccountStatus.ACTIVE, assigned_port=room["port"],
                           cookies_encrypted=encrypt_secret(json.dumps(cookies)))

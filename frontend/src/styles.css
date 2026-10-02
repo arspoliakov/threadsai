@@ -60,10 +60,16 @@
   letter-spacing: 0;
   font-weight: 500;
 }
-.home-refresh :is(a, button):focus-visible,
-.app-refresh :is(a, button, input, textarea, select):focus-visible {
+:is(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
   outline: 3px solid #72a288;
   outline-offset: 3px;
+}
+
+/* Let narrow navigation labels and content wrap without shrinking touch targets. */
+.app-refresh nav a { overflow-wrap: anywhere; }
+.home-refresh #how-it-works { scroll-margin-top: 1rem; }
+@media (prefers-reduced-motion: reduce) {
+  :is(a, button) { transition-duration: 0.01ms !important; }
 }
 
 :root {

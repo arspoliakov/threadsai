@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -21,6 +21,7 @@ const terminalStatuses: PostingTaskStatus[] = ["success", "partial_success", "fa
 const THREADS_POST_CHAR_LIMIT = 500;
 
 export default function ProjectQueuePage() {
+  const navigate = useNavigate();
   const { id } = useParams();
   const projectId = Number(id);
   const [tasks, setTasks] = useState<PostingTask[]>([]);
@@ -119,7 +120,7 @@ export default function ProjectQueuePage() {
     }
   }
 
-  async function handleSaveTask(taskId: number, contentText: string) {
+  async function handleSaveTask(taskId: number, contentText: string[]) {
     setSavingId(taskId);
 
     try {
@@ -130,8 +131,12 @@ export default function ProjectQueuePage() {
         error: (error) => getApiErrorMessage(error, "Не удалось сохранить текст."),
       });
       const updatedTask = await updatePromise;
-      trackSeoEvent("draft_approved", { project_id: projectId, task_id: taskId });
+      trackSeoEvent("draft_edited", { project_id: projectId, task_id: taskId });
       setTasks((current) => sortTasks(current.map((task) => (task.id === taskId ? updatedTask : task))));
+      return true;
+    } catch {
+      // Keep the editor and its text open when saving fails.
+      return false;
     } finally {
       setSavingId(null);
     }
@@ -151,6 +156,8 @@ export default function ProjectQueuePage() {
       trackSeoEvent("draft_regenerated", { project_id: projectId, task_id: taskId });
       setTasks((current) => sortTasks(current.map((task) => (task.id === taskId ? regeneratedTask : task))));
       setExpandedTaskIds((current) => new Set(current).add(taskId));
+    } catch {
+      // The promise toast displays the error; keep the current text available.
     } finally {
       setRegeneratingId(null);
     }
@@ -184,6 +191,8 @@ export default function ProjectQueuePage() {
         <EmptyState
           title="Публикаций пока нет"
           description="Когда проект будет готов, система подготовит посты на ближайшие дни. Первый пост можно создать кнопкой на обзоре проекта."
+          actionLabel="К следующему шагу"
+          onAction={() => navigate(`/app/projects/${projectId}`)}
         />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
@@ -201,7 +210,7 @@ export default function ProjectQueuePage() {
               onToggle={() => toggleExpanded(task.id)}
               onCancel={() => void handleCancel(task.id)}
               onPublishNow={() => void handlePublishNow(task.id)}
-              onSave={(contentText) => void handleSaveTask(task.id, contentText)}
+              onSave={(contentText) => handleSaveTask(task.id, contentText)}
               onRegenerate={() => void handleRegenerateTask(task.id)}
             />
           ))}
@@ -237,36 +246,37 @@ function TaskCard({
   onToggle: () => void;
   onCancel: () => void;
   onPublishNow: () => void;
-  onSave: (contentText: string) => void;
+  onSave: (contentText: string[]) => Promise<boolean>;
   onRegenerate: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [draftText, setDraftText] = useState(task.content_text);
+  const [draftParts, setDraftParts] = useState(task.posts_chain.length > 0 ? task.posts_chain : [task.content_text]);
   const isBusy = isCancelling || isPublishing || isRegenerating || isSaving;
-  const canEdit = task.status !== "running" && task.status !== "success";
+  const canChange = task.status !== "running" && task.status !== "success" && task.status !== "partial_success"
+    && !task.generation_metadata?.publication_confirmation_pending;
+  const canEdit = canChange;
 
   useEffect(() => {
-    setDraftText(task.content_text);
-  }, [task.content_text]);
+    setDraftParts(task.posts_chain.length > 0 ? task.posts_chain : [task.content_text]);
+  }, [task.content_text, task.posts_chain]);
 
   function handleCancelEdit() {
-    setDraftText(task.content_text);
+    setDraftParts(task.posts_chain.length > 0 ? task.posts_chain : [task.content_text]);
     setIsEditing(false);
   }
 
-  function handleSaveEdit() {
-    const normalizedText = draftText.trim();
-    if (!normalizedText) {
-      toast.error("Текст поста не может быть пустым");
+  async function handleSaveEdit() {
+    const normalizedText = draftParts.map((part) => part.trim());
+    if (normalizedText.some((part) => !part)) {
+      toast.error("Каждый пост цепочки должен содержать текст");
       return;
     }
-    if (normalizedText.length > THREADS_POST_CHAR_LIMIT) {
-      toast.error(`Сократите текст до ${THREADS_POST_CHAR_LIMIT} символов или разделите его на цепочку`);
+    if (normalizedText.some((part) => part.length > THREADS_POST_CHAR_LIMIT)) {
+      toast.error(`Сократите каждый пост до ${THREADS_POST_CHAR_LIMIT} символов`);
       return;
     }
 
-    onSave(normalizedText);
-    setIsEditing(false);
+    if (await onSave(normalizedText)) setIsEditing(false);
   }
 
   return (
@@ -292,21 +302,22 @@ function TaskCard({
 
       {isEditing ? (
         <div className="mt-5">
-          <textarea
-            value={draftText}
-            onChange={(event) => setDraftText(event.target.value)}
-            rows={8}
-            className="w-full resize-y rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] p-4 text-sm leading-6 text-[#252525] outline-none transition-all duration-200 ease-in-out focus:border-[#151515]"
-          />
-          <div className="mt-2 flex items-center justify-between gap-3 text-xs">
-            <span className="text-[#77766f]">До {THREADS_POST_CHAR_LIMIT} символов в одном посте Threads</span>
-            <span className={draftText.trim().length > THREADS_POST_CHAR_LIMIT ? "font-semibold text-[#b42318]" : "text-[#77766f]"}>
-              {draftText.trim().length}/{THREADS_POST_CHAR_LIMIT}
-            </span>
+          <div className="grid gap-4">
+            {draftParts.map((part, index) => (
+              <label key={index} className="grid gap-2">
+                <span className="text-xs font-medium text-[#55534c]">{draftParts.length > 1 ? `Пост ${index + 1} из ${draftParts.length}` : "Текст поста"}</span>
+                <textarea disabled={isBusy} value={part} onChange={(event) => setDraftParts((current) => current.map((text, partIndex) => partIndex === index ? event.target.value : text))}
+                  rows={draftParts.length > 1 ? 5 : 8}
+                  className="w-full resize-y rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] p-4 text-sm leading-6 text-[#252525] outline-none transition-all duration-200 ease-in-out focus:border-[#151515]" />
+                <span className={part.trim().length > THREADS_POST_CHAR_LIMIT ? "text-xs font-semibold text-[#b42318]" : "text-xs text-[#77766f]"}>
+                  {part.trim().length}/{THREADS_POST_CHAR_LIMIT} символов
+                </span>
+              </label>
+            ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <ActionButton variant="dark" onClick={handleSaveEdit} disabled={isBusy || draftText.trim().length > THREADS_POST_CHAR_LIMIT} isLoading={isSaving}>
-              Сохранить
+            <ActionButton variant="dark" onClick={handleSaveEdit} disabled={isBusy || draftParts.some((part) => !part.trim() || part.trim().length > THREADS_POST_CHAR_LIMIT)} isLoading={isSaving}>
+              {task.status === "draft" ? "Сохранить черновик" : "Сохранить"}
             </ActionButton>
             <ActionButton onClick={handleCancelEdit} disabled={isBusy} isLoading={false}>
               Отмена
@@ -319,11 +330,18 @@ function TaskCard({
           onClick={onToggle}
           className="mt-4 w-full whitespace-pre-line text-left text-sm leading-6 text-[#252525] transition-all duration-200 ease-in-out hover:text-[#000]"
         >
-          {isRegenerating ? "Переписываем пост..." : isExpanded ? task.content_text : truncate(task.content_text, 240)}
+          {isRegenerating ? "Переписываем пост..." : isExpanded ? (task.posts_chain.length > 1 ? task.posts_chain.map((text, index) => `${index + 1}. ${text}`).join("\n\n") : task.content_text) : truncate(task.content_text, 240)}
         </button>
       )}
 
       {isExpanded && !isEditing ? <GenerationMetadataBlock task={task} /> : null}
+
+      {task.status === "draft" ? (
+        <p className="mt-4 text-xs leading-5 text-[#77766f]">Это черновик: сохранение текста не запускает публикацию. Для нового поста в расписании проверьте подключение профиля в обзоре проекта.</p>
+      ) : null}
+      {task.posts_chain.length > 1 && task.status === "queued" ? (
+        <p className="mt-4 text-xs leading-5 text-[#77766f]">Цепочка из {task.posts_chain.length} постов. Нажмите на текст, чтобы увидеть её целиком, или «Редактировать», чтобы изменить отдельные части.</p>
+      ) : null}
 
       {task.error_message ? (
         <div className="mt-5 rounded-2xl border border-[#e0b4ae] bg-[#fff8f6] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
@@ -351,12 +369,19 @@ function TaskCard({
             <ActionButton onClick={() => setIsEditing(true)} disabled={isBusy || isEditing || !canEdit} isLoading={false}>
               Редактировать
             </ActionButton>
-            <ActionButton onClick={onRegenerate} disabled={isBusy || isEditing || !canEdit} isLoading={isRegenerating}>
+            <ActionButton onClick={onRegenerate} disabled={isBusy || isEditing || !canChange} isLoading={isRegenerating}>
               Переписать
             </ActionButton>
             <ActionButton onClick={onCancel} disabled={isBusy || isEditing} isLoading={isCancelling}>
               Отменить
             </ActionButton>
+          </>
+        ) : task.status === "draft" ? (
+          <>
+            <ActionButton onClick={() => setIsEditing(true)} disabled={isBusy || isEditing || !canEdit} isLoading={false}>
+              Редактировать черновик
+            </ActionButton>
+            <Link to={`/app/projects/${task.project_id}`} className="inline-flex items-center rounded-2xl border border-[#151515] px-4 py-2 text-xs text-[#151515]">К настройке публикации</Link>
           </>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
@@ -563,6 +588,7 @@ function isTaskAccountSessionDead(task: PostingTask, accountStates: ProjectAccou
 }
 
 function getScheduleLabel(status: PostingTaskStatus) {
+  if (status === "draft") return "Черновик";
   if (status === "success" || status === "partial_success") {
     return "Опубликован";
   }

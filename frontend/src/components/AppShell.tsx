@@ -35,7 +35,7 @@ export function AppShell({
           />
           ThreadsGo
         </Link>
-        <p className="mb-3 mt-10 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#8a9890]">
+        <p className="mb-3 mt-10 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#67786e]">
           Рабочее пространство
         </p>
         <nav aria-label="Навигация кабинета" className="space-y-1">
@@ -88,7 +88,7 @@ export function AppShell({
                 />
               </Link>
               <div className="min-w-0">
-                <p className="hidden text-[10px] font-medium text-[#8a9890] sm:block">
+                <p className="hidden text-[10px] font-medium text-[#67786e] sm:block">
                   ThreadsGo / кабинет
                 </p>
                 <p className="truncate text-sm font-semibold">{title}</p>
@@ -99,10 +99,11 @@ export function AppShell({
         </header>
         <main
           id="workspace-content"
-          className="mx-auto max-w-[1320px] px-4 pb-28 pt-6 sm:px-8 sm:pt-9 lg:pb-8"
+          tabIndex={-1}
+          className="mx-auto max-w-[1320px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 sm:px-8 sm:pt-9 lg:pb-8"
         >
           {children}
-          <footer className="mt-12 border-t border-[#e0e8e2] pt-5 text-xs leading-6 text-[#8a9890]">
+          <footer className="mt-12 border-t border-[#e0e8e2] pt-5 text-xs leading-6 text-[#67786e]">
             <div className="flex flex-wrap gap-5">
               <Link to="/updates/">Что нового</Link>
               <Link to="/terms">Условия и политика</Link>

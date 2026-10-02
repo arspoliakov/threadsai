@@ -39,6 +39,7 @@ export default function ProjectLayout() {
       label: "Проекты",
       to: "/app",
       icon: "home",
+      end: true,
     },
     {
       label: "Обзор",

@@ -17,7 +17,8 @@ import {
   type ProjectOperation,
 } from "../../api/client";
 import { DismissibleTip } from "../../components/DismissibleTip";
-import { trackSeoEvent } from "../../components/SeoAnalytics";
+import { trackSeoEvent, trackSeoEventOnce } from "../../components/SeoAnalytics";
+import { JourneyNextStep } from "../../components/JourneyNextStep";
 
 type RunningAction = "scraping" | "generation" | null;
 
@@ -153,7 +154,7 @@ export default function ProjectOverviewPage() {
       const result = await triggerGeneration(projectId);
       trackSeoEvent("draft_created", { project_id: projectId, task_id: result.task_id });
       const queued = result.status === "queued" && Boolean(result.scheduled_at);
-      if (queued) trackSeoEvent("first_post_queued", {
+      if (queued) trackSeoEventOnce("first_post_queued", {
         project_id: projectId, task_id: result.task_id, source: "project_overview",
       });
       const message = queued ? `Пост добавлен в расписание: #${result.task_id}` : `Черновик готов: #${result.task_id}. Проверьте текст и добавьте его в расписание.`;
@@ -192,6 +193,11 @@ export default function ProjectOverviewPage() {
         ) : null}
       </header>
 
+      {dashboard && !isLoading ? (
+        <ProjectNextStep dashboard={dashboard} projectId={projectId} runningAction={runningAction}
+          onGenerate={() => void handleTriggerGeneration()} onCollect={() => void handleTriggerScraping()} />
+      ) : null}
+
       <div className="grid gap-3 md:grid-cols-2">
         <ActionPanel
           title="Обновить идеи для постов"
@@ -204,7 +210,7 @@ export default function ProjectOverviewPage() {
         />
         <ActionPanel
           title="Добавить пост"
-          description="Нейросеть создаст новый пост, опираясь на вашу тему, выбранный стиль и актуальные идеи. Пост сразу добавится в расписание публикаций."
+          description="Нейросеть создаст текст на основе проекта и стиля. Если профиль готов, пост попадёт в расписание: проверьте и при необходимости отредактируйте его до времени выхода."
           buttonText="Добавить новый пост в план"
           isLoading={runningAction === "generation"}
           isDisabled={runningAction !== null || isLoading || !hasActiveAccount(dashboard)}
@@ -264,6 +270,33 @@ export default function ProjectOverviewPage() {
       ) : null}
     </section>
   );
+}
+
+function ProjectNextStep({ dashboard, projectId, runningAction, onGenerate, onCollect }: {
+  dashboard: ProjectDashboard; projectId: number; runningAction: RunningAction;
+  onGenerate: () => void; onCollect: () => void;
+}) {
+  if (!(dashboard.project.global_context || dashboard.project.description || "").trim()) {
+    return <JourneyNextStep title="Расскажите, о чём писать" description="Опишите вашу тему, аудиторию и пользу. Это основа текстов; остальные настройки можно уточнить позже."
+      action="Описать проект" to={`/app/projects/${projectId}/settings`} />;
+  }
+  if (!hasActiveAccount(dashboard)) {
+    return <JourneyNextStep title="Подключите рабочий профиль" description="Добавьте профиль в разделе «Профили», затем выберите его в настройках этого проекта. Если профиль уже подключён, проверьте его состояние."
+      action="Выбрать профиль для проекта" to={`/app/projects/${projectId}/settings#profiles`} />;
+  }
+  const queued = dashboard.posting_tasks_by_status.queued ?? 0;
+  const drafts = dashboard.posting_tasks_by_status.draft ?? 0;
+  if (queued > 0 || drafts > 0) {
+    return <JourneyNextStep title={queued > 0 ? "Проверьте текст до публикации" : "Посмотрите подготовленный черновик"}
+      description={queued > 0 ? "В расписании уже есть посты. Откройте ближайший: проверьте текст, профиль и время. Ненужный пост можно отменить до отправки." : "Черновик сохранён, но пока не запланирован. В расписании видно его состояние; отправка не начнётся сама."}
+      action="Открыть расписание" to={`/app/projects/${projectId}/queue`} />;
+  }
+  if (dashboard.saved_trends_count === 0) {
+    return <JourneyNextStep title="Соберите идеи для первого поста" description="Изучим ленту и найдём подходящие приёмы для ваших текстов. Сбор идёт в фоне — вы можете продолжать настройку проекта."
+      action={runningAction === "scraping" ? "Собираем идеи…" : "Собрать идеи"} onAction={onCollect} disabled={runningAction !== null} />;
+  }
+  return <JourneyNextStep title="Подготовьте первый пост" description="Идеи и профиль готовы. Создайте текст, затем откройте расписание и проверьте его до публикации."
+    action={runningAction === "generation" ? "Готовим текст…" : "Создать пост в расписании"} onAction={onGenerate} disabled={runningAction !== null} />;
 }
 
 function SystemStatusCard({
@@ -331,7 +364,7 @@ function ReadinessChecklist({
   const checklist = [
     {
       title: "Опишите проект",
-      done: Boolean(dashboard.project.description && dashboard.project.description.length >= 30),
+      done: Boolean((dashboard.project.global_context || dashboard.project.description || "").trim()),
       hint: "Что предлагаете, кому это нужно и какие темы раскрывать.",
       to: `/app/projects/${projectId}/settings`,
     },
@@ -344,8 +377,8 @@ function ReadinessChecklist({
     {
       title: "Подключите Threads-профиль",
       done: activeAccounts > 0,
-      hint: "Пароль не нужен. Достаточно cookies от готового профиля.",
-      to: `/app/projects/${projectId}/settings`,
+      hint: "Войдите через отдельное окно или импортируйте сессию, затем выберите профиль для проекта.",
+      to: `/app/projects/${projectId}/settings#profiles`,
     },
     {
       title: "Обновите идеи",
@@ -371,15 +404,15 @@ function ReadinessChecklist({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">Готовность</p>
-          <h2 className="mt-2 font-display text-3xl">Что сделать дальше</h2>
+          <h2 className="mt-2 font-display text-3xl">Настройка проекта</h2>
         </div>
         <span className="rounded-full bg-[#eef4ec] px-4 py-2 text-sm text-[#4f584f]">
           {completed}/{checklist.length} готово
         </span>
       </div>
       <p className="mt-3 text-xs leading-5 text-[#687168]">
-        Закройте эти шаги один раз. После этого система сама будет готовить посты,
-        ждать времени публикации и следить за техническими паузами.
+        Следующий шаг показан выше. Общий стиль и расписание можно уточнять по ходу работы.
+        Перед запуском проверьте тексты и состояние профиля.
       </p>
 
       <div className="mt-5 grid gap-2">

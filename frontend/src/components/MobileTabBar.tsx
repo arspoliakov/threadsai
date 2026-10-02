@@ -10,11 +10,9 @@ export type MobileTabItem = {
 };
 
 export function MobileTabBar({ items }: { items: MobileTabItem[] }) {
-  const gridClass = items.length === 3 ? "grid-cols-3" : "grid-cols-4";
-
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#dfe4dc] bg-white/92 px-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_50px_rgba(0,0,0,0.08)] backdrop-blur-2xl lg:hidden">
-      <div className={`mx-auto grid max-w-md ${gridClass} gap-1`}>
+    <nav aria-label="Навигация кабинета" className="fixed inset-x-0 bottom-0 z-40 border-t border-[#dfe4dc] bg-white/90 px-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_50px_rgba(0,0,0,0.08)] backdrop-blur-2xl lg:hidden">
+      <div className="mx-auto grid max-w-md gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(items.length, 1)}, minmax(0, 1fr))` }}>
         {items.map((item) => (
           <NavLink
             key={item.to}

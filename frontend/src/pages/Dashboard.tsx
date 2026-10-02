@@ -15,6 +15,7 @@ import { StyleAssistant } from "../components/StyleAssistant";
 import { BotStatusCard } from "../components/BotStatusCard";
 import { DismissibleTip } from "../components/DismissibleTip";
 import { trackSeoEvent } from "../components/SeoAnalytics";
+import { JourneyNextStep } from "../components/JourneyNextStep";
 
 type NewProjectDraft = {
   name: string;
@@ -143,6 +144,14 @@ export default function Dashboard() {
           </div>
         ) : null}
       </header>
+
+      {!isLoading && summary && summary.projects.length > 0 ? (() => {
+        const attentionProject = summary.projects.find((project) => project.active_accounts_count === 0)
+          || summary.projects.find((project) => !project.next_post_time);
+        return attentionProject ? <JourneyNextStep title={`Продолжите настройку «${attentionProject.name}»`}
+          description={attentionProject.active_accounts_count === 0 ? "У проекта пока нет рабочего профиля Threads. Откройте проект — подскажем, как подключить профиль и подготовить первый пост." : "Ближайший пост пока не запланирован. Откройте проект и пройдите следующий шаг до первого текста."}
+          action="Продолжить" to={`/app/projects/${attentionProject.id}`} /> : null;
+      })() : null}
 
       {summary?.projects.length !== 0 ? (
         <div className="grid gap-3 lg:grid-cols-4">
@@ -522,8 +531,9 @@ function ProjectCard({
               {project.name}
             </h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
-              Нажмите, чтобы зайти в проект и управлять очередью публикаций,
-              актуальными идеями и настройками.
+              {project.active_accounts_count === 0 ? "Подключите рабочий профиль — это следующий шаг к первому посту."
+                : !project.next_post_time ? "Откройте проект, чтобы подготовить текст и проверить расписание."
+                : "Посты запланированы. Проверьте ближайший текст и время выхода."}
             </p>
           </Link>
           <div className="flex shrink-0 items-center gap-2">

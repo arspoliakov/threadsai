@@ -25,14 +25,14 @@ class LoginWindow:
                 raise HTTPException(409, "Окно входа занято. Попробуйте через несколько минут.")
             room = dict(owner=owner, username=username, port=port,
                         token=secrets.token_urlsafe(32), expires=time.monotonic()+900,
-                        stop=threading.Event(), ready=threading.Event(), commands=queue.Queue(4), error=None)
+                        stop=threading.Event(), ready=threading.Event(), commands=queue.Queue(1), command_guard=threading.Lock(), error=None)
             room["thread"] = threading.Thread(target=self._worker, args=(room,), daemon=True)
             self.room = room
             room["thread"].start()
         if not room["ready"].wait(45) or room["error"]:
             room["stop"].set()
             raise HTTPException(503, "Не удалось открыть Threads. Используйте импорт сессии или попробуйте позже.")
-        return {"token":room["token"], "expires_in":900}
+        return {"token":room["token"], "expires_in":max(0, int(room["expires"] - time.monotonic()))}
 
     def access(self, owner, token):
         room = self.room
@@ -42,18 +42,41 @@ class LoginWindow:
 
     def command(self, owner, token, kind, payload=None):
         room = self.access(owner, token)
+        # Only one operation may be outstanding; never replay input after a timeout.
+        guard = room.setdefault("command_guard", threading.Lock())
+        if not guard.acquire(blocking=False):
+            raise HTTPException(409, "Предыдущее действие ещё выполняется. Дождитесь его завершения.")
         answer = queue.Queue(1)
+        cancelled = threading.Event()
+        deadline = time.monotonic() + 35
         try:
-            room["commands"].put_nowait((kind, payload or {}, answer))
-            ok, value = answer.get(timeout=35)
+            room["commands"].put_nowait((kind, payload or {}, answer, cancelled, deadline))
+            while True:
+                if room["stop"].is_set() or time.monotonic() >= room["expires"]:
+                    raise HTTPException(404, "Окно закрыто или срок входа истёк.")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise queue.Empty
+                try:
+                    ok, value = answer.get(timeout=min(.25, remaining))
+                    break
+                except queue.Empty:
+                    continue
+            if not ok:
+                raise HTTPException(409, value)
+            return value
         except (queue.Full, queue.Empty):
-            raise HTTPException(409, "Окно не ответило. Дождитесь обновления изображения.") from None
-        if not ok:
-            raise HTTPException(409, value)
-        return value
+            raise HTTPException(409, "Окно не ответило. Проверьте изображение перед повторением действия.") from None
+        finally:
+            cancelled.set()
+            guard.release()
 
     def close(self, owner, token):
-        self.access(owner, token)["stop"].set()
+        # Closing is idempotent, including after the worker expired. Ownership still applies.
+        room = self.room
+        if not room or room["owner"] != owner or not secrets.compare_digest(token, room["token"]):
+            raise HTTPException(404, "Окно закрыто или срок входа истёк.")
+        room["stop"].set()
 
     def shutdown(self):
         if self.room:
@@ -65,22 +88,31 @@ class LoginWindow:
         try:
             extension = adapter._create_proxy_extension(build_threads_proxy_url(room["port"]), -secrets.randbelow(1000000000)-1)
             driver = adapter._create_driver(extension)  # Always a fresh ephemeral profile.
+            # Bound transport requests too: page timeouts alone do not bound a stalled driver.
+            driver.command_executor.client_config.timeout = 30
             driver.set_page_load_timeout(25)
             driver.set_script_timeout(10)
             driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", dict(width=1024,height=768,deviceScaleFactor=1,mobile=False))
             driver.get("https://www.threads.com/login")
+            if room["stop"].is_set():
+                return
             room["ready"].set()
             while not room["stop"].is_set() and time.monotonic() < room["expires"]:
                 try:
-                    kind, payload, answer = room["commands"].get(timeout=.5)
+                    kind, payload, answer, cancelled, deadline = room["commands"].get(timeout=.5)
                 except queue.Empty:
+                    continue
+                if cancelled.is_set() or room["stop"].is_set() or time.monotonic() >= min(deadline, room["expires"]):
                     continue
                 try:
                     if len(driver.window_handles)>1:
                         driver.switch_to.window(driver.window_handles[-1])
-                    host = (urlparse(driver.current_url).hostname or "").lower()
-                    if not any(host == root or host.endswith("."+root) for root in ("threads.com","threads.net","instagram.com","facebook.com")):
+                    url = urlparse(driver.current_url)
+                    host = (url.hostname or "").lower()
+                    if url.scheme != "https" or not any(host == root or host.endswith("."+root) for root in ("threads.com","threads.net","instagram.com","facebook.com")):
                         raise ValueError("Окно открыло посторонний сайт. Закройте его и повторите вход.")
+                    if cancelled.is_set() or room["stop"].is_set() or time.monotonic() >= min(deadline, room["expires"]):
+                        continue
                     if kind == "frame":
                         value = base64.b64decode(driver.execute_cdp_cmd("Page.captureScreenshot", {"format":"jpeg","quality":65,"captureBeyondViewport":False})["data"])
                     elif kind == "click":
@@ -105,7 +137,19 @@ class LoginWindow:
                         adapter._assert_no_blocking_challenge(driver)
                         adapter._assert_authenticated_session(driver)
                         # A public /@username URL is not proof of the signed-in owner.
-                        detected = driver.execute_script("""for (const a of document.querySelectorAll('nav a[href^="/@"], [role="navigation"] a[href^="/@"], a[aria-label="Profile"][href^="/@"], a[aria-label="Профиль"][href^="/@"]')) { const p = new URL(a.href).pathname; if(p.startsWith('/@')) return p.split('/')[1].slice(1); } return null;""")
+                        detected = driver.execute_script(r"""
+                            const names = new Set();
+                            for (const a of document.querySelectorAll('a[href]')) {
+                                const url = new URL(a.href);
+                                if (url.origin !== location.origin || !/^\/@[A-Za-z0-9_.]+\/?$/.test(url.pathname)) continue;
+                                const labels = [a.getAttribute('aria-label'), a.getAttribute('title'),
+                                    ...Array.from(a.querySelectorAll('[aria-label], svg title')).map(el => el.getAttribute('aria-label') || el.textContent)];
+                                // Only the dedicated profile control identifies the signed-in account.
+                                if (!labels.some(label => /^(profile|your profile|профиль|ваш профиль)$/i.test((label || '').trim()))) continue;
+                                names.add(url.pathname.split('/')[1].slice(1).toLowerCase());
+                            }
+                            return names.size === 1 ? Array.from(names)[0] : null;
+                        """)
                         if not detected or detected.casefold() != room["username"].casefold():
                             raise ValueError("Не подтверждён профиль @"+room["username"]+". Войдите в нужный профиль и откройте главную ленту.")
                         cookies = driver.execute_cdp_cmd("Network.getAllCookies", {})["cookies"]

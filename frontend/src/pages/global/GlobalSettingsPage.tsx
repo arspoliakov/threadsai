@@ -8,6 +8,7 @@ import {
 } from "../../api/client";
 import { StyleAssistant } from "../../components/StyleAssistant";
 import { DismissibleTip } from "../../components/DismissibleTip";
+import { readStyleDraft, saveStyleDraft, clearStyleDraft } from "../../styleDraft";
 
 const DEFAULT_GLOBAL_PROMPT = `Ты — редактор ThreadsGo. Пиши как живой человек, а не как рекламный отдел.
 
@@ -35,6 +36,7 @@ export default function GlobalSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [recoverableDraft, setRecoverableDraft] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPrompt() {
@@ -47,6 +49,9 @@ export default function GlobalSettingsPage() {
         const loadedBody = activePrompt?.body || DEFAULT_GLOBAL_PROMPT;
         setBody(loadedBody);
         setSavedBody(loadedBody);
+        const draft = readStyleDraft();
+        if (draft && draft !== loadedBody) setRecoverableDraft(draft);
+        else clearStyleDraft();
       } catch {
         const message = "Не удалось загрузить текущий стиль. Мы не будем перезаписывать его, пока данные не появятся.";
         setLoadError(message);
@@ -60,6 +65,11 @@ export default function GlobalSettingsPage() {
   }, []);
 
   const isDirty = body !== savedBody;
+  useEffect(() => {
+    if (isLoading || loadError) return;
+    if (isDirty) saveStyleDraft(body);
+    else if (recoverableDraft === null) clearStyleDraft();
+  }, [body, isDirty, isLoading, loadError, recoverableDraft]);
 
   useEffect(() => {
     function warnAboutUnsavedChanges(event: BeforeUnloadEvent) {
@@ -82,6 +92,8 @@ export default function GlobalSettingsPage() {
       const savedPrompt = await applyGlobalStyle(body);
       setBody(savedPrompt.body);
       setSavedBody(savedPrompt.body);
+      clearStyleDraft();
+      setRecoverableDraft(null);
       toast.success("Настройки стиля сохранены");
     } catch {
       toast.error("Не удалось сохранить настройки стиля");
@@ -153,8 +165,14 @@ export default function GlobalSettingsPage() {
 
       {!loadError ? <StyleAssistant disabled={isLoading || isSaving} onApply={generated => {
         setBody(generated);
+        setRecoverableDraft(null);
         toast.info("Стиль добавлен в редактор. Сохраните его, чтобы применить ко всем проектам.");
       }} /> : null}
+      {recoverableDraft !== null && !isDirty ? <div role="status" className="rounded-2xl border border-[#c8dfbd] bg-[#f3faef] p-5 text-[#18251c]">
+        <p className="font-medium">Остался несохранённый вариант стиля</p>
+        <p className="mt-2 text-sm">Можно вернуть его в редактор. Сохранённые настройки не изменятся, пока вы не нажмёте «Сохранить стиль».</p>
+        <div className="mt-3 flex flex-wrap gap-3"><button type="button" onClick={() => { setBody(recoverableDraft); setRecoverableDraft(null); }} className="rounded-full bg-[#18351e] px-4 py-2 text-sm text-white">Восстановить вариант</button><button type="button" onClick={() => { clearStyleDraft(); setRecoverableDraft(null); }} className="rounded-full border border-[#bccdb6] px-4 py-2 text-sm">Оставить сохранённый стиль</button></div>
+      </div> : null}
 
       <form onSubmit={handleSubmit} className={`${loadError ? "hidden" : "block"} overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-white shadow-sm`}>
         <header className="flex flex-col gap-4 border-b border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
@@ -180,8 +198,9 @@ export default function GlobalSettingsPage() {
         <div className="grid gap-6 p-5 lg:grid-cols-[1fr_18rem] sm:p-6">
           <textarea
             aria-label="Глобальный стиль постов"
+            maxLength={30000}
             value={body}
-            onChange={(event) => setBody(event.target.value)}
+            onChange={(event) => { setBody(event.target.value); setRecoverableDraft(null); }}
             disabled={isLoading || isSaving}
             rows={18}
             className="min-h-[26rem] w-full resize-y rounded-[20px] border border-[#dfe4dc] bg-[#fbfcf7] p-4 text-sm leading-6 text-[#1d231d] outline-none transition focus:border-[#141815] disabled:opacity-50"

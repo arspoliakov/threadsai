@@ -410,6 +410,7 @@ export type PostingTask = {
 };
 
 export type GenerationMetadata = {
+  publication_confirmation_pending?: boolean;
   applied_angle?: string;
   hook_mechanic?: string;
   structure_pattern?: string;
@@ -860,10 +861,9 @@ export async function getProjectTasks(projectId: number): Promise<PostingTask[]>
   return response.data;
 }
 
-export async function updateTask(taskId: number, contentText: string): Promise<PostingTask> {
-  const response = await apiClient.put<PostingTask>(`/api/v1/tasks/${taskId}`, {
-    content_text: contentText,
-  });
+export async function updateTask(taskId: number, contentText: string | string[]): Promise<PostingTask> {
+  const response = await apiClient.put<PostingTask>(`/api/v1/tasks/${taskId}`,
+    Array.isArray(contentText) ? { posts_chain: contentText } : { content_text: contentText });
   return response.data;
 }
 

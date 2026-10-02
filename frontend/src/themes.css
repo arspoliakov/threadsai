@@ -194,3 +194,13 @@
 :root[data-theme="dark"] [class~="bg-[#f4fff5]"] { background-color: #183025; }
 :root[data-theme="dark"] [class~="bg-[#fffbed]"] { background-color: #302c1d; }
 :root[data-theme="dark"] [class~="bg-[#fff4f1]"] { background-color: #30231f; }
+
+/* Alerts must keep their meaning instead of sharing the success palette. */
+:root[data-theme="dark"] :is([class~="bg-[#fff7e6]"], [class~="bg-[#fff7dc]"], [class~="bg-[#fff4df]"], [class~="bg-[#fff8e8]"], [class~="bg-[#fffbed]"]) { background-color: #30291a; }
+:root[data-theme="dark"] :is([class~="bg-[#fff1f1]"], [class~="bg-[#fff0ed]"], [class~="bg-[#fff6f4]"], [class~="bg-[#fff7f5]"], [class~="bg-[#f7e8e5]"]) { background-color: #30201e; }
+:root[data-theme="dark"] :is([class~="bg-[#e8f1ff]"], [class~="bg-[#f1f8ff]"]) { background-color: #192b38; }
+:root[data-theme="dark"] :is([class~="text-[#3b2a08]"], [class~="text-[#4a2b08]"], [class~="text-[#6f4300]"], [class~="text-[#76520f]"], [class~="text-[#8a4b00]"]) { color: #e7c784; }
+:root[data-theme="dark"] [class~="text-[#124e91]"] { color: #a6c9ef; }
+:root[data-theme="dark"] [class~="border-[#ffd48a]"] { border-color: #796034; }
+:root[data-theme="dark"] [class~="text-[#8a9890]"] { color: #a7b8ae; }
+:root[data-theme="dark"] :is(a,button)[class*="hover:bg-[#eef4ec]"]:hover { background-color: #1d3026; color: #e5efe8; }

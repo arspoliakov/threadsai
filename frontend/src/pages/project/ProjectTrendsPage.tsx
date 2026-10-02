@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -14,8 +14,10 @@ import {
 } from "../../api/client";
 import { DismissibleTip } from "../../components/DismissibleTip";
 import { trackSeoEvent } from "../../components/SeoAnalytics";
+import { JourneyNextStep } from "../../components/JourneyNextStep";
 
 export default function ProjectTrendsPage() {
+  const navigate = useNavigate();
   const { id } = useParams();
   const projectId = Number(id);
   const [trends, setTrends] = useState<SavedTrend[]>([]);
@@ -136,8 +138,8 @@ export default function ProjectTrendsPage() {
         </div>
         <button
           type="button"
-          onClick={() => void handleCollectTrends()}
-          disabled={isLoading || isCollecting || !hasThreadsProfile}
+          onClick={() => hasThreadsProfile ? void handleCollectTrends() : navigate(`/app/projects/${projectId}/settings#profiles`)}
+          disabled={isLoading || isCollecting}
           title={!hasThreadsProfile ? "Сначала подключите рабочий профиль Threads" : undefined}
           className="flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#151515] bg-white px-5 text-sm transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 md:w-fit"
         >
@@ -149,6 +151,14 @@ export default function ProjectTrendsPage() {
               : "Сначала подключите профиль"}
         </button>
       </header>
+
+      {!isLoading && dashboard && !hasThreadsProfile ? (
+        <JourneyNextStep title="Для сбора идей нужен рабочий профиль" description="Подключите Threads в разделе «Профили», затем выберите его в настройках проекта. Сохранённые идеи остаются доступными."
+          action="Выбрать профиль" to={`/app/projects/${projectId}/settings#profiles`} />
+      ) : !isLoading && trends.length > 0 ? (
+        <JourneyNextStep title="Идеи готовы — пора создать свой текст" description="Подборка помогает выбрать подачу. Вернитесь в обзор проекта, чтобы создать пост на вашу тему."
+          action="К созданию поста" to={`/app/projects/${projectId}`} />
+      ) : null}
 
       {isCollecting ? (
         <div className="flex items-start gap-3 rounded-[20px] border border-[#b9d5ee] bg-[#f1f8ff] p-4 text-sm leading-6 text-[#31516d]">
@@ -177,7 +187,7 @@ export default function ProjectTrendsPage() {
       ) : trends.length === 0 ? (
         <EmptyState
           title="Актуальные идеи еще не собраны"
-          description="Нажмите «Обновить подборку идей» или дождитесь автоматического сбора. Он проходит раз в 3 дня."
+          description={isCollecting ? "Подборка появится здесь, когда сбор завершится. Можно перейти в другой раздел — работа продолжится." : hasThreadsProfile ? "Нажмите «Обновить подборку идей» выше. Мы изучим ленту и сохраним найденные приёмы здесь." : "Сначала подключите рабочий профиль к проекту. После этого станет доступен сбор идей из ленты."}
         />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">

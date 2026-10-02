@@ -206,15 +206,9 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
             className="landing-orb absolute left-8 top-8 h-24 w-24 object-contain opacity-80"
           />
           <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#08100d] to-transparent" />
-          <Link
-            to="/"
-            className="absolute left-5 top-5 rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-white/62 transition hover:border-white/35 hover:text-white"
-          >
-            ← лендинг
-          </Link>
         </div>
 
-        <div className="relative p-7 sm:p-9 lg:p-12">
+        <div className="relative p-5 sm:p-9 lg:p-12">
           <div className="flex items-center gap-3">
             <span className="grid h-12 w-12 place-items-center rounded-2xl border border-[#dbe6dd] bg-white/[0.06]">
               <img src="/threadsgo-logo.png" alt="ThreadsGo" className="h-9 w-9 object-contain" />
@@ -225,11 +219,11 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
           </div>
 
           <div className="mt-5 flex items-center justify-between"><Link to="/" className="text-sm text-[#60716a]">← На главную</Link><ThemeToggle /></div>
-          <h1 className="mt-6 font-display text-4xl font-semibold leading-tight tracking-[-0.04em] sm:text-5xl">
+          <h1 className="mt-6 font-display text-3xl font-semibold leading-tight tracking-[-0.04em] sm:text-5xl">
             {isRegistration ? "Создать профиль." : "С возвращением."}
           </h1>
 
-          <p className="mt-5 text-sm leading-6 text-[#60716a]">Войдите через Telegram, подтвердите вход у бота и вернитесь на сайт. <Link to="/pricing/" className="text-[#b7ff91] underline">Тарифы и условия 3 дней пробного периода</Link>.</p>
+          <p className="mt-5 text-sm leading-6 text-[#60716a]">Войдите через Telegram, подтвердите вход у бота и вернитесь на сайт. <Link to="/pricing/" className="text-[#315b46] underline underline-offset-4">Тарифы и условия 3 дней пробного периода</Link>.</p>
 
           {sessionNeedsRefresh ? (
             <div className="mt-6 rounded-2xl border border-[#6cc9ff]/30 bg-[#10212a] px-4 py-3 text-sm leading-6 text-[#ccecff]">
@@ -257,7 +251,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
                     </p>
                     <div className="mx-auto mt-4 w-fit rounded-2xl border border-[#70ff35]/30 bg-[#70ff35]/10 px-5 py-3">
                       <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-[#738078]">код входа</span>
-                      <span className="font-mono text-2xl tracking-[0.25em] text-[#b7ff91]">{botLogin.challenge.display_code}</span>
+                      <span className="font-mono text-2xl tracking-[0.25em] text-[#315b46]">{botLogin.challenge.display_code}</span>
                     </div>
                     {botLogin.message ? <p className="mt-3 text-sm text-[#60716a]">{botLogin.message}</p> : null}
                     <div className="mt-5 flex flex-wrap justify-center gap-3">
@@ -265,21 +259,21 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
                         href={botLogin.challenge.bot_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white transition hover:bg-[#244735]"
+                        className="rounded-full bg-[#315b46] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#244735]"
                       >
                         открыть Telegram ещё раз
                       </a>
                       <button
                         type="button"
                         onClick={() => void botLogin.checkNow()}
-                        className="rounded-full border border-white/14 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#60716a] transition hover:border-white/40 hover:text-[#162b25]"
+                        className="rounded-full border border-[#dbe6dd] px-5 py-3 text-sm font-medium text-[#60716a] transition hover:bg-[#edf3ef] hover:text-[#162b25]"
                       >
                         проверить
                       </button>
                       <button
                         type="button"
                         onClick={() => void botLogin.cancel()}
-                        className="rounded-full border border-[#dbe6dd] px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#738078] transition hover:text-[#162b25]"
+                        className="rounded-full border border-[#dbe6dd] px-5 py-3 text-sm font-medium text-[#60716a] transition hover:bg-[#edf3ef] hover:text-[#162b25]"
                       >
                         отменить
                       </button>
@@ -290,7 +284,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
                     <p className="mx-auto max-w-lg text-sm leading-6 text-[#60716a]">
                       Удобный вход через чат с ботом. Подтвердите вход одной кнопкой и вернитесь на сайт — эта вкладка авторизуется автоматически.
                     </p>
-                    {botLogin.message ? <p className="mt-3 text-sm text-[#ffb4a9]">{botLogin.message}</p> : null}
+                    {botLogin.message ? <p role="status" className="mt-3 text-sm text-[#b42318]">{botLogin.message}</p> : null}
                     <button
                       type="button"
                       disabled={botLogin.phase === "starting"}
@@ -299,7 +293,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
                         const telegramWindow = window.open("about:blank", "_blank");
                         void botLogin.start(telegramWindow);
                       }}
-                      className="mt-4 inline-flex rounded-full bg-[#315b46] px-6 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white transition hover:bg-[#244735] disabled:cursor-wait disabled:opacity-60"
+                      className="mt-4 inline-flex min-h-12 items-center justify-center rounded-full bg-[#315b46] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#244735] disabled:cursor-wait disabled:opacity-60"
                     >
                       {botLogin.phase === "starting" ? "создаём вход…" : (isRegistration ? "создать профиль через Telegram" : "войти через бота Telegram")}
                     </button>
@@ -310,12 +304,12 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
             <details className="mt-4"><summary className="cursor-pointer text-center text-sm text-[#60716a]">Другой способ входа через Telegram</summary>
             <div className="relative grid min-h-20 place-items-center rounded-[1.2rem] border border-[#dbe6dd] bg-white p-5">
               {!canLogin ? (
-                <p className="max-w-md text-center text-sm leading-6 text-white/54">
-                  Чтобы войти, сначала подтвердите условия beta-доступа и юридическую оговорку выше.
+                <p className="max-w-md text-center text-sm leading-6 text-[#60716a]">
+                  Чтобы создать профиль, сначала подтвердите три пункта выше.
                 </p>
               ) : widgetStatus === "loading" ? (
                 <div className="absolute inset-0 grid place-items-center">
-                  <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-white/42">
+                  <div role="status" className="flex items-center gap-3 text-sm text-[#60716a]">
                     <Spinner />
                     загружаем telegram
                   </div>
@@ -336,7 +330,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
                     <button
                       type="button"
                       onClick={() => setWidgetKey((current) => current + 1)}
-                      className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white transition hover:bg-[#244735]"
+                      className="rounded-full bg-[#315b46] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#244735]"
                     >
                       попробовать снова
                     </button>
@@ -356,7 +350,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
           ) : null}
 
           {error ? (
-            <div className="mt-5 rounded-2xl border border-[#b42318]/40 bg-[#2a1110] px-4 py-3 text-sm text-[#ffb4a9]">
+            <div role="alert" className="mt-5 rounded-2xl border border-[#b42318]/40 bg-[#2a1110] px-4 py-3 text-sm text-[#ffb4a9]">
               {error}
             </div>
           ) : null}
@@ -401,12 +395,12 @@ function AgreementCheckbox({
   children: ReactNode;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#dbe6dd] bg-white p-4 text-sm leading-6 text-[#60716a] transition hover:border-white/18">
+    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#dbe6dd] bg-white p-4 text-sm leading-6 text-[#60716a] transition hover:border-[#aeb8b0]">
       <input
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent accent-[#70ff35]"
+        className="mt-1 h-5 w-5 shrink-0 rounded border-[#d5e0d9] bg-transparent accent-[#315b46]"
       />
       <span>{children}</span>
     </label>

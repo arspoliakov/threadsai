@@ -336,6 +336,7 @@ async def generate_post(
     scheduled_at: datetime | None = None,
     media_url: str | None = None,
     use_trends: bool = True,
+    persist: bool = True,
 ) -> PostingTask:
     project = await session.get(Project, project_id)
     project_prompt = await build_system_prompt(project_id=project_id, session=session)
@@ -423,9 +424,10 @@ async def generate_post(
         scheduled_at=scheduled_at,
         generation_metadata=generation_metadata,
     )
-    session.add(posting_task)
-    await session.commit()
-    await session.refresh(posting_task)
+    if persist:
+        session.add(posting_task)
+        await session.commit()
+        await session.refresh(posting_task)
 
     return posting_task
 

@@ -23,7 +23,7 @@ export function FloatingDock({ items }: { items: FloatingDockItem[] }) {
             end={item.end}
             className={({ isActive }) =>
               [
-                "group flex min-h-[3.4rem] flex-1 flex-col items-center justify-center gap-1 rounded-[1.25rem] px-2 text-[11px] font-medium transition-all duration-200 sm:min-h-11 sm:flex-none sm:flex-row sm:gap-2 sm:px-4 sm:text-sm",
+                "group flex min-h-[3.4rem] min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[1.25rem] px-1 text-[11px] font-medium transition-all duration-200 sm:min-h-11 sm:flex-none sm:flex-row sm:gap-2 sm:px-4 sm:text-sm",
                 isActive
                   ? "bg-[#07100e] text-white shadow-[0_12px_35px_rgba(7,16,14,0.22)]"
                   : "text-[#687168] hover:bg-[#eef4ec] hover:text-[#07100e]",
@@ -33,7 +33,7 @@ export function FloatingDock({ items }: { items: FloatingDockItem[] }) {
             <span className="grid h-7 w-7 place-items-center rounded-xl bg-current/[0.08] sm:h-8 sm:w-8">
               <AppIcon name={item.icon} className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
-            <span className="max-w-16 truncate sm:max-w-none">
+            <span className="max-w-full sm:max-w-none">
               {item.label}
             </span>
           </NavLink>

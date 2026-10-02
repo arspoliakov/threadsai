@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import case, select
+from sqlalchemy import case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -125,6 +125,7 @@ async def update_task(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Task cannot be edited in status: {task.status.value}",
         )
+    _require_confirmed_publication_state(task)
 
     posts_chain = payload.resolved_posts_chain
     if not posts_chain:
@@ -143,10 +144,12 @@ async def update_task(
             },
         )
 
-    task.posts_chain = posts_chain
-    task.content_text = posts_chain[0]
-    task.status = PostingTaskStatus.QUEUED
-    task.error_message = None
+    changed = await db.execute(update(PostingTask).where(
+        PostingTask.id == task.id, PostingTask.status == task.status,
+        PostingTask.content_text == task.content_text,
+    ).values(posts_chain=posts_chain, content_text=posts_chain[0]))
+    if changed.rowcount != 1:
+        raise HTTPException(409, "Пост уже изменился или начал публиковаться. Обновите список.")
     await db.commit()
     await db.refresh(task)
     return task
@@ -180,7 +183,9 @@ async def regenerate_task(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Task cannot be regenerated in status: {task.status.value}",
         )
+    _require_confirmed_publication_state(task)
 
+    source_status, source_content = task.status, task.content_text
     regenerated_task = await generate_post(
         project_id=task.project_id,
         topic_or_context=task.content_text,
@@ -190,18 +195,18 @@ async def regenerate_task(
         scheduled_at=task.scheduled_at,
         media_url=task.media_url,
         use_trends=True,
+        persist=False,
     )
 
-    task.content_text = regenerated_task.content_text
-    task.posts_chain = regenerated_task.posts_chain
-    task.generation_metadata = regenerated_task.generation_metadata
-    task.source_trend_id = regenerated_task.source_trend_id
-    task.status = PostingTaskStatus.QUEUED
-    task.error_message = None
-    task.started_at = None
-    task.finished_at = None
-
-    await db.delete(regenerated_task)
+    changed = await db.execute(update(PostingTask).where(
+        PostingTask.id == task.id, PostingTask.status == source_status,
+        PostingTask.content_text == source_content,
+    ).values(content_text=regenerated_task.content_text,
+             posts_chain=regenerated_task.posts_chain,
+             generation_metadata=regenerated_task.generation_metadata,
+             source_trend_id=regenerated_task.source_trend_id))
+    if changed.rowcount != 1:
+        raise HTTPException(409, "Пост изменился во время генерации. Обновите список и проверьте его состояние.")
     await db.commit()
     await db.refresh(task)
     return task
@@ -306,3 +311,11 @@ async def _get_owned_task(task_id: int, owner_id: int, db: AsyncSession) -> Post
         )
         .limit(1)
     )
+
+
+def _require_confirmed_publication_state(task: PostingTask) -> None:
+    if (task.generation_metadata or {}).get("publication_confirmation_pending"):
+        raise HTTPException(
+            status_code=409,
+            detail="Сначала проверьте результат публикации в Threads. Изменение текста не должно создавать повторный пост.",
+        )

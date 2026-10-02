@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { getCurrentUser, type CurrentUser } from "../api/client";
 import { logout } from "../auth";
@@ -97,6 +97,10 @@ export function ProfileMenu() {
               </p>
             </div>
           </button>
+
+          <Link to="/updates/" onClick={() => setIsOpen(false)} className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#dfe4dc] bg-white px-5 text-sm text-[#07100e] transition hover:border-[#07100e] hover:bg-[#eef4ec]">
+            Что нового в сервисе
+          </Link>
 
           <button
             type="button"

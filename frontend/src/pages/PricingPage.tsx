@@ -38,7 +38,7 @@ export default function PricingPage() {
           <div><h2 className="font-display text-2xl text-white">Без неожиданного продления</h2><p className="mt-3">Пробный период начинается в Tribute. Проверьте дату и сумму следующего списания перед подтверждением. Отменить автоматическое продление можно в Tribute. Подарочные дни ThreadsGo не меняют дату списания в Tribute.</p></div>
           <div><h2 className="font-display text-2xl text-white">Что нужно учитывать</h2><p className="mt-3">Мы ограничиваем активность и приостанавливаем действия при проблемах. Meta меняет правила обнаружения автоматизации: ограничения и блокировка аккаунта возможны. ThreadsGo не гарантирует охваты, продажи или сохранность аккаунта.</p></div>
         </section>
-        <footer className="flex flex-wrap gap-6 border-t border-white/10 py-8 text-sm text-white/60"><Link to="/resources/">Бесплатные инструменты</Link><Link to="/blog/">Материалы о Threads</Link><Link to="/terms/">Условия</Link><a href="https://t.me/cuartenlol" target="_blank" rel="noreferrer">Поддержка</a></footer>
+        <footer className="flex flex-wrap gap-6 border-t border-white/10 py-8 text-sm text-white/60"><Link to="/updates/">Что нового</Link><Link to="/resources/">Бесплатные инструменты</Link><Link to="/blog/">Материалы о Threads</Link><Link to="/terms/">Условия</Link><a href="https://t.me/cuartenlol" target="_blank" rel="noreferrer">Поддержка</a></footer>
       </div>
     </main>
   );

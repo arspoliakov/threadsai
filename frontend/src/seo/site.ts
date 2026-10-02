@@ -1,5 +1,6 @@
 export const SITE_URL = "https://threadsgo.ru";
 export const DEFAULT_OG_IMAGE = "/landing/dashboard-mockup.webp";
+import { latestProductUpdateDate } from "../productUpdates";
 import { publishedSeoArticles } from "./articles";
 
 export type SeoPage = {
@@ -18,6 +19,13 @@ export type SeoPage = {
 };
 
 export const seoPages: SeoPage[] = [
+  {
+    path: "/updates/",
+    title: "Что нового в ThreadsGo — обновления сервиса",
+    description: "История обновлений ThreadsGo с датами: помощник нейросети для стиля, удобный вход через Telegram, улучшения подписки и публикаций.",
+    h1: "Что нового в ThreadsGo", lead: "Новые возможности и улучшения сервиса с датами.",
+    kind: "hub", index: true, updatedAt: latestProductUpdateDate,
+  },
   {
     path: "/pricing/",
     title: "Тарифы ThreadsGo — цены и 3 дня пробного периода",

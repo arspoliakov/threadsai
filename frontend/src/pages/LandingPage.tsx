@@ -134,6 +134,7 @@ export default function LandingPage() {
           </Link>
 
           <nav aria-label="Навигация" className="flex items-center gap-3 sm:gap-6">
+          <Link to="/updates/" className="hidden text-sm text-white/75 hover:text-white sm:block">Что нового</Link>
           <Link to="/pricing/" className="text-sm text-white/75 hover:text-white">Тарифы</Link>
           <Link
             to="/login"
@@ -359,7 +360,7 @@ export default function LandingPage() {
       </section>
 
       <nav aria-label="Полезные материалы" className="relative z-10 mx-auto flex max-w-7xl flex-wrap gap-x-6 gap-y-3 px-5 pb-8 text-sm text-white/65 sm:px-8 lg:px-10">
-        <Link to="/pricing/">Тарифы</Link><Link to="/resources/">Бесплатные инструменты</Link><Link to="/blog/">Блог о Threads</Link><Link to="/threads-autoposting/">Автопостинг</Link><Link to="/threads-content-plan/">Контент-план</Link><Link to="/threads-hook-analyzer/">Проверить пост</Link>
+        <Link to="/pricing/">Тарифы</Link><Link to="/updates/">Что нового</Link><Link to="/resources/">Бесплатные инструменты</Link><Link to="/blog/">Блог о Threads</Link><Link to="/threads-autoposting/">Автопостинг</Link><Link to="/threads-content-plan/">Контент-план</Link><Link to="/threads-hook-analyzer/">Проверить пост</Link>
       </nav>
       <footer className="relative z-10 mx-auto flex max-w-7xl flex-col gap-3 px-5 pb-10 text-xs leading-5 text-white/38 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
         <p>

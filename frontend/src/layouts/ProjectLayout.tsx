@@ -105,6 +105,7 @@ function FooterUtility() {
     <footer className="mt-12 flex flex-col gap-3 border-t border-[#d9ddd4] pt-5 text-xs leading-5 text-[#747d73] sm:flex-row sm:items-center sm:justify-between">
       <p>*Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.</p>
       <div className="flex flex-wrap gap-2">
+        <Link to="/updates/" className="w-fit rounded-full border border-[#cfd6cc] bg-white px-4 py-2 text-[#07100e] transition hover:border-[#07100e] hover:bg-[#07100e] hover:text-white">Что нового</Link>
         <Link
           to="/terms"
           className="w-fit rounded-full border border-[#cfd6cc] bg-white px-4 py-2 text-[#07100e] transition hover:border-[#07100e] hover:bg-[#07100e] hover:text-white"

@@ -60,7 +60,7 @@ export default function ResourcesPage() {
           </Link>
           <div className="flex items-center gap-4 text-sm">
             <Link to="/blog/" className="hidden text-[#526056] hover:text-[#07100e] sm:block">Блог</Link>
-            <Link to="/login" className="rounded-full bg-[#07100e] px-5 py-3 text-white hover:bg-[#17382b]">Начать</Link>
+            <Link to="/login?intent=start" data-analytics-cta="start_trial" className="rounded-full bg-[#07100e] px-5 py-3 text-white hover:bg-[#17382b]">Начать</Link>
           </div>
         </div>
       </header>
@@ -94,7 +94,7 @@ export default function ResourcesPage() {
                 вести очередь и не терять контроль над аккаунтом.
               </p>
             </div>
-            <Link to="/login" className="rounded-full bg-[#7eff3a] px-6 py-3.5 text-sm font-semibold uppercase tracking-[0.14em] text-[#07100e] hover:bg-white">
+            <Link to="/login?intent=start" data-analytics-cta="start_trial" className="rounded-full bg-[#7eff3a] px-6 py-3.5 text-sm font-semibold uppercase tracking-[0.14em] text-[#07100e] hover:bg-white">
               Попробовать
             </Link>
           </div>

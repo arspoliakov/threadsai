@@ -317,5 +317,5 @@ function Score({ title, value }: { title: string; value: number }) {
 }
 
 function ResultCta() {
-  return <div className="mt-8 border-t border-[#aeb8b0] pt-6"><p className="max-w-2xl leading-7 text-[#526056]">В ThreadsGo эти идеи можно превратить в посты, сохранить голос проекта и равномерно поставить публикации в очередь.</p><Link to="/login" className="mt-4 inline-flex rounded-full bg-[#07100e] px-6 py-3.5 text-sm text-white">Создать проект</Link></div>;
+  return <div className="mt-8 border-t border-[#aeb8b0] pt-6"><p className="max-w-2xl leading-7 text-[#526056]">В ThreadsGo эти идеи можно превратить в посты, сохранить голос проекта и равномерно поставить публикации в очередь.</p><Link to="/login?intent=start" data-analytics-cta="start_trial" className="mt-4 inline-flex rounded-full bg-[#07100e] px-6 py-3.5 text-sm text-white">Создать проект</Link></div>;
 }

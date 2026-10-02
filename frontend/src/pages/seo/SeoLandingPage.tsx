@@ -31,7 +31,7 @@ export default function SeoLandingPage() {
             <Link to="/resources/" className="hidden text-[#526056] hover:text-[#07100e] sm:block">
               Ресурсы
             </Link>
-            <Link to="/login" className="rounded-full bg-[#07100e] px-5 py-3 text-white hover:bg-[#17382b]">
+            <Link to="/login?intent=start" data-analytics-cta="start_trial" className="rounded-full bg-[#07100e] px-5 py-3 text-white hover:bg-[#17382b]">
               Начать
             </Link>
           </div>
@@ -52,7 +52,7 @@ export default function SeoLandingPage() {
             <h1 className="max-w-4xl font-display text-5xl leading-[0.94] sm:text-7xl">{page.h1}</h1>
             <p className="mt-7 max-w-3xl text-lg leading-8 text-[#526056]">{page.lead}</p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link to="/login" className="rounded-full bg-[#07100e] px-6 py-3.5 text-sm text-white hover:bg-[#17382b]">
+              <Link to="/login?intent=start" data-analytics-cta="start_trial" className="rounded-full bg-[#07100e] px-6 py-3.5 text-sm text-white hover:bg-[#17382b]">
                 Попробовать ThreadsGo
               </Link>
               <Link to="/threads-ideas-generator/" className="rounded-full border border-[#aeb8b0] px-6 py-3.5 text-sm hover:border-[#07100e]">

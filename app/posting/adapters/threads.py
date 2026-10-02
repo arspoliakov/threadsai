@@ -198,6 +198,8 @@ class ThreadsAdapter(BasePostingAdapter):
                     expected_ip=expected_proxy_ip,
                     task_label=f"posting task #{task.id}",
                 )
+                driver._threadsai_interaction_deadline = deadline_at
+                driver._threadsai_interaction_ip_watchdog = ip_watchdog
                 self._raise_if_deadline_exceeded(deadline_at)
                 self._raise_if_proxy_ip_changed(ip_watchdog)
                 self._apply_network_blocking(driver)
@@ -803,6 +805,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 if index == 0:
                     self._share_thread(driver, text, media_url)
                 else:
+                    self._pause_interaction(driver, 2.0)
                     self._reply_to_verified_thread(driver, text, parent_url, posts_chain[index - 1])
                 published_count += 1
                 verified_url = self._verify_published_post(
@@ -832,7 +835,7 @@ class ThreadsAdapter(BasePostingAdapter):
     def _prepare_composer_text(self, driver: WebDriver, text: str) -> None:
         self._type_thread_text(driver, text)
         # Allow the reactive editor to settle, then validate its complete value.
-        time.sleep(min(10.0, max(2.0, len(text) / 60)))
+        self._pause_interaction(driver, min(8.0, max(2.0, len(text) / 75)))
         self._wait_until_editor_contains_text(driver, text)
         driver._threadsai_expected_editor_text = text
 
@@ -1554,7 +1557,7 @@ class ThreadsAdapter(BasePostingAdapter):
                     logger.warning("Clipboard input failed; replacing text through keyboard: %s", typing_error)
                 self._select_editor_contents(driver)
                 element.send_keys(Keys.BACKSPACE)
-                element.send_keys(value)
+                self._type_text_in_chunks(driver, element, value)
                 self._wait_until_editor_contains_text(driver, value)
                 return
             except (StaleElementReferenceException, ElementClickInterceptedException, WebDriverException) as exc:
@@ -1575,9 +1578,33 @@ class ThreadsAdapter(BasePostingAdapter):
 
     def _paste_text_like_human(self, driver: WebDriver, value: str) -> None:
         self._write_text_to_browser_clipboard(driver, value)
-        time.sleep(random.uniform(0.35, 1.2))
+        self._pause_interaction(driver, random.uniform(0.35, 1.2))
         ActionChains(driver).key_down(Keys.CONTROL).send_keys("v").key_up(Keys.CONTROL).perform()
         logger.info("Threads text pasted into active composer via Ctrl+V")
+
+    def _check_interaction_guard(self, driver: WebDriver) -> None:
+        # Context lives on the driver, not the shared adapter used by worker threads.
+        context = vars(driver)
+        self._raise_if_deadline_exceeded(context.get("_threadsai_interaction_deadline"))
+        self._raise_if_proxy_ip_changed(context.get("_threadsai_interaction_ip_watchdog"))
+
+    def _pause_interaction(self, driver: WebDriver, seconds: float) -> None:
+        end_at = time.monotonic() + max(0.0, seconds)
+        while True:
+            self._check_interaction_guard(driver)
+            remaining = end_at - time.monotonic()
+            if remaining <= 0:
+                return
+            time.sleep(min(0.25, remaining))
+
+    def _type_text_in_chunks(self, driver: WebDriver, element: WebElement, value: str) -> None:
+        # Native keyboard input; no synthetic DOM input/change events.
+        for chunk in _keyboard_chunks(value):
+            self._check_interaction_guard(driver)
+            if not self._element_has_focus(driver, element):
+                raise WebDriverException("Composer lost focus during keyboard input.")
+            element.send_keys(chunk)
+            self._pause_interaction(driver, random.uniform(0.18, 0.4) + (0.35 if chunk.rstrip().endswith((".", "!", "?", ":")) or "\n" in chunk else 0.0))
 
     def _write_text_to_browser_clipboard(self, driver: WebDriver, value: str) -> None:
         try:
@@ -1641,7 +1668,15 @@ class ThreadsAdapter(BasePostingAdapter):
         raise TimeoutException(f"Threads action failed without explicit error: {action_name}")
 
     def _scroll_to_element(self, driver: WebDriver, element: WebElement) -> None:
-        ActionChains(driver).scroll_to_element(element).perform()
+        self._check_interaction_guard(driver)
+        visible = driver.execute_script("""
+            const r = arguments[0].getBoundingClientRect();
+            return r.width > 0 && r.height > 0 && r.top >= 12 && r.left >= 0 &&
+                   r.bottom <= window.innerHeight - 12 && r.right <= window.innerWidth;
+        """, element)
+        if visible is not True:
+            ActionChains(driver).scroll_to_element(element).perform()
+            self._pause_interaction(driver, 0.4)
 
     def _wait_until_editor_has_focus(self, driver: WebDriver, element: WebElement) -> None:
         WebDriverWait(driver, 5).until(
@@ -2193,3 +2228,18 @@ def _normalize_threads_post_url(value: str) -> str:
         return value.strip()
 
     return f"https://www.threads.com{parsed.path.rstrip('/')}"
+
+
+def _keyboard_chunks(value: str, limit: int = 24) -> list[str]:
+    """Keep whitespace/newlines verbatim while favouring word boundaries."""
+    chunks = []
+    start = 0
+    while start < len(value):
+        end = min(start + limit, len(value))
+        if end < len(value):
+            boundary = value.rfind(" ", start, end)
+            if boundary > start:
+                end = boundary + 1
+        chunks.append(value[start:end])
+        start = end
+    return chunks

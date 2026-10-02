@@ -63,10 +63,12 @@ class BrowserFlowTest(unittest.TestCase):
              patch.object(adapter, "_wait_until_editor_has_focus"), \
              patch.object(adapter, "_select_editor_contents") as select, \
              patch.object(adapter, "_paste_text_like_human"), \
+             patch.object(adapter, "_element_has_focus", return_value=True), \
+             patch.object(adapter, "_pause_interaction"), \
              patch.object(adapter, "_wait_until_editor_contains_text", side_effect=[TimeoutException(), None]):
             adapter._safe_type_into_active_editor(driver, "css selector", "editor", expected)
             self.assertEqual(select.call_count, 2)
-            self.assertEqual(editor.send_keys.call_args_list[-1].args, (expected,))
+            self.assertEqual("".join(call.args[0] for call in editor.send_keys.call_args_list[1:]), expected)
 
     def test_chain_uses_each_verified_parent_and_stops_on_uncertainty(self):
         adapter = ThreadsAdapter()

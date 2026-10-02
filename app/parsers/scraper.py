@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import random
 import re
-import time
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from selenium.common.exceptions import StaleElementReferenceException, WebDriverException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException, WebDriverException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
@@ -35,9 +34,6 @@ MIN_TEXT_LENGTH = 20
 MIN_LIKES_THRESHOLD = 10
 DEFAULT_UNKNOWN_LIKES_SCORE = 1
 SCROLL_TIMES = 4
-SCROLL_PAUSE_SECONDS = 2.5
-SCROLL_STEP_MIN_PX = 420
-SCROLL_STEP_MAX_PX = 1100
 INITIAL_FEED_PAUSE_SECONDS = 3
 EMPTY_FEED_REFRESH_PAUSE_SECONDS = 5
 MAX_EMPTY_FEED_REFRESHES = 2
@@ -82,23 +78,26 @@ class ThreadsTrendScraper:
                 expected_ip=expected_proxy_ip,
                 task_label=f"scraping account #{account.id}",
             )
+            driver._threadsai_interaction_deadline = deadline_at
+            driver._threadsai_interaction_ip_watchdog = ip_watchdog
             self.adapter._raise_if_deadline_exceeded(deadline_at)
             self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
             self.adapter._apply_network_blocking(driver)
             self.adapter._authenticate_with_cookies(driver, account)
             self.adapter._raise_if_deadline_exceeded(deadline_at)
             self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
-            driver.get(target_url)
-            self.adapter._wait_for_dom(driver)
+            if driver.current_url.rstrip("/") != target_url.rstrip("/"):
+                driver.get(target_url)
+                self.adapter._wait_for_dom(driver)
             self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
-            _sleep_with_deadline(INITIAL_FEED_PAUSE_SECONDS, deadline_at, self.adapter)
+            self.adapter._pause_interaction(driver, INITIAL_FEED_PAUSE_SECONDS)
             self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
             self._wait_for_feed_content(driver, deadline_at)
             self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
-            self._scroll_feed(driver, deadline_at)
+            posts = self._scroll_feed(driver, deadline_at, target_url=target_url)
             self.adapter._raise_if_deadline_exceeded(deadline_at)
             self.adapter._raise_if_proxy_ip_changed(ip_watchdog)
-            return self._extract_posts(driver, target_url)
+            return posts
         except PostingDeadlineExceeded:
             raise
         except WebDriverException as exc:
@@ -119,24 +118,51 @@ class ThreadsTrendScraper:
             if proxy_extension_path is not None:
                 self.adapter._remove_file_safely(proxy_extension_path)
 
-    def _scroll_feed(self, driver: WebDriver, deadline_at: float | None = None) -> None:
-        scroll_rounds = random.randint(max(2, SCROLL_TIMES - 1), SCROLL_TIMES + 2)
-
-        for round_index in range(scroll_rounds):
+    def _scroll_feed(self, driver: WebDriver, deadline_at: float | None = None,
+                     *, target_url: str = DEFAULT_THREADS_FEED_URL) -> list[dict[str, Any]]:
+        # Capture each viewport before virtualized cards disappear from the DOM.
+        collected: dict[str, dict[str, Any]] = {}
+        stalled_rounds = 0
+        for round_index in range(SCROLL_TIMES + 1):
             self.adapter._raise_if_deadline_exceeded(deadline_at)
-            scroll_step = random.randint(SCROLL_STEP_MIN_PX, SCROLL_STEP_MAX_PX)
-            ActionChains(driver).scroll_by_amount(0, scroll_step).perform()
-            logger.info("Threads feed soft-scroll %s/%s by %s px", round_index + 1, scroll_rounds, scroll_step)
+            self.adapter._check_interaction_guard(driver)
+            self.adapter._assert_no_blocking_challenge(driver)
+            before = len(collected)
+            for post in self._extract_posts(driver, target_url):
+                collected.setdefault(post["text"], post)
+            stalled_rounds = stalled_rounds + 1 if len(collected) == before else 0
+            if len(collected) >= MAX_ACCEPTED_POSTS or stalled_rounds >= 2 or round_index == SCROLL_TIMES:
+                break
+            signature = self._feed_signature(driver)
+            height = driver.execute_script("return window.innerHeight")
+            step = min(700, max(220, int(height) // 2))
+            ActionChains(driver).scroll_by_amount(0, step).perform()
+            self.adapter._pause_interaction(driver, random.uniform(2.0, 3.5))
+            try:
+                WebDriverWait(driver, 4, poll_frequency=0.5).until(
+                    lambda current: self._feed_changed(current, signature))
+            except TimeoutException:
+                # No refresh loop: one more sample, then stop if still unchanged.
+                pass
+            logger.info("Threads feed viewport %s collected %s candidates", round_index + 1, len(collected))
+        return sorted(collected.values(), key=lambda post: post["likes"], reverse=True)[:MAX_ACCEPTED_POSTS]
 
-            pause_seconds = random.uniform(1.8, 5.5)
-            if random.random() < 0.25:
-                pause_seconds += random.uniform(2.0, 5.0)
+    def _feed_changed(self, driver: WebDriver, previous: list[str]) -> bool:
+        self.adapter._check_interaction_guard(driver)
+        self.adapter._assert_no_blocking_challenge(driver)
+        return self._feed_signature(driver) != previous
 
-            _sleep_with_deadline(pause_seconds, deadline_at, self.adapter)
+    def _feed_signature(self, driver: WebDriver) -> list[str]:
+        return driver.execute_script("""
+            return Array.from(document.querySelectorAll(arguments[0])).slice(0, 50)
+                .map(el => (el.innerText || '').slice(0, 160));
+        """, THREADS_POST_SELECTOR)
 
     def _wait_for_feed_content(self, driver: WebDriver, deadline_at: float | None = None) -> None:
         for attempt in range(MAX_EMPTY_FEED_REFRESHES + 1):
             self.adapter._raise_if_deadline_exceeded(deadline_at)
+            self.adapter._check_interaction_guard(driver)
+            self.adapter._assert_no_blocking_challenge(driver)
             if self._has_feed_content(driver):
                 logger.info("Лента Threads прогружена, попытка: %s", attempt + 1)
                 return
@@ -146,9 +172,11 @@ class ThreadsTrendScraper:
                 return
 
             logger.info("Лента Threads пустая, делаю принудительный refresh: %s/%s", attempt + 1, MAX_EMPTY_FEED_REFRESHES)
+            self.adapter._check_interaction_guard(driver)
+            self.adapter._assert_no_blocking_challenge(driver)
             driver.refresh()
             self.adapter._wait_for_dom(driver)
-            _sleep_with_deadline(EMPTY_FEED_REFRESH_PAUSE_SECONDS, deadline_at, self.adapter)
+            self.adapter._pause_interaction(driver, EMPTY_FEED_REFRESH_PAUSE_SECONDS)
 
     def _has_feed_content(self, driver: WebDriver) -> bool:
         try:
@@ -247,47 +275,6 @@ class ThreadsTrendScraper:
                 break
 
         return sorted(posts, key=lambda post: post["likes"], reverse=True)[:MAX_SCRAPED_POSTS]
-
-    def _maybe_like_post(self, element) -> None:
-        if random.random() >= 0.33:
-            return
-
-        like_selectors = [
-            '[aria-label="Like"]',
-            '[aria-label*="Like"]',
-            '[aria-label*="like"]',
-            '[aria-label*="Нрав"]',
-            '[aria-label*="нрав"]',
-            '[aria-label*="Лайк"]',
-            '[aria-label*="лайк"]',
-            'svg[aria-label*="Like"]',
-            'svg[aria-label*="like"]',
-            'svg[aria-label*="Нрав"]',
-            'svg[aria-label*="Лайк"]',
-        ]
-
-        for selector in like_selectors:
-            try:
-                candidates = element.find_elements(By.CSS_SELECTOR, selector)
-            except WebDriverException:
-                continue
-
-            for candidate in candidates[:3]:
-                try:
-                    if not candidate.is_displayed():
-                        continue
-
-                    clickable = candidate
-                    try:
-                        clickable = candidate.find_element(By.XPATH, './ancestor::*[@role="button"][1]')
-                    except WebDriverException:
-                        pass
-
-                    clickable.click()
-                    logger.info("Piggyback engagement: liked a collected Threads post.")
-                    return
-                except (StaleElementReferenceException, WebDriverException):
-                    continue
 
     def _find_post_containers(self, driver: WebDriver):
         selectors = [
@@ -668,12 +655,3 @@ def _parse_localized_number(value: str) -> float | None:
         return float(clean_value)
     except ValueError:
         return None
-
-
-def _sleep_with_deadline(seconds: float, deadline_at: float | None, adapter: ThreadsAdapter) -> None:
-    end_at = time.monotonic() + seconds
-    while time.monotonic() < end_at:
-        adapter._raise_if_deadline_exceeded(deadline_at)
-        time.sleep(min(0.5, end_at - time.monotonic()))
-
-    adapter._raise_if_deadline_exceeded(deadline_at)

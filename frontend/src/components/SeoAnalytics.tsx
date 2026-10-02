@@ -15,20 +15,30 @@ const GTM_ID = import.meta.env.VITE_GTM_ID as string | undefined;
 const YANDEX_METRIKA_ID = import.meta.env.VITE_YANDEX_METRIKA_ID as string | undefined;
 let analyticsScriptsMounted = false;
 let previousPageUrl = "";
+let cachedClientId: string | undefined;
+const memoryStorage = new Map<string, string>();
+function readStorage(key: string) {
+  try { return window.localStorage.getItem(key) ?? memoryStorage.get(key); } catch { return memoryStorage.get(key); }
+}
+function writeStorage(key: string, value: string) {
+  memoryStorage.set(key, value);
+  try { window.localStorage.setItem(key, value); } catch { /* Analytics must never block access. */ }
+}
 
 export function trackSeoEvent(event: string, payload: Record<string, unknown> = {}) {
   if (typeof window === "undefined") return;
   window.dataLayer = window.dataLayer ?? [];
   window.dataLayer.push({ event, ...payload });
   const counterId = getYandexCounterId();
-  if (counterId && window.ym) window.ym(counterId, "reachGoal", event, payload);
+  try { if (counterId && window.ym) window.ym(counterId, "reachGoal", event, payload); } catch { /* Nonessential telemetry. */ }
 }
 
 export function trackSeoEventOnce(event: string, payload: Record<string, unknown> = {}) {
   if (typeof window === "undefined") return;
-  const storageKey = `threadsgo.analytics.${event}`;
-  if (window.localStorage.getItem(storageKey)) return;
-  window.localStorage.setItem(storageKey, new Date().toISOString());
+  const scope = readStorage("threadsgo.analytics_user") || "anonymous";
+  const storageKey = `threadsgo.analytics.${scope}.${event}`;
+  if (readStorage(storageKey)) return;
+  writeStorage(storageKey, new Date().toISOString());
   trackSeoEvent(event, payload);
 }
 
@@ -39,9 +49,9 @@ export function getSeoAttribution(): {
   analytics?: Record<string, string>;
 } {
   if (typeof window === "undefined") return {};
-  const firstLanding = window.localStorage.getItem(FIRST_LANDING_KEY);
-  const firstReferrer = window.localStorage.getItem(FIRST_REFERRER_KEY);
-  const storedUtm = window.localStorage.getItem(FIRST_UTM_KEY);
+  const firstLanding = readStorage(FIRST_LANDING_KEY);
+  const firstReferrer = readStorage(FIRST_REFERRER_KEY);
+  const storedUtm = readStorage(FIRST_UTM_KEY);
   let firstUtm: Record<string, string> = {};
   if (storedUtm) {
     try {
@@ -83,30 +93,34 @@ export default function SeoAnalytics() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const currentPath = `${location.pathname}${location.search}`;
-    if (!window.localStorage.getItem(FIRST_LANDING_KEY)) window.localStorage.setItem(FIRST_LANDING_KEY, currentPath);
-    if (!window.localStorage.getItem(FIRST_REFERRER_KEY) && document.referrer) {
-      window.localStorage.setItem(FIRST_REFERRER_KEY, document.referrer);
+    if (!readStorage(FIRST_LANDING_KEY)) {
+      writeStorage(FIRST_LANDING_KEY, currentPath);
+      writeStorage(FIRST_REFERRER_KEY, document.referrer || "");
+      const utm = Object.fromEntries([...params.entries()].filter(([key]) =>
+        key.startsWith("utm_") || ["yclid", "gclid", "fbclid"].includes(key)));
+      writeStorage(FIRST_UTM_KEY, JSON.stringify(utm));
     }
-    if (!window.localStorage.getItem(FIRST_UTM_KEY)) {
-      const utm = Object.fromEntries(
-        [...params.entries()].filter(([key]) =>
-          key.startsWith("utm_") || key === "yclid" || key === "gclid" || key === "fbclid",
-        ),
-      );
-      if (Object.keys(utm).length) window.localStorage.setItem(FIRST_UTM_KEY, JSON.stringify(utm));
-    }
-    trackPageView(currentPath);
-    trackSeoEvent("seo_page_view", { path: location.pathname });
+    const recordPage = () => {
+      if (previousPageUrl === `${window.location.origin}${currentPath}`) return;
+      trackPageView(currentPath);
+      trackSeoEvent("seo_page_view", { path: location.pathname });
+    };
+    document.addEventListener("threadsgo:seo-ready", recordPage);
+    const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (canonical && new URL(canonical.href).pathname.replace(/\/$/, "") === location.pathname.replace(/\/$/, "")) recordPage();
+    return () => document.removeEventListener("threadsgo:seo-ready", recordPage);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
-      const link = (event.target as HTMLElement).closest("a");
+      const link = event.target instanceof Element ? event.target.closest("a") : null;
       if (!link) return;
       const href = link.getAttribute("href");
-      if (href === "/login") {
+      if (href?.split("?")[0] === "/login") {
         trackSeoEvent("seo_cta_click", { path: location.pathname, label: link.textContent?.trim() });
-        trackSeoEvent("registration_start", { path: location.pathname, ...getSeoAttribution() });
+        if (link.getAttribute("data-analytics-cta") === "start_trial" || href?.includes("intent=start")) {
+          trackSeoEvent("registration_start", { path: location.pathname });
+        }
       }
     };
     document.addEventListener("click", handleClick);
@@ -141,6 +155,7 @@ function mountYandexMetrika() {
     };
   window.ym.l = Date.now();
   window.ym(counterId, "init", {
+    defer: true,
     ssr: true,
     clickmap: true,
     ecommerce: "dataLayer",
@@ -176,10 +191,10 @@ function getClientAnalyticsIds() {
 
 function getYandexClientId(counterId: number | undefined) {
   if (!counterId || !window.ym) return undefined;
-  let clientId: string | undefined;
+  let clientId = cachedClientId;
   try {
     window.ym(counterId, "getClientID", (value: unknown) => {
-      if (typeof value === "string") clientId = value;
+      if (typeof value === "string") clientId = cachedClientId = value;
     });
   } catch {
     return undefined;
@@ -191,6 +206,7 @@ function trackPageView(path: string) {
   if (typeof window === "undefined") return;
 
   const currentUrl = `${window.location.origin}${path}`;
+  if (currentUrl === previousPageUrl) return;
   const referrer = previousPageUrl || document.referrer;
   previousPageUrl = currentUrl;
 
@@ -210,3 +226,18 @@ function trackPageView(path: string) {
     page_title: document.title,
   });
 }
+
+export async function getSeoAttributionForLogin() {
+  const counterId = getYandexCounterId();
+  if (counterId && window.ym && !cachedClientId) {
+    await new Promise<void>((resolve) => {
+      const timeout = window.setTimeout(resolve, 600);
+      try { window.ym!(counterId, "getClientID", (value: unknown) => {
+        if (typeof value === "string") cachedClientId = value;
+        window.clearTimeout(timeout); resolve();
+      }); } catch { window.clearTimeout(timeout); resolve(); }
+    });
+  }
+  return getSeoAttribution();
+}
+export function setAnalyticsUser(userId: number) { writeStorage("threadsgo.analytics_user", String(userId)); }

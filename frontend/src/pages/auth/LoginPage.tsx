@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import {
   LoginError,
+  type LoginResponse,
   TelegramAuthPayload,
   getCurrentUser,
   loginWithTelegram,
@@ -11,7 +12,7 @@ import {
   setStoredAuthToken,
 } from "../../api/client";
 import { isAuthenticated } from "../../auth";
-import { getSeoAttribution, trackSeoEvent } from "../../components/SeoAnalytics";
+import { getSeoAttributionForLogin, trackSeoEvent, trackSeoEventOnce, setAnalyticsUser } from "../../components/SeoAnalytics";
 import { useTelegramBotLogin } from "../../hooks/useTelegramBotLogin";
 
 type LocationState = {
@@ -56,8 +57,10 @@ export default function LoginPage() {
   );
   const canLogin = termsAccepted && metaNoticeAccepted;
 
-  const finishAuthenticated = useCallback(async () => {
-    trackSeoEvent("telegram_login_complete", getSeoAttribution());
+  const finishAuthenticated = useCallback(async (response: LoginResponse) => {
+    if (response.user_id != null) setAnalyticsUser(response.user_id);
+    trackSeoEvent("telegram_login_complete");
+    if (response.is_new_user) trackSeoEventOnce("registration_complete");
     toast.success("Вход через Telegram выполнен");
     navigate(await getPostLoginDestination(state?.from), { replace: true });
   }, [navigate, state?.from]);
@@ -70,9 +73,9 @@ export default function LoginPage() {
       setIsLoading(true);
 
       try {
-        const response = await loginWithTelegram(user, getSeoAttribution());
+        const response = await loginWithTelegram(user, await getSeoAttributionForLogin());
         setStoredAuthToken(response.access_token);
-        await finishAuthenticated();
+        await finishAuthenticated(response);
       } catch (telegramError) {
         const message =
           telegramError instanceof LoginError
@@ -107,9 +110,9 @@ export default function LoginPage() {
       try {
         webApp?.ready?.();
         webApp?.expand?.();
-        const response = await loginWithTelegramWebApp(initData, getSeoAttribution());
+        const response = await loginWithTelegramWebApp(initData, await getSeoAttributionForLogin());
         setStoredAuthToken(response.access_token);
-        await finishAuthenticated();
+        await finishAuthenticated(response);
         return true;
       } catch (telegramError) {
         const message =
@@ -203,7 +206,7 @@ export default function LoginPage() {
       </div>
 
       <section className="landing-reveal relative m-auto grid w-full max-w-6xl overflow-hidden rounded-[2.2rem] border border-white/10 bg-white/[0.045] shadow-[0_50px_160px_rgba(0,0,0,0.55)] backdrop-blur md:grid-cols-[0.95fr_1.05fr]">
-        <div className="relative min-h-[22rem] overflow-hidden border-b border-white/10 bg-[#08100d] md:border-b-0 md:border-r md:border-white/10">
+        <div className="relative hidden min-h-[22rem] md:block overflow-hidden border-b border-white/10 bg-[#08100d] md:border-b-0 md:border-r md:border-white/10">
           <img
             src="/landing/secure-mobile-console.webp"
             alt=""
@@ -233,9 +236,12 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <h1 className="mt-10 font-display text-6xl leading-[0.82] tracking-[-0.06em] text-white sm:text-7xl">
+          <Link to="/" className="mt-5 inline-block text-sm text-white/60 hover:text-white">← На главную</Link>
+          <h1 className="mt-6 font-display text-4xl leading-[0.82] tracking-[-0.06em] text-white sm:text-7xl">
             Вход в кабинет.
           </h1>
+
+          <p className="mt-5 text-sm leading-6 text-white/60">Войдите через Telegram, подтвердите вход у бота и вернитесь на сайт. <Link to="/pricing/" className="text-[#b7ff91] underline">Тарифы и условия 3 дней пробного периода</Link>.</p>
 
           {sessionNeedsRefresh ? (
             <div className="mt-6 rounded-2xl border border-[#6cc9ff]/30 bg-[#10212a] px-4 py-3 text-sm leading-6 text-[#ccecff]">
@@ -269,43 +275,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-8 rounded-[1.6rem] border border-white/10 bg-black/24 p-5">
-            <div className="relative grid min-h-20 place-items-center rounded-[1.2rem] border border-white/8 bg-[#050807]/70 p-5">
-              {!canLogin ? (
-                <p className="max-w-md text-center text-sm leading-6 text-white/54">
-                  Чтобы войти, сначала подтвердите условия beta-доступа и юридическую оговорку выше.
-                </p>
-              ) : widgetStatus === "loading" ? (
-                <div className="absolute inset-0 grid place-items-center">
-                  <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-white/42">
-                    <Spinner />
-                    загружаем telegram
-                  </div>
-                </div>
-              ) : null}
-
-              {canLogin && TELEGRAM_BOT_USERNAME ? (
-                <div className={widgetStatus === "failed" ? "hidden" : "grid place-items-center"} ref={widgetContainerRef} />
-              ) : null}
-
-              {canLogin && widgetStatus === "failed" ? (
-                <div className="max-w-md text-center">
-                  <p className="text-sm leading-6 text-white/68">
-                    Telegram-виджет не загрузился. Так бывает, если браузер, VPN или провайдер режет внешний
-                    скрипт Telegram.
-                  </p>
-                  <div className="mt-5">
-                    <button
-                      type="button"
-                      onClick={() => setWidgetKey((current) => current + 1)}
-                      className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35]"
-                    >
-                      попробовать снова
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
+            {!canLogin ? <p className="text-center text-sm leading-6 text-white/60">Подтвердите оба пункта выше — появится кнопка входа через бота Telegram.</p> : null}
             {canLogin ? (
               <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-[#050807]/45 p-4 text-center">
                 {botLogin.challenge && ["waiting", "finishing"].includes(botLogin.phase) ? (
@@ -366,6 +336,45 @@ export default function LoginPage() {
                 )}
               </div>
             ) : null}
+            <details className="mt-4"><summary className="cursor-pointer text-center text-sm text-white/60">Другой способ входа через Telegram</summary>
+            <div className="relative grid min-h-20 place-items-center rounded-[1.2rem] border border-white/8 bg-[#050807]/70 p-5">
+              {!canLogin ? (
+                <p className="max-w-md text-center text-sm leading-6 text-white/54">
+                  Чтобы войти, сначала подтвердите условия beta-доступа и юридическую оговорку выше.
+                </p>
+              ) : widgetStatus === "loading" ? (
+                <div className="absolute inset-0 grid place-items-center">
+                  <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-white/42">
+                    <Spinner />
+                    загружаем telegram
+                  </div>
+                </div>
+              ) : null}
+
+              {canLogin && TELEGRAM_BOT_USERNAME ? (
+                <div className={widgetStatus === "failed" ? "hidden" : "grid place-items-center"} ref={widgetContainerRef} />
+              ) : null}
+
+              {canLogin && widgetStatus === "failed" ? (
+                <div className="max-w-md text-center">
+                  <p className="text-sm leading-6 text-white/68">
+                    Telegram-виджет не загрузился. Так бывает, если браузер, VPN или провайдер режет внешний
+                    скрипт Telegram.
+                  </p>
+                  <div className="mt-5">
+                    <button
+                      type="button"
+                      onClick={() => setWidgetKey((current) => current + 1)}
+                      className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35]"
+                    >
+                      попробовать снова
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            </details>
           </div>
 
           {isLoading ? (

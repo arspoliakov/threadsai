@@ -12,6 +12,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import { seoLandingRoutePaths } from "./seo/routes";
 
 const SeoHead = lazy(() => import("./components/SeoHead"));
+const PricingPage = lazy(() => import("./pages/PricingPage"));
 const SeoLandingPage = lazy(() => import("./pages/seo/SeoLandingPage"));
 const ArticlePage = lazy(() => import("./pages/seo/ArticlePage"));
 const ResourcesPage = lazy(() => import("./pages/seo/ResourcesPage"));
@@ -47,6 +48,7 @@ export default function App() {
         <Routes>
         <Route index element={<LandingPage />} />
         <Route path="login" element={<LoginPage />} />
+        <Route path="pricing/" element={<PricingPage />} />
         <Route path="terms" element={<TermsPage />} />
         <Route path="privacy" element={<PrivacyPage />} />
         <Route path="resources/" element={<ResourcesPage />} />

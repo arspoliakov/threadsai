@@ -26,9 +26,9 @@ const audienceCards = [
 
 const stats = [
   {
-    value: "100+",
-    label: "трендов в день",
-    description: "Непрерывный анализ ленты Threads",
+    value: "Идеи",
+    label: "для вашей ниши",
+    description: "Обсуждаемые темы и черновики в стиле проекта",
   },
   {
     value: "100%",
@@ -38,7 +38,7 @@ const stats = [
   {
     value: "24/7",
     label: "на автопилоте",
-    description: "Публикации выходят точно в срок",
+    description: "Очередь публикаций с ограничениями и паузами",
   },
   {
     value: "1 клик",
@@ -74,7 +74,7 @@ const workflow = [
 const capabilities = [
   "Быстрый вход через Telegram.",
   "Полная изоляция каждого проекта.",
-  "Умная защита от теневых банов.",
+  "Ограничения активности и паузы при проблемах.",
   "Над одним проектом могут работать несколько аккаунтов, набирая в разы больше аудитории.",
 ];
 
@@ -133,12 +133,15 @@ export default function LandingPage() {
             <span className="block font-display text-xl tracking-[-0.04em] text-white">ThreadsGo</span>
           </Link>
 
+          <nav aria-label="Навигация" className="flex items-center gap-3 sm:gap-6">
+          <Link to="/pricing/" className="text-sm text-white/75 hover:text-white">Тарифы</Link>
           <Link
             to="/login"
             className="shrink-0 rounded-full border border-white/14 bg-white/[0.05] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-white/75 transition hover:border-white/40 hover:bg-white hover:text-[#070909] sm:px-5 sm:text-[11px]"
           >
             Войти
           </Link>
+          </nav>
         </header>
 
         <div className="grid flex-1 items-center gap-10 py-14 sm:py-20 lg:grid-cols-[0.95fr_1.05fr] lg:py-10">
@@ -152,24 +155,27 @@ export default function LandingPage() {
 
             <p className="mt-7 max-w-2xl text-base leading-7 text-white/62 sm:mt-8 sm:text-lg sm:leading-8">
               Забудьте про запросы в духе «ИИ, напиши пост». Наша система сама находит обсуждаемые темы в вашей нише,
-              перенимает стиль вашего проекта и ведет аккаунт 24/7. Вы только утверждаете черновики.
+              учитывает стиль вашего проекта и готовит очередь публикаций. Вы редактируете и утверждаете черновики.
             </p>
 
             <div className="mt-9 grid gap-3 sm:mt-10 sm:flex sm:flex-wrap">
               <Link
-                to="/login"
+                to="/login?intent=start"
+                data-analytics-cta="start_trial"
                 className="group rounded-full bg-white px-7 py-4 text-center font-mono text-xs uppercase tracking-[0.18em] text-[#070909] transition hover:bg-[#70ff35]"
               >
-                Начать работу
+                Попробовать 3 дня
                 <span className="ml-3 inline-block transition group-hover:translate-x-1">→</span>
               </Link>
-              <a
-                href="#audience"
+              <Link
+                to="/threads-ideas-generator/"
                 className="rounded-full border border-white/14 px-7 py-4 text-center font-mono text-xs uppercase tracking-[0.18em] text-white/68 transition hover:border-white/40 hover:text-white"
               >
-                Кому это нужно
-              </a>
+                Получить идеи бесплатно
+              </Link>
             </div>
+
+            <p className="mt-4 text-sm leading-6 text-white/55">Basic: 3 дня бесплатно, затем 1 490 ₽ в месяц. <Link to="/pricing/" className="underline underline-offset-4">Условия и все тарифы</Link></p>
 
             <div className="mt-10 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:mt-14 lg:grid-cols-5">
               {stats.map((item) => (
@@ -352,6 +358,9 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <nav aria-label="Полезные материалы" className="relative z-10 mx-auto flex max-w-7xl flex-wrap gap-x-6 gap-y-3 px-5 pb-8 text-sm text-white/65 sm:px-8 lg:px-10">
+        <Link to="/pricing/">Тарифы</Link><Link to="/resources/">Бесплатные инструменты</Link><Link to="/blog/">Блог о Threads</Link><Link to="/threads-autoposting/">Автопостинг</Link><Link to="/threads-content-plan/">Контент-план</Link><Link to="/threads-hook-analyzer/">Проверить пост</Link>
+      </nav>
       <footer className="relative z-10 mx-auto flex max-w-7xl flex-col gap-3 px-5 pb-10 text-xs leading-5 text-white/38 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
         <p>
           *Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.
@@ -521,7 +530,7 @@ function TrendPreviewPanel() {
                 />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-[#08100d]">{trend.username}</p>
-                  <p className="mt-0.5 text-[11px] text-[#6a7a72]">Threads · сейчас в ленте</p>
+                  <p className="mt-0.5 text-[11px] text-[#6a7a72]">Threads · пример оформления</p>
                 </div>
               </div>
               <span

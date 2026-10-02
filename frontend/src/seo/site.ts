@@ -19,6 +19,14 @@ export type SeoPage = {
 
 export const seoPages: SeoPage[] = [
   {
+    path: "/pricing/",
+    title: "Тарифы ThreadsGo — цены и 3 дня пробного периода",
+    description: "Сравните тарифы ThreadsGo: Basic — 3 дня бесплатно, затем 1 490 ₽/месяц; Pro и Agency для нескольких проектов. Условия подключения через Tribute.",
+    h1: "Тарифы ThreadsGo",
+    lead: "Выберите тариф для своего проекта и подключите доступ через Tribute.",
+    kind: "product", index: true, updatedAt: "2026-10-02",
+  },
+  {
     path: "/direct/autoposting-social-media/",
     title: "Автопостинг для соцсетей с ИИ | ThreadsGo",
     description:

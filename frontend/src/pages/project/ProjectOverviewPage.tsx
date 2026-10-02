@@ -152,13 +152,13 @@ export default function ProjectOverviewPage() {
       });
       const result = await triggerGeneration(projectId);
       trackSeoEvent("draft_created", { project_id: projectId, task_id: result.task_id });
-      trackSeoEvent("first_post_queued", {
-        project_id: projectId,
-        task_id: result.task_id,
-        source: "project_overview",
+      const queued = result.status === "queued" && Boolean(result.scheduled_at);
+      if (queued) trackSeoEvent("first_post_queued", {
+        project_id: projectId, task_id: result.task_id, source: "project_overview",
       });
-      setStatusMessage(`Пост готов и добавлен в расписание: публикация #${result.task_id}.`);
-      toast.success(`Пост добавлен в расписание: #${result.task_id}`);
+      const message = queued ? `Пост добавлен в расписание: #${result.task_id}` : `Черновик готов: #${result.task_id}. Проверьте текст и добавьте его в расписание.`;
+      setStatusMessage(message);
+      toast.success(message);
       await loadDashboard();
     } catch (generationError) {
       const message = getApiErrorMessage(generationError, "Не удалось подготовить пост.");

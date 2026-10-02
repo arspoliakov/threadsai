@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const key = process.env.INDEXNOW_KEY?.trim();
+const key = process.env.INDEXNOW_KEY?.trim() || (await readFile(join(process.cwd(), "dist", "indexnow-key.txt"), "utf8").catch(() => "")).trim();
 if (!key) {
   console.error("INDEXNOW_KEY is required.");
   process.exit(1);
@@ -16,7 +16,7 @@ const response = await fetch("https://api.indexnow.org/indexnow", {
   body: JSON.stringify({
     host: "threadsgo.ru",
     key,
-    keyLocation: process.env.INDEXNOW_KEY_LOCATION || `https://threadsgo.ru/${key}.txt`,
+    keyLocation: process.env.INDEXNOW_KEY_LOCATION || (process.env.INDEXNOW_KEY ? `https://threadsgo.ru/${key}.txt` : "https://threadsgo.ru/indexnow-key.txt"),
     urlList,
   }),
 });

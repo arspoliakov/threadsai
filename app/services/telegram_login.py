@@ -255,6 +255,7 @@ async def consume_challenge(
     challenge: TelegramLoginChallenge,
     user_id: int,
     token: str,
+    is_new_user: bool = False,
 ) -> str:
     now = _now()
     encrypted = encrypt_result_token(token)
@@ -270,12 +271,14 @@ async def consume_challenge(
             consumed_at=now,
             user_id=user_id,
             result_token_encrypted=encrypted,
+            attribution_json={**(challenge.attribution_json or {}), "_registration_is_new": is_new_user},
             result_retry_until=now + timedelta(seconds=RESULT_RETRY_SECONDS),
         )
         .execution_options(synchronize_session=False)
     )
     await session.commit()
     if result.rowcount == 1:
+        await session.refresh(challenge)
         return token
     await session.refresh(challenge)
     retry_token = get_retry_token(challenge)

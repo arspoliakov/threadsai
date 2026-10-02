@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  type LoginResponse,
   TelegramBotChallenge,
   TelegramBotLoginError,
   cancelTelegramBotLogin,
@@ -9,13 +10,13 @@ import {
   setStoredAuthToken,
   startTelegramBotLogin,
 } from "../api/client";
-import { getSeoAttribution } from "../components/SeoAnalytics";
+import { getSeoAttributionForLogin, trackSeoEvent } from "../components/SeoAnalytics";
 
 const STORAGE_KEY = "threadsgo.telegram_bot_login";
 
 export type BotLoginPhase = "idle" | "starting" | "waiting" | "finishing" | "expired" | "denied" | "cancelled";
 
-export function useTelegramBotLogin(onAuthenticated: () => Promise<void>) {
+export function useTelegramBotLogin(onAuthenticated: (response: LoginResponse) => Promise<void>) {
   const [challenge, setChallenge] = useState<TelegramBotChallenge | null>(() => readStoredChallenge());
   const [phase, setPhase] = useState<BotLoginPhase>(() => (readStoredChallenge() ? "waiting" : "idle"));
   const [message, setMessage] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export function useTelegramBotLogin(onAuthenticated: () => Promise<void>) {
         if (generation !== generationRef.current) return;
         setStoredAuthToken(response.access_token);
         clearAttempt();
-        await onAuthenticated();
+        await onAuthenticated(response);
       } catch (error) {
         if (generation !== generationRef.current) return;
         const loginError = error instanceof TelegramBotLoginError ? error : null;
@@ -149,7 +150,8 @@ export function useTelegramBotLogin(onAuthenticated: () => Promise<void>) {
       setPhase("starting");
       setMessage(null);
       try {
-        const created = await startTelegramBotLogin(getSeoAttribution());
+        trackSeoEvent("login_start", { method: "bot" });
+        const created = await startTelegramBotLogin(await getSeoAttributionForLogin());
         if (generation !== generationRef.current) return;
         try {
           window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(created));

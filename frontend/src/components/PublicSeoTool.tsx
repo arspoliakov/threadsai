@@ -61,7 +61,7 @@ function IdeasTool({ initialNiche = "" }: { initialNiche?: string }) {
         <ToolInput label="Аудитория" value={audience} onChange={setAudience} placeholder="Например, родители подростков" />
         <ToolInput label="Тон" value={tone} onChange={setTone} placeholder="Например, спокойно и без назидания" />
       </div>
-      <button type="button" onClick={() => { setGenerated(true); trackSeoEvent("seo_tool_success", { tool: "ideas", audience, tone }); }} className="mt-5 rounded-full bg-[#07100e] px-6 py-3.5 text-sm text-white hover:bg-[#17382b]">
+      <button type="button" onClick={() => { setGenerated(true); trackSeoEvent("seo_tool_success", { tool: "ideas" }); }} className="mt-5 rounded-full bg-[#07100e] px-6 py-3.5 text-sm text-white hover:bg-[#17382b]">
         Получить идеи
       </button>
       {generated && (
@@ -179,7 +179,7 @@ function PostGeneratorTool() {
         <ToolInput label="Стиль" value={style} onChange={setStyle} placeholder="Например, спокойно и с лёгкой иронией" />
         <ToolInput label="Ограничения" value={constraints} onChange={setConstraints} placeholder="Например, без прямой продажи и канцелярита" />
       </div>
-      <GenerateButton label={generated ? "Переписать варианты" : "Создать варианты"} onClick={() => { setGenerated(true); trackSeoEvent(generated ? "seo_tool_regenerate" : "seo_tool_success", { tool: "post_generator", purpose, style, constraints }); }} />
+      <GenerateButton label={generated ? "Переписать варианты" : "Создать варианты"} onClick={() => { setGenerated(true); trackSeoEvent(generated ? "seo_tool_regenerate" : "seo_tool_success", { tool: "post_generator", purpose, style }); }} />
       {generated && (
         <div className="mt-10 grid gap-5 lg:grid-cols-3">
           {variants.map((variant) => (
@@ -270,7 +270,7 @@ function BrandStrategyTool() {
         <ToolInput label="Желаемый образ" value={desiredImage} onChange={setDesiredImage} placeholder="Например, спокойный практик без громких обещаний" />
         <ToolInput label="Ограничения" value={constraints} onChange={setConstraints} placeholder="Например, не обсуждать личную жизнь" />
       </div>
-      <GenerateButton label="Собрать стратегию" onClick={() => { setGenerated(true); trackSeoEvent("seo_tool_success", { tool: "brand_strategy", desiredImage, constraints }); }} />
+      <GenerateButton label="Собрать стратегию" onClick={() => { setGenerated(true); trackSeoEvent("seo_tool_success", { tool: "brand_strategy" }); }} />
       {generated && (
         <div className="mt-10 grid gap-7 md:grid-cols-2">
           <section className="border-t border-[#aeb8b0] pt-5">

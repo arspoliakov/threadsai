@@ -36,6 +36,8 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    is_new_user: bool = False
+    user_id: int | None = None
 
 
 class AuthAttributionPayload(BaseModel):
@@ -146,7 +148,7 @@ async def telegram_login(
         }
     )
     logger.info("Telegram login succeeded from %s for user_id=%s", client_host, user.id)
-    return LoginResponse(access_token=token)
+    return LoginResponse(access_token=token, user_id=user.id, is_new_user=getattr(user, "_registration_is_new", False))
 
 
 @router.post("/telegram-webapp", response_model=LoginResponse, status_code=status.HTTP_200_OK)
@@ -190,7 +192,7 @@ async def telegram_webapp_login(
         }
     )
     logger.info("Telegram WebApp login succeeded from %s for user_id=%s", client_host, user.id)
-    return LoginResponse(access_token=token)
+    return LoginResponse(access_token=token, user_id=user.id, is_new_user=getattr(user, "_registration_is_new", False))
 
 
 @router.post(
@@ -289,7 +291,8 @@ async def telegram_bot_login_complete(
         if retry_token:
             if not settings.is_telegram_id_approved(challenge.telegram_id):
                 raise bot_login.ChallengeError("access_denied", 403)
-            return LoginResponse(access_token=retry_token)
+            return LoginResponse(access_token=retry_token, user_id=challenge.user_id,
+                                 is_new_user=bool((challenge.attribution_json or {}).get("_registration_is_new")))
         current = bot_login.browser_status(challenge)
         if current != "approved":
             code = "challenge_pending" if current == "pending" else f"challenge_{current}"
@@ -319,8 +322,10 @@ async def telegram_bot_login_complete(
             challenge=challenge,
             user_id=user.id,
             token=token,
+            is_new_user=getattr(user, "_registration_is_new", False),
         )
-        return LoginResponse(access_token=token)
+        return LoginResponse(access_token=token, user_id=challenge.user_id,
+                             is_new_user=bool((challenge.attribution_json or {}).get("_registration_is_new")))
     except bot_login.ChallengeError as exc:
         raise _challenge_http_error(exc) from exc
 
@@ -496,6 +501,7 @@ async def _get_or_create_verified_telegram_user(
 ) -> User:
     stmt = select(User).where(User.telegram_id == telegram_id).limit(1)
     user = await db.scalar(stmt)
+    is_new_user = user is None
 
     if user is None:
         user = User(
@@ -527,11 +533,13 @@ async def _get_or_create_verified_telegram_user(
     try:
         await db.commit()
     except IntegrityError:
+        is_new_user = False
         await db.rollback()
         user = await db.scalar(select(User).where(User.telegram_id == telegram_id).limit(1))
         if user is None:
             raise
     await db.refresh(user)
+    user._registration_is_new = is_new_user
     return user
 
 

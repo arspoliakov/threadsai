@@ -8,6 +8,7 @@ const seenTitles = new Set();
 const seenDescriptions = new Set();
 const failures = [];
 const requiredPaths = [
+  "/pricing/",
   "/threads-autoposting/",
   "/threads-post-generator/",
   "/threads-ideas-generator/",

@@ -25,7 +25,7 @@ export default function SeoHead() {
 
     document.title = title;
     setMeta('meta[name="description"]', "name", "description", description);
-    setMeta('meta[name="robots"]', "name", "robots", page?.index === false ? "noindex,follow" : "index,follow");
+    setMeta('meta[name="robots"]', "name", "robots", !page || page.index === false ? "noindex,follow" : "index,follow");
     setMeta('meta[property="og:title"]', "property", "og:title", title);
     setMeta('meta[property="og:description"]', "property", "og:description", description);
     setMeta('meta[property="og:url"]', "property", "og:url", canonicalUrl);
@@ -41,6 +41,7 @@ export default function SeoHead() {
     canonical.href = canonicalUrl;
 
     setMeta('meta[property="og:image"]', "property", "og:image", `${SITE_URL}${DEFAULT_OG_IMAGE}`);
+    document.dispatchEvent(new Event("threadsgo:seo-ready"));
   }, [location.pathname]);
 
   return null;

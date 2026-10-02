@@ -1,5 +1,6 @@
 import axios from "axios";
 import { toast } from "sonner";
+import { setAnalyticsUser } from "../components/SeoAnalytics";
 
 export const AUTH_TOKEN_STORAGE_KEY = "threadsbot.admin_token";
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
@@ -149,6 +150,8 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
 }
 
 export type LoginResponse = {
+  is_new_user: boolean;
+  user_id: number | null;
   access_token: string;
   token_type: "bearer";
 };
@@ -607,6 +610,7 @@ export async function loginWithTelegramWebApp(
 
 export async function getCurrentUser(): Promise<CurrentUser> {
   const response = await apiClient.get<CurrentUser>("/api/v1/auth/me");
+  setAnalyticsUser(response.data.id);
   return response.data;
 }
 

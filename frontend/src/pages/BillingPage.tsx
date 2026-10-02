@@ -1,41 +1,24 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
+import { planCopy } from "../billingPlans";
 
 import { getApiErrorMessage, getBillingStatus, refreshBillingStatus, type BillingStatus } from "../api/client";
 import { trackSeoEvent, trackSeoEventOnce } from "../components/SeoAnalytics";
 
-const planCopy = {
-  basic: {
-    title: "Basic",
-    subtitle: "Для одного проекта и спокойного теста",
-    price: "3 дня бесплатно, дальше 1 490 ₽ в месяц",
-    body:
-      "Подходит экспертам, авторам блогов и фрилансерам, которые ведут один проект и хотят стабильно выпускать контент без ручной рутины.",
-    tone: "border-[#7adf8b] bg-[#f4fff5]",
-  },
-  pro: {
-    title: "Pro",
-    subtitle: "Рабочая база для маркетологов и SMM",
-    price: "3 490 ₽ в месяц, квартал 9 490 ₽, год 34 990 ₽",
-    body:
-      "Для специалистов, которые ведут несколько проектов: стиль отдельно для каждого клиента, генерация и планирование внутри одной панели.",
-    tone: "border-[#ead36a] bg-[#fffbed]",
-  },
-  agency: {
-    title: "Agency",
-    subtitle: "Масштаб без хаоса для команд",
-    price: "8 990 ₽ в месяц, квартал 24 990 ₽, год 89 990 ₽",
-    body:
-      "Для агентств и команд: много профилей, раздельные проекты, плотный поток публикаций и очередь на две недели вперед.",
-    tone: "border-[#f08d7f] bg-[#fff4f1]",
-  },
-} as const;
+const PENDING_TRIBUTE = "threadsgo.pending_tribute";
+
 
 export default function BillingPage() {
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [isRefreshingSubscription, setIsRefreshingSubscription] = useState(false);
+
+  const refreshLock = useRef(false);
+  const automaticChecks = useRef(0);
+  const mounted = useRef(true);
+  const [activationMessage, setActivationMessage] = useState("");
 
   async function loadBilling() {
     setIsLoading(true);
@@ -63,30 +46,61 @@ export default function BillingPage() {
         plan: billing.tariff_plan,
       });
     }
-  }, [billing?.subscription_status, billing?.tariff_plan]);
+    if (billing?.subscription_status && billing.subscription_phase === "trial") {
+      trackSeoEventOnce("trial_activated", { plan: billing.tariff_plan });
+    }
+  }, [billing?.subscription_status, billing?.tariff_plan, billing?.subscription_phase]);
 
-  async function checkSubscription() {
+  const checkSubscription = useCallback(async (automatic = false) => {
+    if (refreshLock.current) return;
+    refreshLock.current = true;
     setIsRefreshingSubscription(true);
+    if (automatic) setActivationMessage("Вы вернулись из Tribute. Проверяем доступ…");
     try {
       const refreshed = await refreshBillingStatus();
+      if (!mounted.current) return;
       setBilling(refreshed);
       if (refreshed.subscription_status) {
-        trackSeoEventOnce("subscription_active", {
-          source: "billing_refresh",
-          plan: refreshed.tariff_plan,
-        });
+        try { sessionStorage.removeItem(PENDING_TRIBUTE); } catch { /* Optional return marker. */ }
+        setActivationMessage("Доступ включён. Можно переходить к первому проекту.");
+        toast.success("Тариф подтверждён, доступ открыт");
+      } else {
+        const message = "Доступ пока не найден. Завершите активацию в Tribute и вступите в канал тарифа, затем повторите проверку.";
+        setActivationMessage(message);
+        if (!automatic) toast.message(message);
       }
-      toast.success(
-        refreshed.subscription_status
-          ? "Тариф подтвержден, лимиты обновлены"
-          : "Доступ пока не найден. Завершите активацию в Tribute и запросите доступ к каналу, затем повторите проверку.",
-      );
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Не удалось проверить оплату. Попробуйте ещё раз через минуту."));
+      if (!mounted.current) return;
+      setActivationMessage("Не удалось проверить доступ. Повторите проверку или напишите в поддержку.");
+      if (!automatic) toast.error(getApiErrorMessage(error, "Не удалось проверить оплату. Попробуйте ещё раз через минуту."));
     } finally {
-      setIsRefreshingSubscription(false);
+      refreshLock.current = false;
+      if (mounted.current) setIsRefreshingSubscription(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    const onReturn = () => {
+      if (document.visibilityState !== "visible" || refreshLock.current || automaticChecks.current >= 3) return;
+      try {
+        const started = Number(sessionStorage.getItem(PENDING_TRIBUTE));
+        if (!started) return;
+        if (Date.now() - started > 30 * 60_000) { sessionStorage.removeItem(PENDING_TRIBUTE); return; }
+      } catch { return; }
+      automaticChecks.current += 1;
+      void checkSubscription(true);
+    };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    // A return may reload the tab; wait until the initial status request is finished.
+    if (!isLoading) onReturn();
+    return () => {
+      mounted.current = false;
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, [checkSubscription, isLoading]);
 
   if (isLoading) {
     return <div className="rounded-[18px] border border-[#dfe4dc] bg-white p-6">Загружаем тарифы...</div>;
@@ -116,10 +130,20 @@ export default function BillingPage() {
         <div className="max-w-3xl">
           <h1 className="font-display text-4xl leading-tight text-[#111] sm:text-5xl">Выберите свой формат работы</h1>
           <p className="mt-4 text-base leading-7 text-[#5f675f]">
-            Оплата идет через Telegram-сервис Tribute. После подключения тарифа ThreadsGo получает подтверждение от
-            Tribute, а при ручной проверке дополнительно сверяет доступ к закрытому каналу тарифа.
+            Подключение через Tribute занимает три шага. После возвращения на сайт мы автоматически проверим доступ.
           </p>
         </div>
+
+        {billing?.subscription_status ? (
+          <Link to="/app" className="mt-5 inline-flex rounded-full bg-[#111] px-6 py-3 text-sm font-semibold text-white">Перейти к проектам →</Link>
+        ) : (
+          <ol className="mt-5 grid gap-3 rounded-2xl bg-[#f7faf4] p-5 text-sm leading-6 text-[#4f5a50] md:grid-cols-3">
+            <li><strong className="block text-[#111]">1. Выберите тариф</strong>Откроется Tribute. Завершите привязку карты и активацию.</li>
+            <li><strong className="block text-[#111]">2. Вступите в канал</strong>Нажмите кнопку доступа к каналу тарифа в Tribute. Одной привязки карты недостаточно для резервной проверки.</li>
+            <li><strong className="block text-[#111]">3. Вернитесь сюда</strong>Мы проверим доступ автоматически. Если он не появился, нажмите «Проверить доступ».</li>
+          </ol>
+        )}
+        {activationMessage ? <p role="status" className="mt-4 text-sm leading-6 text-[#4f5a50]">{activationMessage}</p> : null}
 
         {billing ? (
           <div className="mt-5 flex flex-col gap-4 rounded-[16px] border border-[#e1e7dd] bg-[#f7faf4] p-4 text-sm leading-6 text-[#4f5a50] sm:flex-row sm:items-center sm:justify-between">
@@ -133,7 +157,7 @@ export default function BillingPage() {
               disabled={isRefreshingSubscription}
               className="h-11 shrink-0 rounded-full border border-[#cfd6cc] bg-white px-5 text-sm font-medium text-[#111] transition hover:border-[#111] hover:bg-[#111] hover:text-white disabled:cursor-wait disabled:opacity-50"
             >
-              {isRefreshingSubscription ? "Проверяем..." : "Проверить оплату"}
+              {isRefreshingSubscription ? "Проверяем..." : "Проверить доступ"}
             </button>
           </div>
         ) : null}
@@ -179,7 +203,14 @@ export default function BillingPage() {
                   href={plan.tribute_url}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={() => trackSeoEvent("tribute_click", { plan: plan.name, source: "billing_page" })}
+                  onClick={() => {
+                    trackSeoEvent(isCurrentPlan ? "subscription_manage_click" : "tribute_click", { plan: plan.name, source: "billing_page" });
+                    if (!isCurrentPlan) {
+                      automaticChecks.current = 0;
+                      try { sessionStorage.setItem(PENDING_TRIBUTE, String(Date.now())); } catch { /* Manual check remains available. */ }
+                      setActivationMessage("Завершите активацию и вступите в канал тарифа в Tribute, затем вернитесь сюда.");
+                    }
+                  }}
                   className="mt-6 flex h-12 items-center justify-center rounded-full bg-[#111] px-5 text-sm font-semibold text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
                 >
                   {isCurrentPlan ? "Управлять подпиской" : `Выбрать ${copy.title}`}
@@ -204,7 +235,7 @@ export default function BillingPage() {
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
             <h3 className="text-base font-semibold text-[#111]">Как работает бесплатный период?</h3>
             <p className="mt-2 text-sm leading-6 text-[#5f675f]">
-              Вы выбираете Basic в Tribute. Первые 3 дня бесплатные, а отменить подписку можно в самом Telegram-боте.
+              Вы выбираете Basic в Tribute. Первые 3 дня бесплатные, затем 1 490 ₽ в месяц. Проверьте дату следующего списания в Tribute; там же можно отменить продление. Подарочные дни ThreadsGo не меняют дату списания в Tribute.
             </p>
           </div>
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
@@ -218,7 +249,7 @@ export default function BillingPage() {
             <h3 className="text-base font-semibold text-[#111]">Когда включится доступ после оплаты?</h3>
             <p className="mt-2 text-sm leading-6 text-[#5f675f]">
               После привязки карты завершите активацию в Tribute и нажмите кнопку доступа к закрытому каналу. Затем
-              вернитесь в ThreadsGo и нажмите «Проверить оплату». Резервная сверка выполняется автоматически.
+              вернитесь в ThreadsGo: мы проверим доступ автоматически. При необходимости нажмите «Проверить доступ».
             </p>
           </div>
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
@@ -241,7 +272,7 @@ function formatSubscriptionLabel(billing: BillingStatus) {
         ? "подарочный доступ"
         : billing.subscription_phase === "cancelled"
           ? "доступ до конца оплаченного периода"
-          : "оплаченный доступ";
+          : "активный доступ";
   const expiresLabel = billing.subscription_expires_at
     ? ` до ${new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(new Date(billing.subscription_expires_at))}`
     : "";

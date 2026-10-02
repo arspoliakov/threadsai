@@ -96,11 +96,14 @@ class TelegramBotLoginChallengeTest(unittest.IsolatedAsyncioTestCase):
                 challenge=challenge,
                 user_id=7,
                 token="signed.jwt.value",
+                is_new_user=True,
             )
             await session.refresh(challenge)
             self.assertEqual(first, "signed.jwt.value")
             self.assertEqual(telegram_login.get_retry_token(challenge), "signed.jwt.value")
             self.assertEqual(telegram_login.browser_status(challenge), "consumed")
+            self.assertTrue(challenge.attribution_json["_registration_is_new"])
+            self.assertEqual(challenge.user_id, 7)
 
     async def test_cancel_is_terminal(self) -> None:
         async with self.sessions() as session:
@@ -172,6 +175,16 @@ class TelegramBotLoginChallengeTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(completed.status_code, 200)
             self.assertEqual(repeated.status_code, 200)
             self.assertEqual(completed.json()["access_token"], repeated.json()["access_token"])
+            self.assertTrue(completed.json()["is_new_user"])
+            self.assertEqual(completed.json()["user_id"], repeated.json()["user_id"])
+            self.assertTrue(repeated.json()["is_new_user"])
+
+            async with self.sessions() as session:
+                existing = await auth._get_or_create_verified_telegram_user(
+                    telegram_id=4242, first_name="Returning", username=None,
+                    photo_url=None, attribution=None, db=session,
+                )
+                self.assertFalse(existing._registration_is_new)
         finally:
             await client.aclose()
             app.dependency_overrides.pop(get_db, None)

@@ -58,7 +58,8 @@ export default function InfrastructurePage() {
         success: (result) => result.message,
         error: (error) => getApiErrorMessage(error, "Не удалось проверить доступ к профилю."),
       });
-      await promise;
+      const result = await promise;
+      if (result.status === "active") trackSeoEvent("threads_connected", { method: "session_check" });
       await loadAccounts();
     } finally {
       setCheckingId(null);
@@ -309,7 +310,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
         status: "active",
       });
       toast.success("Профиль добавлен");
-      trackSeoEvent("threads_connected", { method: "cookies" });
+      trackSeoEvent("threads_profile_added", { method: "cookies" });
       await onCreated();
     } catch (submitError) {
       toast.error("Профиль не добавлен");
@@ -433,7 +434,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
           status: "active",
         });
         created += 1;
-        trackSeoEvent("threads_connected", { method: "bulk_cookies" });
+        trackSeoEvent("threads_profile_added", { method: "bulk_cookies" });
       } catch (importError) {
         failed.push(`#${index + 1}: ${importError instanceof Error ? importError.message : "ошибка API"}`);
       } finally {

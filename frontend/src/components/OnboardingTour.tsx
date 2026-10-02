@@ -16,7 +16,8 @@ const steps = [
   {
     title: "Подключите Threads-профиль",
     text: "Подключите профиль, в котором уже выполнен вход в Threads. Система сама проверит доступ и подскажет, готова ли публикация.",
-    action: "Откройте «Аккаунты», нажмите «Добавить профиль» и перенесите данные входа по короткой инструкции на экране.",
+    action:
+      "Откройте «Аккаунты», нажмите «Добавить профиль» и перенесите данные входа по короткой инструкции на экране.",
     image: "/interface/accounts-health.webp",
     to: "/app/infrastructure",
     button: "Подключить профиль",
@@ -24,7 +25,8 @@ const steps = [
   {
     title: "Настройте голос",
     text: "Общий стиль задает характер всех постов, а настройки проекта уточняют конкретную задачу.",
-    action: "Откройте «Стиль» и нажмите «Помочь со стилем»: несколько ответов заменят длинную инструкцию вручную.",
+    action:
+      "Откройте «Стиль» и нажмите «Помочь со стилем»: несколько ответов заменят длинную инструкцию вручную.",
     image: "/interface/prompt-lab.webp",
     to: "/app/settings",
     button: "Настроить стиль",
@@ -32,7 +34,8 @@ const steps = [
   {
     title: "Запустите систему",
     text: "ThreadsGo обновит идеи, подготовит посты и поставит их в расписание. Любой текст можно быстро поправить.",
-    action: "Внутри проекта нажмите «Обновить идеи для постов» или «Добавить новый пост в план».",
+    action:
+      "Внутри проекта нажмите «Обновить идеи для постов» или «Добавить новый пост в план».",
     image: "/interface/queue-timeline.webp",
     to: "/app",
     button: "Перейти к проектам",
@@ -46,20 +49,14 @@ export function OnboardingTour() {
   const isLastStep = stepIndex === steps.length - 1;
 
   useEffect(() => {
-    if (window.localStorage.getItem(ONBOARDING_STORAGE_KEY) !== "true") {
-      const timer = window.setTimeout(() => setIsOpen(true), 500);
-      return () => window.clearTimeout(timer);
-    }
-  }, []);
-
-  useEffect(() => {
     function handleRestart() {
       setStepIndex(0);
       setIsOpen(true);
     }
 
     window.addEventListener(RESTART_ONBOARDING_EVENT, handleRestart);
-    return () => window.removeEventListener(RESTART_ONBOARDING_EVENT, handleRestart);
+    return () =>
+      window.removeEventListener(RESTART_ONBOARDING_EVENT, handleRestart);
   }, []);
 
   function completeTour() {
@@ -82,10 +79,36 @@ export function OnboardingTour() {
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-end bg-[#07100e]/58 p-3 backdrop-blur-sm sm:place-items-center sm:p-6">
-      <section className="w-full max-w-4xl overflow-hidden rounded-[2rem] border border-white/20 bg-[#f5f6f1] shadow-[0_34px_120px_rgba(0,0,0,0.32)] sm:rounded-[2.4rem]">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label="Быстрый старт"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") completeTour();
+          if (event.key !== "Tab") return;
+          const fields = Array.from(
+            event.currentTarget.querySelectorAll<HTMLElement>("button, [href]"),
+          );
+          const first = fields[0];
+          const last = fields[fields.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          }
+          if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }}
+        className="max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-white/20 bg-[#f5f6f1] shadow-[0_34px_120px_rgba(0,0,0,0.32)] sm:rounded-[2.4rem]"
+      >
         <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="relative min-h-56 overflow-hidden bg-[#07100e] sm:min-h-72 lg:min-h-full">
-            <img src={step.image} alt="" className="h-full w-full object-cover opacity-85" />
+          <div className="relative hidden min-h-56 overflow-hidden lg:block bg-[#07100e] sm:min-h-72 lg:min-h-full">
+            <img
+              src={step.image}
+              alt=""
+              className="h-full w-full object-cover opacity-85"
+            />
             <div className="absolute inset-0 bg-gradient-to-tr from-[#07100e] via-[#07100e]/35 to-transparent" />
             <img
               src="/threadsgo-logo.png"
@@ -93,9 +116,12 @@ export function OnboardingTour() {
               className="absolute left-6 top-6 h-14 w-14 rounded-2xl border border-white/12 bg-white/8 p-2"
             />
             <div className="absolute bottom-6 left-6 right-6">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/48">Быстрый старт</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/48">
+                Быстрый старт
+              </p>
               <p className="mt-2 font-display text-4xl leading-none tracking-[-0.05em] text-white">
-                {String(stepIndex + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")}
+                {String(stepIndex + 1).padStart(2, "0")} /{" "}
+                {String(steps.length).padStart(2, "0")}
               </p>
             </div>
           </div>
@@ -106,24 +132,29 @@ export function OnboardingTour() {
                 <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#6d746d]">
                   Что нажимать сначала
                 </p>
-                <h2 className="mt-4 font-display text-4xl leading-none tracking-[-0.04em] text-[#07100e] sm:text-5xl">
+                <h2 className="mt-4 font-display text-2xl leading-tight tracking-[-0.04em] text-[#07100e] sm:text-3xl">
                   {step.title}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={completeTour}
+                autoFocus
                 className="rounded-full border border-[#d6ddd2] px-4 py-2 text-xs text-[#687168] transition hover:border-[#07100e] hover:text-[#07100e]"
               >
                 Пропустить
               </button>
             </div>
 
-            <p className="mt-6 text-base leading-7 text-[#4f584f]">{step.text}</p>
+            <p className="mt-6 text-base leading-7 text-[#4f584f]">
+              {step.text}
+            </p>
 
             <div className="mt-6 rounded-[1.5rem] border border-[#dfe4dc] bg-white p-4">
               <p className="text-sm font-medium text-[#07100e]">Подсказка</p>
-              <p className="mt-2 text-sm leading-6 text-[#687168]">{step.action}</p>
+              <p className="mt-2 text-sm leading-6 text-[#687168]">
+                {step.action}
+              </p>
             </div>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -135,7 +166,9 @@ export function OnboardingTour() {
                     onClick={() => setStepIndex(index)}
                     className={[
                       "h-2.5 rounded-full transition-all",
-                      index === stepIndex ? "w-9 bg-[#07100e]" : "w-2.5 bg-[#cfd8cc] hover:bg-[#98a394]",
+                      index === stepIndex
+                        ? "w-9 bg-[#07100e]"
+                        : "w-2.5 bg-[#cfd8cc] hover:bg-[#98a394]",
                     ].join(" ")}
                     aria-label={`Шаг ${index + 1}`}
                   />

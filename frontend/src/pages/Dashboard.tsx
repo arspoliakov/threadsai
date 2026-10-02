@@ -16,16 +16,23 @@ import { BotStatusCard } from "../components/BotStatusCard";
 import { DismissibleTip } from "../components/DismissibleTip";
 import { trackSeoEvent } from "../components/SeoAnalytics";
 
-type NewProjectDraft = { name: string; description: string; global_style_body?: string };
+type NewProjectDraft = {
+  name: string;
+  description: string;
+  global_style_body?: string;
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<DashboardProjectSummary | null>(null);
+  const [projectToDelete, setProjectToDelete] =
+    useState<DashboardProjectSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<number | null>(
+    null,
+  );
 
   async function loadSummary({ silent = false }: { silent?: boolean } = {}) {
     setIsLoading(true);
@@ -37,7 +44,10 @@ export default function Dashboard() {
         toast.success("Данные обновлены");
       }
     } catch (error) {
-      const message = getApiErrorMessage(error, "Не удалось загрузить проекты. Попробуйте ещё раз.");
+      const message = getApiErrorMessage(
+        error,
+        "Не удалось загрузить проекты. Попробуйте ещё раз.",
+      );
       setLoadError(message);
       toast.error(message);
     } finally {
@@ -76,7 +86,8 @@ export default function Dashboard() {
       toast.promise(deletion, {
         loading: "Удаляем проект...",
         success: "Проект удален. Аккаунты вернулись в общий пул.",
-        error: (error) => getApiErrorMessage(error, "Не удалось удалить проект."),
+        error: (error) =>
+          getApiErrorMessage(error, "Не удалось удалить проект."),
       });
       await deletion;
       setProjectToDelete(null);
@@ -89,7 +100,11 @@ export default function Dashboard() {
   }
 
   const totalPublished = useMemo(
-    () => summary?.projects.reduce((sum, project) => sum + project.published_count, 0) ?? 0,
+    () =>
+      summary?.projects.reduce(
+        (sum, project) => sum + project.published_count,
+        0,
+      ) ?? 0,
     [summary],
   );
   const nextProject = useMemo(() => getNextProject(summary), [summary]);
@@ -99,72 +114,92 @@ export default function Dashboard() {
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="font-display text-4xl leading-[0.95] tracking-[-0.045em] text-[#111] sm:text-5xl">
-            Проекты
+            Ваши проекты
           </h1>
+          <p className="mt-3 text-sm leading-6 text-[#67786e]">
+            Идеи, тексты и расписание — всё начинается с проекта.
+          </p>
         </div>
 
-        <div className="grid gap-3 sm:flex sm:items-center">
-          <button
-            type="button"
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#141815] px-5 text-sm text-white shadow-sm transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
-          >
-            <PlusIcon />
-            Создать проект
-          </button>
-          <button
-            type="button"
-            onClick={() => void loadSummary()}
-            disabled={isLoading}
-            className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] shadow-sm transition hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
-          >
-            {isLoading ? <Spinner /> : <RefreshIcon />}
-            Обновить
-          </button>
-        </div>
+        {summary?.projects.length !== 0 ? (
+          <div className="grid gap-3 sm:flex sm:items-center">
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(true)}
+              className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#141815] px-5 text-sm text-white shadow-sm transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
+            >
+              <PlusIcon />
+              Создать проект
+            </button>
+            <button
+              type="button"
+              onClick={() => void loadSummary()}
+              disabled={isLoading}
+              className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#141815] bg-white px-5 text-sm text-[#141815] shadow-sm transition hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
+            >
+              {isLoading ? <Spinner /> : <RefreshIcon />}
+              Обновить
+            </button>
+          </div>
+        ) : null}
       </header>
 
-      <div className="grid gap-3 lg:grid-cols-4">
-        <BotStatusCard
-          nextTrendCheck={nextProject?.next_post_time ?? summary?.next_trend_check ?? null}
-          currentAction={getCurrentAction(summary, isLoading)}
-          nextActionLabel={nextProject ? `Следующий пост: «${nextProject.name}» → выйдет` : "следующий сбор идей"}
-          compact
-          className="lg:col-span-2"
-        />
-        <StatsWidget
-          icon={<FolderIcon />}
-          label={formatProjectCountLabel(summary?.projects.length ?? 0)}
-          value={isLoading ? "..." : String(summary?.projects.length ?? 0)}
-        />
-        <StatsWidget
-          icon={<SendIcon />}
-          label={formatPublishedCountLabel(totalPublished)}
-          value={isLoading ? "..." : String(totalPublished)}
-        />
-      </div>
+      {summary?.projects.length !== 0 ? (
+        <div className="grid gap-3 lg:grid-cols-4">
+          <BotStatusCard
+            nextTrendCheck={
+              nextProject?.next_post_time ?? summary?.next_trend_check ?? null
+            }
+            currentAction={getCurrentAction(summary, isLoading)}
+            nextActionLabel={
+              nextProject
+                ? `Следующий пост: «${nextProject.name}» → выйдет`
+                : "следующий сбор идей"
+            }
+            compact
+            className="lg:col-span-2"
+          />
+          <StatsWidget
+            icon={<FolderIcon />}
+            label={formatProjectCountLabel(summary?.projects.length ?? 0)}
+            value={isLoading ? "..." : String(summary?.projects.length ?? 0)}
+          />
+          <StatsWidget
+            icon={<SendIcon />}
+            label={formatPublishedCountLabel(totalPublished)}
+            value={isLoading ? "..." : String(totalPublished)}
+          />
+        </div>
+      ) : null}
 
-      <DismissibleTip
-        storageKey="threadsgo.dashboard-start-tip"
-        title="С чего начать"
-        action={
-          <Link
-            to="/app/how-it-works"
-            className="inline-flex h-10 items-center justify-center rounded-full border border-[#141815] px-4 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white"
-          >
-            Как нейросеть пишет посты
-          </Link>
-        }
-      >
-        Начните за 3 шага: создайте проект → опишите, что будете публиковать → подключите аккаунт Threads.
-        Система сама составит план постов, а вам останется только быстро проверить тексты перед выходом.
-      </DismissibleTip>
+      {summary && summary.projects.length > 0 ? (
+        <DismissibleTip
+          storageKey="threadsgo.dashboard-start-tip"
+          title="С чего начать"
+          action={
+            <Link
+              to="/app/how-it-works"
+              className="inline-flex h-10 items-center justify-center rounded-full border border-[#141815] px-4 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white"
+            >
+              Как нейросеть пишет посты
+            </Link>
+          }
+        >
+          Начните за 3 шага: создайте проект → опишите, что будете публиковать →
+          подключите аккаунт Threads. Созданные тексты попадают в очередь
+          публикаций. Проверяйте их до назначенного времени: можно изменить или
+          отменить пост.
+        </DismissibleTip>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
         {isLoading ? (
           <SkeletonProjects />
         ) : loadError ? (
-          <LoadError message={loadError} onRetry={() => void loadSummary({ silent: true })} />
+          <LoadError
+            message={loadError}
+            onRetry={() => void loadSummary({ silent: true })}
+          />
         ) : !summary || summary.projects.length === 0 ? (
           <EmptyProjects onCreate={() => setIsCreateOpen(true)} />
         ) : (
@@ -180,7 +215,10 @@ export default function Dashboard() {
       </div>
 
       {isCreateOpen ? (
-        <CreateProjectModal onClose={() => setIsCreateOpen(false)} onSubmit={handleCreateProject} />
+        <CreateProjectModal
+          onClose={() => setIsCreateOpen(false)}
+          onSubmit={handleCreateProject}
+        />
       ) : null}
 
       {projectToDelete ? (
@@ -205,12 +243,16 @@ function getNextProject(summary: DashboardSummary | null) {
       .filter((project) => Boolean(project.next_post_time))
       .sort(
         (first, second) =>
-          new Date(first.next_post_time || 0).getTime() - new Date(second.next_post_time || 0).getTime(),
+          new Date(first.next_post_time || 0).getTime() -
+          new Date(second.next_post_time || 0).getTime(),
       )[0] ?? null
   );
 }
 
-function getCurrentAction(summary: DashboardSummary | null, isLoading: boolean) {
+function getCurrentAction(
+  summary: DashboardSummary | null,
+  isLoading: boolean,
+) {
   if (isLoading) {
     return "Проверяем систему";
   }
@@ -219,8 +261,14 @@ function getCurrentAction(summary: DashboardSummary | null, isLoading: boolean) 
     return "Ждем первый проект";
   }
 
-  const activeAccounts = summary.projects.reduce((sum, project) => sum + project.active_accounts_count, 0);
-  const pausedAccounts = summary.projects.reduce((sum, project) => sum + project.paused_accounts_count, 0);
+  const activeAccounts = summary.projects.reduce(
+    (sum, project) => sum + project.active_accounts_count,
+    0,
+  );
+  const pausedAccounts = summary.projects.reduce(
+    (sum, project) => sum + project.paused_accounts_count,
+    0,
+  );
 
   if (activeAccounts === 0) {
     return "Ждем подключения профиля";
@@ -254,7 +302,8 @@ export function CreateProjectModal({
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
+        previousFocus.focus();
     };
   }, []);
 
@@ -271,9 +320,18 @@ export function CreateProjectModal({
     setIsSaving(true);
     try {
       setSaveError("");
-      await onSubmit({ name: name.trim(), description: description.trim(), global_style_body: globalStyle.trim() || undefined });
+      await onSubmit({
+        name: name.trim(),
+        description: description.trim(),
+        global_style_body: globalStyle.trim() || undefined,
+      });
     } catch (error) {
-      setSaveError(getApiErrorMessage(error, "Не удалось создать проект. Данные остались в форме."));
+      setSaveError(
+        getApiErrorMessage(
+          error,
+          "Не удалось создать проект. Данные остались в форме.",
+        ),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -283,22 +341,44 @@ export function CreateProjectModal({
     <div className="fixed inset-0 z-50 grid place-items-end bg-[#070909]/55 p-3 backdrop-blur-sm sm:place-items-center sm:p-5">
       <form
         onSubmit={handleSubmit}
-        role="dialog" aria-modal="true" aria-labelledby="new-project-title"
-        onKeyDown={event => {
-          if (event.key === "Escape" && !isSaving) { event.preventDefault(); onClose(); }
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="new-project-title"
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && !isSaving) {
+            event.preventDefault();
+            onClose();
+          }
           if (event.key !== "Tab") return;
-          const fields = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [href]"));
-          const first = fields[0]; const last = fields[fields.length - 1];
-          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-          if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+          const fields = Array.from(
+            event.currentTarget.querySelectorAll<HTMLElement>(
+              "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [href]",
+            ),
+          );
+          const first = fields[0];
+          const last = fields[fields.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          }
+          if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
         }}
         className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] shadow-[0_30px_120px_rgba(0,0,0,0.30)]"
       >
         <header className="flex items-start justify-between gap-4 border-b border-[#e3e7df] p-6">
           <div>
-            <h2 id="new-project-title" className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]">Новый проект</h2>
+            <h2
+              id="new-project-title"
+              className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]"
+            >
+              Новый проект
+            </h2>
             <p className="mt-3 text-sm leading-6 text-[#667066]">
-              Опишите, о чём писать и для кого. Общий голос можно настроить с помощью нейросети ниже.
+              Опишите, о чём писать и для кого. Общий голос можно настроить с
+              помощью нейросети ниже.
             </p>
           </div>
           <button
@@ -336,18 +416,46 @@ export function CreateProjectModal({
               disabled={isSaving}
             />
             <span className="mt-2 block text-xs leading-5 text-[#7a8179]">
-              Чем понятнее описание, тем меньше абстрактных постов получится на выходе.
+              Чем понятнее описание, тем меньше абстрактных постов получится на
+              выходе.
             </span>
           </label>
           <StyleAssistant disabled={isSaving} onApply={setGlobalStyle} />
-          {globalStyle ? <div className="space-y-3 rounded-2xl border border-[#dfe4dc] bg-white p-4">
-            <label className="block text-sm text-[#3f463f]">Общий стиль, который сохранится вместе с проектом
-              <textarea value={globalStyle} onChange={event => setGlobalStyle(event.target.value)} disabled={isSaving} rows={6} maxLength={6000} className="mt-2 w-full rounded-2xl border border-[#dfe4dc] p-3 text-sm leading-6" />
-            </label>
-            <p className="text-xs leading-5 text-[#667066]">При создании проекта этот текст заменит общий стиль для всех ваших проектов. Темы и настройки других проектов сохранятся.</p>
-            <button type="button" disabled={isSaving} onClick={() => setGlobalStyle("")} className="text-sm underline">Создать без изменения общего стиля</button>
-          </div> : null}
-          {saveError ? <p role="alert" className="rounded-xl bg-[#fff0eb] p-3 text-sm text-[#9a3524]">{saveError}</p> : null}
+          {globalStyle ? (
+            <div className="space-y-3 rounded-2xl border border-[#dfe4dc] bg-white p-4">
+              <label className="block text-sm text-[#3f463f]">
+                Общий стиль, который сохранится вместе с проектом
+                <textarea
+                  value={globalStyle}
+                  onChange={(event) => setGlobalStyle(event.target.value)}
+                  disabled={isSaving}
+                  rows={6}
+                  maxLength={6000}
+                  className="mt-2 w-full rounded-2xl border border-[#dfe4dc] p-3 text-sm leading-6"
+                />
+              </label>
+              <p className="text-xs leading-5 text-[#667066]">
+                При создании проекта этот текст заменит общий стиль для всех
+                ваших проектов. Темы и настройки других проектов сохранятся.
+              </p>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => setGlobalStyle("")}
+                className="text-sm underline"
+              >
+                Создать без изменения общего стиля
+              </button>
+            </div>
+          ) : null}
+          {saveError ? (
+            <p
+              role="alert"
+              className="rounded-xl bg-[#fff0eb] p-3 text-sm text-[#9a3524]"
+            >
+              {saveError}
+            </p>
+          ) : null}
         </div>
 
         <footer className="grid gap-3 border-t border-[#e3e7df] p-6 sm:flex sm:justify-end">
@@ -373,11 +481,23 @@ export function CreateProjectModal({
   );
 }
 
-function StatsWidget({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function StatsWidget({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
     <article className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#eef4ec] text-[#111]">{icon}</div>
-      <p className="mt-5 font-display text-4xl leading-none text-[#111]">{value}</p>
+      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#eef4ec] text-[#111]">
+        {icon}
+      </div>
+      <p className="mt-5 font-display text-4xl leading-none text-[#111]">
+        {value}
+      </p>
       <p className="mt-3 text-base text-[#151815]">{label}</p>
     </article>
   );
@@ -398,9 +518,12 @@ function ProjectCard({
       <div className="relative flex min-h-40 flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-5">
           <Link to={`/app/projects/${project.id}`} className="min-w-0 flex-1">
-            <h2 className="font-display text-3xl leading-none tracking-[-0.035em] text-[#111]">{project.name}</h2>
+            <h2 className="font-display text-3xl leading-none tracking-[-0.035em] text-[#111]">
+              {project.name}
+            </h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
-              Нажмите, чтобы зайти в проект и управлять очередью публикаций, актуальными идеями и настройками.
+              Нажмите, чтобы зайти в проект и управлять очередью публикаций,
+              актуальными идеями и настройками.
             </p>
           </Link>
           <div className="flex shrink-0 items-center gap-2">
@@ -425,11 +548,20 @@ function ProjectCard({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Metric icon={<SendIcon />} label={formatProjectPublishedLabel(project.published_count)} />
-          <Metric icon={<ClockIcon />} label="Следующий пост:" value={formatDateTime(project.next_post_time)} />
+          <Metric
+            icon={<SendIcon />}
+            label={formatProjectPublishedLabel(project.published_count)}
+          />
+          <Metric
+            icon={<ClockIcon />}
+            label="Следующий пост:"
+            value={formatDateTime(project.next_post_time)}
+          />
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
-          <span className={`rounded-full px-3 py-1.5 ${project.active_accounts_count > 0 ? "bg-[#edf8e8] text-[#25551f]" : "bg-[#fff4df] text-[#8a4b00]"}`}>
+          <span
+            className={`rounded-full px-3 py-1.5 ${project.active_accounts_count > 0 ? "bg-[#edf8e8] text-[#25551f]" : "bg-[#fff4df] text-[#8a4b00]"}`}
+          >
             {project.active_accounts_count > 0
               ? `Рабочих профилей: ${project.active_accounts_count}`
               : "Нет рабочего профиля"}
@@ -445,20 +577,33 @@ function ProjectCard({
   );
 }
 
-function handleDeleteClick(event: MouseEvent<HTMLButtonElement>, onDelete: () => void) {
+function handleDeleteClick(
+  event: MouseEvent<HTMLButtonElement>,
+  onDelete: () => void,
+) {
   event.preventDefault();
   event.stopPropagation();
   onDelete();
 }
 
-function Metric({ icon, label, value }: { icon: ReactNode; label: string; value?: string }) {
+function Metric({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value?: string;
+}) {
   return (
     <div className="rounded-2xl border border-[#e2e6df] bg-white/70 p-4">
       <div className="flex items-center gap-2 text-[#5e675e]">
         {icon}
         <span className="text-sm">{label}</span>
       </div>
-      {value ? <p className="mt-2 text-sm leading-5 text-[#252a25]">{value}</p> : null}
+      {value ? (
+        <p className="mt-2 text-sm leading-5 text-[#252a25]">{value}</p>
+      ) : null}
     </div>
   );
 }
@@ -467,7 +612,10 @@ function SkeletonProjects() {
   return (
     <>
       {[1, 2, 3].map((item) => (
-        <div key={item} className="min-h-40 animate-pulse rounded-[24px] border border-[#dfe4dc] bg-white/70 p-5 shadow-sm">
+        <div
+          key={item}
+          className="min-h-40 animate-pulse rounded-[24px] border border-[#dfe4dc] bg-white/70 p-5 shadow-sm"
+        >
           <div className="h-10 w-10 rounded-2xl bg-[#dfe4dc]" />
           <div className="mt-8 h-8 w-3/4 rounded-full bg-[#dfe4dc]" />
           <div className="mt-12 h-3 w-1/2 rounded-full bg-[#dfe4dc]" />
@@ -479,15 +627,18 @@ function SkeletonProjects() {
 
 function EmptyProjects({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="overflow-hidden rounded-[24px] border border-dashed border-[#c9d1c7] bg-white/70 shadow-sm lg:col-span-2 2xl:col-span-3">
-      <div className="grid items-center gap-5 p-5 sm:p-6 lg:grid-cols-[1fr_20rem]">
+    <div className="overflow-hidden rounded-[24px] border border-[#dbe6dd] bg-white shadow-sm lg:col-span-2 2xl:col-span-3">
+      <div className="grid items-center gap-8 p-6 sm:p-10 lg:grid-cols-[1fr_20rem]">
         <div className="text-center lg:text-left">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#eef4ec] lg:mx-0">
             <FolderIcon />
           </div>
-          <p className="mt-5 font-display text-3xl text-[#111]">Проектов пока нет</p>
+          <p className="mt-5 font-display text-3xl text-[#111]">
+            Давайте создадим ваш первый проект
+          </p>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#667066] lg:mx-0">
-            Создайте первый проект, подключите Threads-профиль и запустите сбор актуальных идей.
+            Начните с названия и темы. Настроить голос поможет нейросеть, а
+            подключить профиль можно следующим шагом.
           </p>
           <button
             type="button"
@@ -498,21 +649,43 @@ function EmptyProjects({ onCreate }: { onCreate: () => void }) {
             Создать проект
           </button>
         </div>
-        <img
-          src="/interface/empty-projects.webp"
-          alt=""
-          className="mx-auto hidden w-full max-w-sm rounded-[2rem] object-cover opacity-95 lg:block"
-        />
+        <ol className="space-y-3 rounded-2xl bg-[#f1f6f2] p-5 text-left">
+          {[
+            "Название и тема проекта",
+            "Ваш стиль — вручную или с ИИ",
+            "Профиль Threads и расписание",
+          ].map((step, i) => (
+            <li
+              key={step}
+              className="flex items-center gap-3 text-sm text-[#49705a]"
+            >
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-xs font-semibold">
+                {i + 1}
+              </span>
+              {step}
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   );
 }
 
-function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+function LoadError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
     <div className="rounded-[24px] border border-[#e8c7c2] bg-[#fff7f5] p-6 lg:col-span-2 2xl:col-span-3">
-      <p className="font-display text-3xl text-[#111]">Проекты пока не загрузились</p>
-      <p className="mt-3 max-w-xl text-sm leading-6 text-[#665d5a]">{message}</p>
+      <p className="font-display text-3xl text-[#111]">
+        Проекты пока не загрузились
+      </p>
+      <p className="mt-3 max-w-xl text-sm leading-6 text-[#665d5a]">
+        {message}
+      </p>
       <button
         type="button"
         onClick={onRetry}
@@ -541,10 +714,13 @@ function DeleteProjectDialog({
         <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#fff0ed] text-[#9c3329]">
           <TrashIcon />
         </div>
-        <h2 className="mt-5 font-display text-4xl leading-none text-[#111]">Удалить «{project.name}»?</h2>
+        <h2 className="mt-5 font-display text-4xl leading-none text-[#111]">
+          Удалить «{project.name}»?
+        </h2>
         <p className="mt-4 text-sm leading-6 text-[#667066]">
-          Посты, собранные идеи и настройки проекта будут удалены без возможности восстановления. Подключённые
-          профили Threads сохранятся и вернутся в общий пул.
+          Посты, собранные идеи и настройки проекта будут удалены без
+          возможности восстановления. Подключённые профили Threads сохранятся и
+          вернутся в общий пул.
         </p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <button
@@ -671,13 +847,21 @@ function formatDateTime(value: string | null | undefined) {
 }
 
 function Spinner() {
-  return <span className="h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />;
+  return (
+    <span className="h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />
+  );
 }
 
 function RefreshIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M20 12a8 8 0 1 1-2.3-5.7M20 5v5h-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M20 12a8 8 0 1 1-2.3-5.7M20 5v5h-5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -685,7 +869,12 @@ function RefreshIcon() {
 function PlusIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -693,7 +882,12 @@ function PlusIcon() {
 function CloseIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="m7 7 10 10M17 7 7 17"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -701,7 +895,12 @@ function CloseIcon() {
 function FolderIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 7.8A2.8 2.8 0 0 1 6.8 5h3l2 2h5.4A2.8 2.8 0 0 1 20 9.8v6.4a2.8 2.8 0 0 1-2.8 2.8H6.8A2.8 2.8 0 0 1 4 16.2V7.8Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path
+        d="M4 7.8A2.8 2.8 0 0 1 6.8 5h3l2 2h5.4A2.8 2.8 0 0 1 20 9.8v6.4a2.8 2.8 0 0 1-2.8 2.8H6.8A2.8 2.8 0 0 1 4 16.2V7.8Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -709,7 +908,13 @@ function FolderIcon() {
 function SendIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="m4 12 16-8-5 16-3-7-8-1Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="m4 12 16-8-5 16-3-7-8-1Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -717,7 +922,13 @@ function SendIcon() {
 function ClockIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -725,7 +936,13 @@ function ClockIcon() {
 function ArrowIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 17 17 7M9 7h8v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M7 17 17 7M9 7h8v8"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -733,7 +950,13 @@ function ArrowIcon() {
 function TrashIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M9 4h6M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M9 4h6M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

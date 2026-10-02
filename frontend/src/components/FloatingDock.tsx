@@ -11,7 +11,10 @@ export type FloatingDockItem = {
 
 export function FloatingDock({ items }: { items: FloatingDockItem[] }) {
   return (
-    <nav className="fixed inset-x-0 bottom-3 z-40 px-3 pb-[env(safe-area-inset-bottom)] sm:bottom-4">
+    <nav
+      aria-label="Навигация кабинета"
+      className="fixed inset-x-0 bottom-3 z-40 px-3 pb-[env(safe-area-inset-bottom)] sm:bottom-4"
+    >
       <div className="mx-auto flex max-w-[42rem] items-center justify-center gap-1 rounded-[1.6rem] border border-white/55 bg-white/90 p-1 shadow-[0_18px_60px_rgba(8,14,12,0.16)] backdrop-blur-2xl sm:gap-1.5 sm:rounded-[1.9rem] sm:p-1.5">
         {items.map((item) => (
           <NavLink
@@ -30,7 +33,9 @@ export function FloatingDock({ items }: { items: FloatingDockItem[] }) {
             <span className="grid h-7 w-7 place-items-center rounded-xl bg-current/[0.08] sm:h-8 sm:w-8">
               <AppIcon name={item.icon} className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
-            <span className="max-w-16 truncate sm:max-w-none">{item.label}</span>
+            <span className="max-w-16 truncate sm:max-w-none">
+              {item.label}
+            </span>
           </NavLink>
         ))}
       </div>

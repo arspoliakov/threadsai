@@ -2,6 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .home-primary {
+    @apply inline-flex min-h-12 items-center justify-center gap-5 rounded-xl bg-[#315b46] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#244735];
+  }
+  .home-secondary {
+    @apply inline-flex min-h-12 items-center justify-center rounded-xl border border-[#d5e0d9] bg-white px-5 py-3.5 text-sm font-medium text-[#315b46] transition hover:bg-[#edf3ef];
+  }
+  .home-heading {
+    @apply text-3xl font-semibold leading-[1.15] tracking-[-0.04em] sm:text-4xl;
+  }
+  .home-eyebrow {
+    @apply text-[11px] font-semibold tracking-[0.13em] text-[#5c8b71];
+  }
+}
+
+/* Shared workspace treatment, including project pages and dialogs. */
+.app-refresh .font-display {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+}
+.app-refresh main > section > header h1 {
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+}
+.app-refresh :is(article, section)[class*="shadow-sm"] {
+  box-shadow: 0 2px 8px rgba(25, 55, 40, 0.025);
+}
+.app-refresh [class*="rounded-[24px]"],
+.app-refresh [class*="rounded-[32px]"] {
+  border-radius: 20px;
+}
+.app-refresh [class~="bg-[#fbfcf7]"] {
+  background-color: #fff;
+}
+.app-refresh [class~="bg-[#141815]"] {
+  background-color: #315b46;
+}
+.app-refresh button[class*="rounded-full"] {
+  border-radius: 12px;
+}
+.app-refresh :is(button, a)[class*="hover:bg-[#70ff35]"]:hover {
+  background-color: #244735;
+  color: #fff;
+}
+.app-refresh .field-control {
+  border: 1px solid #d5e0d9;
+  border-radius: 12px;
+  background: white;
+  padding: 12px 14px;
+}
+.app-refresh .field-label {
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.home-refresh :is(a, button):focus-visible,
+.app-refresh :is(a, button, input, textarea, select):focus-visible {
+  outline: 3px solid #72a288;
+  outline-offset: 3px;
+}
+
 :root {
   color-scheme: light;
 }
@@ -19,7 +81,9 @@ html {
 }
 
 .field-label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -107,7 +171,12 @@ html {
   inset: -1px;
   z-index: -1;
   border-radius: 2.2rem;
-  background: linear-gradient(120deg, rgba(0, 115, 255, 0.65), rgba(0, 235, 195, 0.25), rgba(112, 255, 53, 0.55));
+  background: linear-gradient(
+    120deg,
+    rgba(0, 115, 255, 0.65),
+    rgba(0, 235, 195, 0.25),
+    rgba(112, 255, 53, 0.55)
+  );
   opacity: 0.55;
   filter: blur(26px);
   animation: landing-glow-pulse 4.8s ease-in-out infinite;

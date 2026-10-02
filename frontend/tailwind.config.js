@@ -12,7 +12,7 @@ export default {
         slateblue: "#56657a",
       },
       fontFamily: {
-        display: ["Georgia", "Cambria", "Times New Roman", "serif"],
+        display: ["Aptos", "Segoe UI", "sans-serif"],
         body: ["Aptos", "Segoe UI", "sans-serif"],
       },
       boxShadow: {

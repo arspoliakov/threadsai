@@ -1,560 +1,424 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { AppIcon } from "../components/AppIcons";
 
-const landingImages = {
-  heroOrb: "/landing/hero-orb.webp",
-  dashboard: "/landing/dashboard-mockup.webp",
-  trendRadar: "/landing/trend-radar.webp",
-  humanControl: "/landing/human-control.webp",
-  mobilePreview: "/landing/mobile-preview.webp",
-};
-
-const audienceCards = [
-  {
-    title: "Экспертам и фрилансерам",
-    text: "Развивайте личный бренд без выгорания. ИИ напишет экспертные треды и живые посты, пока вы заняты своей основной работой.",
-  },
-  {
-    title: "Малому бизнесу",
-    text: "Привлекайте аудиторию без найма дорогого копирайтера. Публикуйте контент, который вызывает доверие, а не выглядит как сухая рекламная витрина.",
-  },
-  {
-    title: "SMM-агентствам",
-    text: "Ведите десятки проектов в одном окне. Раздельные очереди публикаций, изолированные сессии и аккуратная работа с сетками аккаунтов.",
-  },
+const steps = [
+  [
+    "Создайте проект",
+    "Расскажите, о чём пишете и кто ваша аудитория. Один проект — одна тема или бренд.",
+  ],
+  [
+    "Найдите свой голос",
+    "Ответьте на несколько вопросов: нейросеть предложит стиль, который вы сможете изменить.",
+  ],
+  [
+    "Подключите Threads",
+    "Настройте профиль и расписание. Проверяйте и редактируйте тексты в очереди до их выхода.",
+  ],
 ];
-
-const stats = [
+const examples = [
   {
-    value: "Идеи",
-    label: "для вашей ниши",
-    description: "Обсуждаемые темы и черновики в стиле проекта",
+    label: "Эксперт",
+    title: "Личный бренд без пустого листа",
+    text: "Один полезный совет часто работает лучше длинной лекции. Расскажите о частой ошибке клиента и покажите, как её избежать.",
   },
   {
-    value: "100%",
-    label: "ручной контроль",
-    description: "Редактируйте, отменяйте или доверяйте автопостингу",
+    label: "Бизнес",
+    title: "Покажите, что стоит за продуктом",
+    text: "Что покупатель обычно не замечает? Расскажите об одной детали вашего продукта и объясните, почему она важна.",
   },
   {
-    value: "24/7",
-    label: "на автопилоте",
-    description: "Очередь публикаций с ограничениями и паузами",
-  },
-  {
-    value: "1 клик",
-    label: "переписать пост",
-    description: "Новый вариант без ручного промптинга",
-  },
-  {
-    value: "live",
-    label: "статус системы",
-    description: "Видно, что бот делает сейчас",
-  },
-];
-
-const workflow = [
-  {
-    title: "Ищет идеи",
-    text: "Система собирает свежие посты в Threads и отбирает только те, которые вызывают живой интерес аудитории.",
-  },
-  {
-    title: "Разбирает успех",
-    text: "ИИ анализирует не чужой текст, а его структуру: почему этот пост зацепил? Это полезный совет, шутка или провокация?",
-  },
-  {
-    title: "Пишет под вас",
-    text: "Генератор создает новый пост, учитывая описание вашего бренда, стиль общения, стоп-слова и актуальную повестку.",
-  },
-  {
-    title: "Ждет одобрения",
-    text: "Перед выходом в ленту вы читаете черновик. Его можно отредактировать, попросить ИИ переписать или сразу отправить в очередь.",
-  },
-];
-
-const capabilities = [
-  "Быстрый вход через Telegram.",
-  "Полная изоляция каждого проекта.",
-  "Ограничения активности и паузы при проблемах.",
-  "Над одним проектом могут работать несколько аккаунтов, набирая в разы больше аудитории.",
-];
-
-const trendCards = [
-  {
-    username: "@founderline",
-    badge: "Паттерн: высокая вовлеченность",
-    badgeClass: "bg-[#dfffca] text-[#244b13] border-[#a9f27b]",
-    avatarClass: "from-[#70ff35] via-[#00d8b7] to-[#0076ff]",
-    text: "Знаете, почему большинство стартапов проваливаются? Не из-за плохой идеи. Чаще всего — из-за неверного позиционирования. Разберу на примере: вот кейс, где команда с гениальной задумкой потеряла аудиторию за 3 месяца...",
-    likes: "4.2K",
-    replies: "510",
-    reposts: "240",
-    insight: "Пост с разбором ошибки вызывает активное обсуждение: люди делятся своим опытом.",
-  },
-  {
-    username: "@smmnotes",
-    badge: "Триггер: полезный тред",
-    badgeClass: "bg-[#fff2c6] text-[#7a5400] border-[#ffd86d]",
-    avatarClass: "from-[#ffe66d] via-[#00d8b7] to-[#2c6fff]",
-    text: "5 неочевидных инструментов для SMM, которые я использую каждый день: сервис X — для анализа конкурентов. Бот Y — собирает статистику по постам. Продолжение в реплаях...",
-    likes: "3.8K",
-    replies: "290",
-    reposts: "160",
-    insight: "Чек-лист с конкретными инструментами провоцирует сохранение и репосты.",
-  },
-  {
-    username: "@agencyburnout",
-    badge: "Формат: щитпост",
-    badgeClass: "bg-[#dcecff] text-[#0e3c70] border-[#9cc7ff]",
-    avatarClass: "from-[#0076ff] via-[#7c4dff] to-[#00d8b7]",
-    text: "Когда клиент просит «сделать креативно», а у тебя дедлайн через час... и ты уже открыл пустой файл с названием final_final_12.",
-    likes: "5.1K",
-    replies: "820",
-    reposts: "410",
-    insight: "Легкий юмор на больную тему дает взрывную вовлеченность в нише.",
+    label: "SMM",
+    title: "Разные проекты. Разные голоса.",
+    text: "Для одного клиента — короткие наблюдения, для другого — спокойные разборы. Разделяйте темы и очереди, а общий стиль задавайте в настройках.",
   },
 ];
 
 export default function LandingPage() {
+  const [selected, setSelected] = useState(0);
   return (
-    <main className="landing-shell min-h-screen overflow-hidden bg-[#070909] text-[#eff6ed]">
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="landing-aurora absolute left-[-14rem] top-[-10rem] h-[32rem] w-[32rem] rounded-full bg-[#0076ff]/30 blur-[110px]" />
-        <div className="landing-aurora absolute right-[-12rem] top-[12rem] h-[34rem] w-[34rem] rounded-full bg-[#73ff2d]/25 blur-[120px] [animation-delay:-5s]" />
-        <div className="landing-aurora absolute bottom-[-18rem] left-[30%] h-[34rem] w-[34rem] rounded-full bg-[#00d8b7]/20 blur-[130px] [animation-delay:-9s]" />
-        <div className="landing-grid absolute inset-0 opacity-[0.18]" />
-      </div>
-
-      <section className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
-        <header className="landing-reveal flex items-center justify-between gap-5">
-          <Link to="/" className="flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur">
-              <img src="/threadsgo-logo.png" alt="ThreadsGo" className="h-8 w-8 object-contain" />
-            </span>
-            <span className="block font-display text-xl tracking-[-0.04em] text-white">ThreadsGo</span>
+    <main className="home-refresh bg-[#f8faf9] text-[#162b25]">
+      <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
+        <Link
+          to="/"
+          className="flex items-center gap-2.5 text-xl font-bold tracking-tight"
+        >
+          <img
+            src="/threadsgo-logo.png"
+            alt=""
+            className="h-9 w-9 object-contain"
+          />
+          ThreadsGo
+        </Link>
+        <nav
+          aria-label="Основная навигация"
+          className="flex items-center gap-5 text-sm font-medium"
+        >
+          <a href="#how-it-works" className="hidden text-[#60716a] md:block">
+            Как это работает
+          </a>
+          <Link to="/updates/" className="hidden text-[#60716a] sm:block">
+            Что нового
           </Link>
-
-          <nav aria-label="Навигация" className="flex items-center gap-3 sm:gap-6">
-          <Link to="/updates/" className="hidden text-sm text-white/75 hover:text-white sm:block">Что нового</Link>
-          <Link to="/pricing/" className="text-sm text-white/75 hover:text-white">Тарифы</Link>
+          <Link to="/pricing/" className="text-[#60716a]">
+            Тарифы
+          </Link>
           <Link
             to="/login"
-            className="shrink-0 rounded-full border border-white/14 bg-white/[0.05] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-white/75 transition hover:border-white/40 hover:bg-white hover:text-[#070909] sm:px-5 sm:text-[11px]"
+            className="rounded-xl border border-[#d5e0d9] bg-white px-4 py-2.5 hover:bg-[#edf3ef]"
           >
             Войти
           </Link>
-          </nav>
-        </header>
-
-        <div className="grid flex-1 items-center gap-10 py-14 sm:py-20 lg:grid-cols-[0.95fr_1.05fr] lg:py-10">
-          <div className="landing-reveal max-w-3xl [animation-delay:120ms]">
-            <h1 className="max-w-4xl font-display text-[clamp(3.15rem,13vw,8.5rem)] leading-[0.88] tracking-[-0.075em] text-white sm:leading-[0.82]">
-              Умный автопостинг для Threads.
-              <span className="mt-3 block text-[0.58em] leading-[0.95] tracking-[-0.06em] text-white/86 sm:mt-5">
-                Пишет то, что хотят читать.
-              </span>
-            </h1>
-
-            <p className="mt-7 max-w-2xl text-base leading-7 text-white/62 sm:mt-8 sm:text-lg sm:leading-8">
-              Забудьте про запросы в духе «ИИ, напиши пост». Наша система сама находит обсуждаемые темы в вашей нише,
-              учитывает стиль вашего проекта и готовит очередь публикаций. Вы редактируете и утверждаете черновики.
-            </p>
-
-            <div className="mt-9 grid gap-3 sm:mt-10 sm:flex sm:flex-wrap">
-              <Link
-                to="/login?intent=start"
-                data-analytics-cta="start_trial"
-                className="group rounded-full bg-white px-7 py-4 text-center font-mono text-xs uppercase tracking-[0.18em] text-[#070909] transition hover:bg-[#70ff35]"
-              >
-                Попробовать 3 дня
-                <span className="ml-3 inline-block transition group-hover:translate-x-1">→</span>
-              </Link>
-              <Link
-                to="/threads-ideas-generator/"
-                className="rounded-full border border-white/14 px-7 py-4 text-center font-mono text-xs uppercase tracking-[0.18em] text-white/68 transition hover:border-white/40 hover:text-white"
-              >
-                Получить идеи бесплатно
-              </Link>
-            </div>
-
-            <p className="mt-4 text-sm leading-6 text-white/55">Basic: 3 дня бесплатно, затем 1 490 ₽ в месяц. <Link to="/pricing/" className="underline underline-offset-4">Условия и все тарифы</Link></p>
-
-            <div className="mt-10 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:mt-14 lg:grid-cols-5">
-              {stats.map((item) => (
-                <div key={item.label} className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur">
-                  <p className="font-display text-4xl leading-none text-white">{item.value}</p>
-                  <p className="mt-3 font-mono text-[9px] uppercase leading-4 tracking-[0.18em] text-white/40">
-                    {item.label}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-white/48">{item.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <HeroDashboard />
-        </div>
-      </section>
-
-      <section id="audience" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
-        <div className="mb-10 max-w-4xl">
-          <h2 className="font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
-            Кому ThreadsGo сэкономит сотни часов?
-          </h2>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          {audienceCards.map((card) => (
-            <article
-              key={card.title}
-              className="landing-card min-h-72 rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white/[0.075]"
-            >
-              <h3 className="font-display text-4xl leading-none tracking-[-0.04em] text-white">{card.title}</h3>
-              <p className="mt-7 text-sm leading-7 text-white/58">{card.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="system" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
-        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <article className="landing-card rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur md:p-10">
-            <h2 className="max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
-              Почему обычный ИИ не работает? Он пишет шаблонами.
-            </h2>
-            <p className="mt-7 max-w-2xl text-base leading-8 text-white/58">
-              Большинство сервисов просто просят нейросеть «придумать что-нибудь». ThreadsGo работает иначе. Мы
-              непрерывно сканируем ленту, находим посты, которые прямо сейчас собирают лайки и комментарии, понимаем,
-              почему они сработали, и пишем уникальный контент с такой же логикой для вас.
-            </p>
-          </article>
-
-          <TrendPreviewPanel />
-        </div>
-
-        <div className="landing-card relative mt-4 overflow-hidden rounded-[2.4rem] border border-white/10 bg-white/[0.035]">
-          <img
-            src={landingImages.trendRadar}
-            alt="Карта трендов Threads"
-            className="landing-pan-image h-[26rem] w-full object-cover opacity-88 sm:h-[34rem]"
-            loading="lazy"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#070909] via-[#070909]/30 to-transparent" />
-          <div className="absolute bottom-0 left-0 max-w-xl p-7 sm:p-10">
-            <h3 className="font-display text-4xl leading-none tracking-[-0.05em] text-white sm:text-6xl">
-              Лента превращается в карту спроса.
-            </h3>
-            <p className="mt-5 text-sm leading-7 text-white/58">
-              ThreadsGo видит, какие темы уже обсуждают люди, какие форматы получают реакции и какие механики можно
-              безопасно адаптировать под ваш проект.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="workflow" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
-        <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div>
-            <h2 className="font-display text-5xl leading-none tracking-[-0.055em] text-white md:text-7xl">
-              От поиска идей до публикации — на автопилоте.
-            </h2>
-          </div>
-          <p className="max-w-md text-sm leading-7 text-white/50">
-            Внутри не магия, а понятный рабочий процесс.
+        </nav>
+      </header>
+      <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-12 sm:px-8 sm:pt-20 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:pb-24">
+        <div>
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#dbe6dd] bg-white px-3.5 py-2 text-xs font-medium text-[#49705a]">
+            <AppIcon name="spark" className="h-4 w-4" />
+            Ваш помощник для контента в Threads
           </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {workflow.map((item) => (
-            <article
-              key={item.title}
-              className="landing-card group min-h-56 rounded-[2rem] border border-white/10 bg-white/[0.045] p-6 transition duration-300 hover:-translate-y-1 hover:bg-white/[0.075] sm:min-h-72"
+          <h1 className="max-w-xl text-[clamp(2.7rem,5.5vw,4.6rem)] font-semibold leading-[1.06] tracking-[-0.055em]">
+            Больше ваших идей.
+            <br />
+            <span className="text-[#5c8b71]">Меньше рутины.</span>
+          </h1>
+          <p className="mt-6 max-w-lg text-base leading-7 text-[#60716a] sm:text-lg sm:leading-8">
+            ThreadsGo находит темы, пишет посты в вашем стиле и помогает
+            публиковать по расписанию. Всё — в одном спокойном рабочем
+            пространстве.
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link
+              to="/login?intent=start"
+              data-analytics-cta="start_trial"
+              className="home-primary"
             >
-              <h3 className="mt-14 font-display text-4xl leading-none tracking-[-0.04em] text-white">
-                {item.title}
-              </h3>
-              <p className="mt-6 text-sm leading-7 text-white/52">{item.text}</p>
-            </article>
-          ))}
+              Попробовать 3 дня <span aria-hidden="true">↗</span>
+            </Link>
+            <Link to="/threads-ideas-generator/" className="home-secondary">
+              Получить идеи бесплатно
+            </Link>
+          </div>
+          <p className="mt-4 max-w-lg text-xs leading-5 text-[#738078]">
+            Basic: 3 дня бесплатно, затем 1 490 ₽/мес. Для пробного периода
+            нужны карта в Tribute и вступление в канал.{" "}
+            <Link to="/pricing/" className="underline underline-offset-2">
+              Все условия
+            </Link>
+          </p>
+          <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-[#60716a]">
+            <span>✓ Помощь со стилем</span>
+            <span>✓ Редактирование постов</span>
+            <span>✓ Расписание публикаций</span>
+          </div>
+        </div>
+        <ProductPreview />
+      </section>
+      <section id="how-it-works" className="border-y border-[#e0e8e2] bg-white">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+              <p className="home-eyebrow">ПЕРВЫЕ ШАГИ</p>
+              <h2 className="home-heading mt-3">От идеи до вашей ленты.</h2>
+            </div>
+            <p className="max-w-sm text-sm leading-6 text-[#60716a]">
+              Начните с одного проекта. Остальные настройки можно уточнить по
+              ходу работы.
+            </p>
+          </div>
+          <div className="mt-9 grid gap-5 md:grid-cols-3">
+            {steps.map(([title, text], i) => (
+              <article
+                key={title}
+                className="rounded-2xl border border-[#e0e8e2] bg-[#f8faf9] p-6"
+              >
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e8efe9] text-sm font-semibold text-[#49705a]">
+                  0{i + 1}
+                </span>
+                <h3 className="mt-6 text-xl font-semibold tracking-tight">
+                  {title}
+                </h3>
+                <p className="mt-3 text-sm leading-7 text-[#60716a]">{text}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
-
-      <section id="control" className="relative z-10 mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10">
-        <div className="rounded-[2.4rem] border border-white/10 bg-[#eff6ed] p-5 text-[#08100d] shadow-[0_40px_140px_rgba(0,0,0,0.35)] md:p-8">
-          <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
-            <div className="rounded-[2rem] bg-[#08100d] p-8 text-white">
-              <h2 className="font-display text-5xl leading-[0.9] tracking-[-0.055em]">
-                Автономия, которую можно держать за руку.
-              </h2>
-              <p className="mt-7 text-sm leading-7 text-white/58">
-                Вы не отдаете свой аккаунт слепому роботу. Платформа делает всю черновую работу по расписанию, но
-                финальное решение всегда остается за вами. Если профиль разлогинится — система встанет на паузу и
-                пришлет уведомление, а не будет молча жечь посты.
-              </p>
-
-              <div className="mt-8 grid gap-2">
-                {capabilities.map((item) => (
-                  <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 px-4 py-3">
-                    <span className="h-2 w-2 rounded-full bg-[#70ff35]" />
-                    <span className="text-sm text-white/68">{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <ControlMockup />
-          </div>
-
-          <div className="landing-card relative mt-5 overflow-hidden rounded-[2rem] bg-[#050807]">
-            <img
-              src={landingImages.humanControl}
-              alt="Ручной контроль публикаций"
-              className="h-[24rem] w-full object-cover opacity-90 sm:h-[34rem]"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#050807] via-transparent to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
-              <div className="max-w-xl rounded-3xl border border-white/12 bg-[#07100e]/70 p-5 text-white backdrop-blur">
-                <p className="text-sm leading-7 text-white/62">
-                  Автоматизация не забирает контроль. Она готовит черновики, а человек решает, что выпускать в ленту.
+      <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2 lg:items-center">
+        <div>
+          <p className="home-eyebrow">ВАШ ГОЛОС, ВАШИ ПРАВИЛА</p>
+          <h2 className="home-heading mt-3">
+            Не знаете, что написать
+            <br />в настройках стиля?
+          </h2>
+          <p className="mt-5 max-w-lg text-base leading-8 text-[#60716a]">
+            Не нужно разбираться в промптах. Помощник спросит о тоне, длине
+            постов и юморе, затем предложит текст настроек. Вы прочитаете его и
+            решите, что сохранить.
+          </p>
+          <Link
+            to="/login?intent=start"
+            className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#315b46]"
+          >
+            Настроить свой стиль →
+          </Link>
+        </div>
+        <div className="rounded-3xl border border-[#dbe6dd] bg-[#edf3ef] p-5 sm:p-8">
+          <div className="rounded-2xl bg-white p-6 shadow-[0_16px_40px_rgba(30,60,45,0.06)]">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e8efe9]">
+                <AppIcon name="spark" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">Как вы хотите звучать?</p>
+                <p className="mt-1 text-xs text-[#738078]">
+                  Пример настройки стиля
                 </p>
               </div>
             </div>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <span className="rounded-lg bg-[#315b46] px-3 py-2 text-xs text-white">
+                По-дружески
+              </span>
+              {["Экспертно", "С юмором", "Коротко и по делу"].map((t) => (
+                <span
+                  key={t}
+                  className="rounded-lg border border-[#e0e8e2] px-3 py-2 text-xs text-[#60716a]"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+            <p className="mt-5 rounded-xl bg-[#f8faf9] p-4 text-sm leading-7 text-[#60716a]">
+              «Пиши простым языком, как в разговоре с коллегой. Начинай с
+              конкретной мысли, добавляй примеры и избегай рекламных клише».
+            </p>
+            <p className="mt-4 text-xs text-[#738078]">
+              Стиль можно изменить в любой момент.
+            </p>
           </div>
         </div>
       </section>
-
-      <section className="relative z-10 mx-auto max-w-7xl px-5 pb-10 pt-12 sm:px-8 sm:pt-16 lg:px-10">
-        <div className="landing-card grid overflow-hidden rounded-[2.4rem] border border-white/10 bg-[linear-gradient(115deg,rgba(255,255,255,0.05),rgba(255,255,255,0.035)_45%,rgba(0,216,183,0.08)_72%,rgba(112,255,53,0.08))] backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="p-8 text-center md:p-14 lg:text-left">
-            <img src="/threadsgo-logo.png" alt="" className="mx-auto h-20 w-20 object-contain lg:mx-0" />
-            <h2 className="mt-7 max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] text-white md:text-7xl">
-              Ваш автономный редактор для Threads.
-            </h2>
-            <p className="mt-5 font-display text-4xl leading-none tracking-[-0.04em] text-white/70">
-              Готов к работе.
-            </p>
-            <p className="mt-6 max-w-xl text-sm leading-7 text-white/54">
-              Начните с авторизации через Telegram, добавьте свой первый проект, подключите профиль Threads и позвольте
-              алгоритмам сделать рутину за вас.
-            </p>
-            <Link
-              to="/login"
-              className="mt-9 inline-flex rounded-full bg-white px-8 py-4 font-mono text-xs uppercase tracking-[0.18em] text-[#070909] transition hover:bg-[#70ff35]"
+      <section className="mx-auto max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
+        <div className="rounded-3xl bg-[#162b25] p-6 text-white sm:p-10 lg:p-12">
+          <div className="grid gap-9 lg:grid-cols-2 lg:items-center">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.13em] text-[#a6c4b1]">
+                ДЛЯ ВАШЕЙ РАБОТЫ
+              </p>
+              <h2 className="home-heading mt-4">
+                Контенту есть место.
+                <br />И у вас есть время.
+              </h2>
+              <p className="mt-5 max-w-md text-sm leading-7 text-[#b2c3ba]">
+                Экспертам — для личного бренда. Бизнесу — для общения с
+                аудиторией. SMM — для работы с несколькими проектами.
+              </p>
+              <div
+                role="tablist"
+                aria-label="Примеры для разных задач"
+                className="mt-7 flex flex-wrap gap-2"
+              >
+                {examples.map((item, i) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    role="tab"
+                    id={`audience-tab-${i}`}
+                    aria-selected={selected === i}
+                    aria-controls="audience-example"
+                    tabIndex={selected === i ? 0 : -1}
+                    onClick={() => setSelected(i)}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        const next =
+                          (selected +
+                            (e.key === "ArrowRight" ? 1 : -1) +
+                            examples.length) %
+                          examples.length;
+                        setSelected(next);
+                        document
+                          .getElementById(`audience-tab-${next}`)
+                          ?.focus();
+                      }
+                    }}
+                    className={`rounded-xl px-4 py-2.5 text-sm transition ${selected === i ? "bg-[#d9eadc] text-[#162b25]" : "border border-white/20 text-[#b2c3ba] hover:bg-white/10"}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div
+              id="audience-example"
+              role="tabpanel"
+              aria-labelledby={`audience-tab-${selected}`}
+              className="rounded-2xl border border-white/15 bg-white/[0.06] p-6 sm:p-8"
             >
-              Войти в кабинет
-            </Link>
-          </div>
-
-          <div className="relative min-h-[28rem] overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_58%_48%,rgba(112,255,53,0.18),transparent_38%),linear-gradient(90deg,rgba(7,9,9,0.5),transparent_28%,rgba(7,9,9,0.14))]" />
-            <img
-              src={landingImages.mobilePreview}
-              alt="Мобильная панель ThreadsGo"
-              className="landing-phone-image absolute left-1/2 top-6 h-[36rem] max-w-none -translate-x-1/2 object-contain opacity-90 lg:top-[-1rem] lg:h-[44rem]"
-              loading="lazy"
-            />
-            <div className="absolute inset-y-0 left-0 hidden w-40 bg-gradient-to-r from-[#111816] to-transparent lg:block" />
-            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#0b120f] to-transparent" />
+              <p className="text-xs text-[#a6c4b1]">
+                Иллюстрация идеи для поста
+              </p>
+              <h3 className="mt-5 text-2xl font-semibold tracking-tight">
+                {examples[selected].title}
+              </h3>
+              <p className="mt-4 text-base leading-8 text-[#d3dfd8]">
+                {examples[selected].text}
+              </p>
+            </div>
           </div>
         </div>
       </section>
-
-      <nav aria-label="Полезные материалы" className="relative z-10 mx-auto flex max-w-7xl flex-wrap gap-x-6 gap-y-3 px-5 pb-8 text-sm text-white/65 sm:px-8 lg:px-10">
-        <Link to="/pricing/">Тарифы</Link><Link to="/updates/">Что нового</Link><Link to="/resources/">Бесплатные инструменты</Link><Link to="/blog/">Блог о Threads</Link><Link to="/threads-autoposting/">Автопостинг</Link><Link to="/threads-content-plan/">Контент-план</Link><Link to="/threads-hook-analyzer/">Проверить пост</Link>
-      </nav>
-      <footer className="relative z-10 mx-auto flex max-w-7xl flex-col gap-3 px-5 pb-10 text-xs leading-5 text-white/38 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
-        <p>
-          *Деятельность Meta (соцсети Facebook, Threads и Instagram) запрещена в России как экстремистская.
+      <section className="mx-auto max-w-3xl px-5 pb-16 text-center sm:pb-24">
+        <p className="home-eyebrow">НАЧНИТЕ С МАЛЕНЬКОГО</p>
+        <h2 className="home-heading mt-3">
+          Ваш следующий пост
+          <br />
+          начинается здесь.
+        </h2>
+        <p className="mt-5 text-base leading-7 text-[#60716a]">
+          Посмотрите, как ThreadsGo подходит вашей задаче.
+          <br />
+          На Basic есть пробный период — 3 дня.
         </p>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to="/terms"
-            className="w-fit rounded-full border border-white/12 px-4 py-2 text-white/62 transition hover:border-white/38 hover:text-white"
-          >
-            Условия и политика
-          </Link>
-          <a
-            href="https://t.me/cuartenlol"
-            target="_blank"
-            rel="noreferrer"
-            className="w-fit rounded-full border border-white/12 px-4 py-2 text-white/62 transition hover:border-white/38 hover:text-white"
-          >
-            Связь с разработчиком
-          </a>
+        <Link
+          to="/login?intent=start"
+          data-analytics-cta="start_trial"
+          className="home-primary mx-auto mt-7 w-fit"
+        >
+          Создать первый проект ↗
+        </Link>
+        <Link
+          to="/pricing/"
+          className="mt-4 block text-sm text-[#60716a] underline underline-offset-4"
+        >
+          Посмотреть тарифы и условия
+        </Link>
+      </section>
+      <footer className="border-t border-[#e0e8e2] bg-white">
+        <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
+          <div className="flex flex-col justify-between gap-5 sm:flex-row">
+            <span className="text-lg font-bold tracking-tight">ThreadsGo</span>
+            <nav
+              aria-label="Полезные ссылки"
+              className="flex flex-wrap gap-5 text-sm text-[#60716a]"
+            >
+              <Link to="/updates/">Что нового</Link>
+              <Link to="/resources/">Полезные материалы</Link>
+              <Link to="/pricing/">Тарифы</Link>
+              <Link to="/terms">Условия и политика</Link>
+              <a
+                href="https://t.me/cuartenlol"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Поддержка ↗
+              </a>
+            </nav>
+          </div>
+          <p className="mt-6 max-w-4xl text-xs leading-6 text-[#738078]">
+            Мы ограничиваем активность и приостанавливаем работу при проблемах с
+            доступом. Это не исключает ограничений или блокировки аккаунта: Meta
+            меняет свои правила и способы обнаружения автоматизации. Учитывайте
+            этот риск при подключении профиля.
+          </p>
+          <p className="mt-2 text-[11px] leading-5 text-[#738078]">
+            * Деятельность Meta (соцсети Facebook, Threads и Instagram)
+            запрещена в России как экстремистская.
+          </p>
         </div>
       </footer>
     </main>
   );
 }
 
-function HeroDashboard() {
+function ProductPreview() {
   return (
-    <div className="landing-reveal relative pt-20 [animation-delay:240ms] sm:pt-24 lg:pt-32">
-      <img
-        src={landingImages.heroOrb}
-        alt=""
-        className="landing-orb pointer-events-none absolute right-3 top-[-2.5rem] z-10 w-40 opacity-80 blur-[0.1px] sm:right-12 sm:top-[-4rem] sm:w-56 lg:right-28 lg:top-[-6rem] lg:w-72"
-        loading="eager"
-      />
-      <div className="landing-dashboard-frame relative rounded-[2.2rem] border border-white/12 bg-[#101615]/80 p-2 shadow-[0_50px_160px_rgba(0,0,0,0.5)] backdrop-blur sm:p-3">
-        <img
-          src={landingImages.dashboard}
-          alt="ThreadsGo dashboard"
-          className="landing-dashboard-image aspect-[1.5/1] w-full rounded-[1.7rem] object-cover object-center"
-          loading="eager"
-        />
-
-        <div className="absolute inset-x-5 bottom-5 hidden rounded-3xl border border-white/12 bg-[#07100e]/80 p-4 text-white shadow-2xl backdrop-blur md:block">
-          <div className="flex items-center justify-between gap-4">
-            <p className="max-w-lg text-sm leading-6 text-white/74">
-              Система нашла тренд, подготовила черновик и поставила публикацию в очередь.
-            </p>
-            <span className="landing-signal-pill rounded-full bg-[#70ff35] px-4 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#07100e]">
-              готово
-            </span>
-          </div>
+    <div className="relative min-w-0 rounded-[28px] border border-[#d6e3d9] bg-[#eaf1ec] p-3 shadow-[0_30px_80px_-35px_rgba(35,75,50,0.3)] sm:p-5">
+      <div className="overflow-hidden rounded-2xl border border-[#e0e8e2] bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-[#e7ede9] px-5 py-4">
+          <span className="text-sm font-semibold">Рабочее пространство</span>
+          <span className="rounded-full bg-[#f1f5f2] px-2.5 py-1 text-[10px] text-[#60716a]">
+            Пример интерфейса
+          </span>
         </div>
-
-        <div className="landing-float-card absolute -right-3 top-8 rounded-3xl border border-white/12 bg-[#08100d]/90 p-4 text-white shadow-2xl backdrop-blur sm:-right-5">
-          <p className="font-display text-3xl leading-none">5</p>
-          <p className="mt-1 text-xs text-white/48">постов в очереди</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ControlMockup() {
-  const [queued, setQueued] = useState(false);
-
-  const handleQueueClick = () => {
-    setQueued(true);
-    window.setTimeout(() => setQueued(false), 1600);
-  };
-
-  return (
-    <div className="grid gap-4">
-      <div className="group rounded-[2rem] border border-[#d7dfd4] bg-white/80 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="font-display text-3xl leading-none tracking-[-0.04em] text-[#08100d]">
-              Черновик готов к публикации
-            </p>
-            <p className="mt-2 text-xs leading-5 text-[#557162]">Сгенерирован под стиль проекта и свежий тренд.</p>
-          </div>
-          <span className="rounded-full bg-[#fff2d6] px-3 py-1 text-xs text-[#8a5b12]">на проверке</span>
-        </div>
-        <p className="mt-5 text-sm leading-7 text-[#26372f]">
-          Мы поймали тему, которая уже обсуждается в ленте, и собрали пост без рекламной витрины. Осталось быстро
-          проверить формулировки и поставить публикацию в расписание.
-        </p>
-        <div className="mt-5 grid grid-cols-3 gap-2">
-          <button className="rounded-2xl border border-[#c9d4c6] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#08100d] hover:bg-white">
-            Редактировать
-          </button>
-          <button className="rounded-2xl border border-[#b8eee0] bg-[#e8fff8] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#075343] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#d6fff1]">
-            Переписать ИИ
-          </button>
-          <button
-            onClick={handleQueueClick}
-            className="relative overflow-hidden rounded-2xl bg-[#08100d] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-white transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:bg-[#70ff35] hover:text-[#07100e]"
-          >
-            <span className={`transition ${queued ? "opacity-0" : "opacity-100"}`}>В очередь</span>
-            <span
-              className={`absolute inset-0 grid place-items-center transition ${
-                queued ? "scale-100 opacity-100" : "scale-75 opacity-0"
-              }`}
-            >
-              ✓ готово
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div
-          className="group relative rounded-[2rem] border border-[#d7dfd4] bg-white/80 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
-          title="Аккаунт синхронизирован с Threads. Система готова к работе"
-        >
-          <div className="flex items-center gap-3">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#70ff35] opacity-60" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-[#70ff35]" />
-            </span>
-            <p className="text-sm font-semibold text-[#08100d]">Статус профиля: Подключен</p>
-          </div>
-        </div>
-        <div
-          className="group rounded-[2rem] border border-[#d7dfd4] bg-white/80 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
-          title="Оптимальная частота для поддержания активности без спама"
-        >
-          <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-[#edf6ec] text-lg">⏱</span>
-            <div>
-              <p className="text-sm font-semibold text-[#08100d]">Расписание: 3 поста в день</p>
-              <p className="mt-1 text-xs text-[#557162]">С 09:00 до 21:00</p>
-            </div>
-          </div>
-          <div className="mt-6">
-            <div className="relative h-1 rounded-full bg-[#d7dfd4]">
-              <span className="absolute left-[12%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-[#0076ff] shadow-[0_0_18px_rgba(0,118,255,0.55)]" />
-              <span className="absolute left-[50%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-[#00d8b7] shadow-[0_0_18px_rgba(0,216,183,0.55)]" />
-              <span className="absolute left-[86%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-[#70ff35] shadow-[0_0_18px_rgba(112,255,53,0.55)]" />
-            </div>
-            <div className="mt-3 flex justify-between font-mono text-[9px] text-[#557162]">
-              <span>09:00</span>
-              <span>15:00</span>
-              <span>21:00</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TrendPreviewPanel() {
-  return (
-    <article className="landing-card overflow-hidden rounded-[2rem] border border-white/10 bg-[#eff6ed] p-4 text-[#08100d] md:p-5">
-      <div className="space-y-3">
-        {trendCards.map((trend, index) => (
-          <button
-            key={trend.username}
-            type="button"
-            className="group w-full rounded-3xl border border-[#d7dfd4] bg-white/72 p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-[#9ecab0] hover:bg-white hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#70ff35]"
-            style={{ ["--trend-delay" as string]: `${index * 120}ms` }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span
-                  className={`h-10 w-10 shrink-0 rounded-full bg-gradient-to-br ${trend.avatarClass} shadow-[0_0_28px_rgba(0,216,183,0.22)]`}
-                />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-[#08100d]">{trend.username}</p>
-                  <p className="mt-0.5 text-[11px] text-[#6a7a72]">Threads · пример оформления</p>
-                </div>
-              </div>
-              <span
-                className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-medium transition-transform duration-200 group-hover:scale-105 ${trend.badgeClass}`}
+        <div className="grid grid-cols-[42px_1fr] sm:grid-cols-[110px_1fr]">
+          <div className="border-r border-[#e7ede9] bg-[#f8faf9] p-2 sm:p-3">
+            {(
+              [
+                ["overview", "Обзор"],
+                ["queue", "Посты"],
+                ["trends", "Идеи"],
+                ["settings", "Настройки"],
+              ] as const
+            ).map(([icon, label], i) => (
+              <div
+                key={label}
+                className={`mb-2 flex items-center gap-2 rounded-lg p-2 text-xs ${i === 1 ? "bg-[#e4eee6] text-[#315b46]" : "text-[#738078]"}`}
               >
-                {trend.badge}
-              </span>
+                <AppIcon name={icon} className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:block">{label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="min-w-0 p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold tracking-tight">
+                Публикации
+              </h2>
+              <span className="text-xs text-[#738078]">Мой блог</span>
             </div>
-
-            <p className="mt-4 line-clamp-3 text-sm leading-6 text-[#26372f]">{trend.text}</p>
-
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-[#42564c]">
-              <span>❤️ {trend.likes}</span>
-              <span>💬 {trend.replies}</span>
-              <span>🔁 {trend.reposts}</span>
+            <div className="mt-5 flex gap-4 border-b border-[#e7ede9] pb-3 text-xs">
+              <span className="font-semibold text-[#315b46]">В очереди</span>
+              <span className="text-[#738078]">Опубликовано</span>
             </div>
-
-            <div className="mt-4 rounded-2xl border border-[#d7dfd4] bg-[#f6fbf3] p-3">
-              <p className="text-xs leading-5 text-[#40564b]">{trend.insight}</p>
+            <article className="mt-4 rounded-xl border border-[#dbe6dd] p-4">
+              <div className="flex items-center gap-2">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-[#e8efe9] text-xs font-semibold">
+                  М
+                </span>
+                <div>
+                  <p className="text-xs font-semibold">Мой блог</p>
+                  <p className="mt-0.5 text-[10px] text-[#738078]">
+                    Пример текста
+                  </p>
+                </div>
+                <AppIcon
+                  name="spark"
+                  className="ml-auto h-4 w-4 text-[#5c8b71]"
+                />
+              </div>
+              <p className="mt-4 text-sm leading-6">
+                Самая полезная привычка в работе — записывать идеи сразу.
+                <br />
+                <br />
+                Не ждать вдохновения, а оставлять себе маленькие подсказки. Из
+                одной заметки потом может вырасти целый пост.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#e7ede9] pt-3">
+                <span className="rounded-md bg-[#eef4ef] px-2 py-1 text-[10px] text-[#49705a]">
+                  По расписанию
+                </span>
+                <span className="text-[10px] text-[#738078]">
+                  Можно изменить до выхода
+                </span>
+              </div>
+            </article>
+            <div className="mt-3 flex items-center gap-3 rounded-xl bg-[#f3f6f4] p-3">
+              <AppIcon
+                name="trends"
+                className="h-5 w-5 shrink-0 text-[#5c8b71]"
+              />
+              <p className="text-xs leading-5 text-[#60716a]">
+                Новые идеи и очередь постов — рядом с настройками проекта.
+              </p>
             </div>
-          </button>
-        ))}
+          </div>
+        </div>
       </div>
-    </article>
+      <p className="px-2 pt-3 text-center text-[11px] text-[#738078]">
+        Идеи → тексты в вашем стиле → расписание
+      </p>
+    </div>
   );
 }

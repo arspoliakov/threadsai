@@ -428,6 +428,8 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_experimental_option(
             "prefs",
             {
+                "credentials_enable_service": False,
+                "profile.password_manager_enabled": False,
                 # Explicitly reset preferences left by older persistent profiles.
                 "profile.managed_default_content_settings.images": 1,
                 "profile.default_content_setting_values.images": 1,

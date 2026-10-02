@@ -14,6 +14,7 @@ import {
 } from "../../api/client";
 import { trackSeoEvent } from "../../components/SeoAnalytics";
 import AccountRiskNotice from "../../components/AccountRiskNotice";
+import ThreadsLoginWindow from "../../components/ThreadsLoginWindow";
 
 const THREADS_PLATFORM: Platform = "threads";
 const SESSION_USERNAME_PLACEHOLDER = "pending_from_session";
@@ -22,6 +23,7 @@ export default function InfrastructurePage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBrowserOpen, setIsBrowserOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [checkingId, setCheckingId] = useState<number | null>(null);
   const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
@@ -116,6 +118,7 @@ export default function InfrastructurePage() {
           </p>
         </div>
         <div className="grid gap-3 self-end sm:flex">
+          <button type="button" onClick={() => setIsBrowserOpen(true)} className="h-11 rounded-2xl border border-[#151515] bg-[#151515] px-5 text-sm text-white">Войти через браузер</button>
           <button
             type="button"
             onClick={() => setIsBulkOpen(true)}
@@ -128,7 +131,7 @@ export default function InfrastructurePage() {
             onClick={() => setIsCreateOpen(true)}
             className="h-11 rounded-2xl border border-[#151515] bg-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515]"
           >
-            Добавить профиль
+            Импортировать сессию
           </button>
         </div>
       </header>
@@ -207,6 +210,7 @@ export default function InfrastructurePage() {
           }}
         />
       ) : null}
+      {isBrowserOpen ? <ThreadsLoginWindow onClose={() => setIsBrowserOpen(false)} onConnected={() => { setIsBrowserOpen(false); void loadAccounts(); }} /> : null}
 
       {isBulkOpen ? (
         <BulkImportPanel

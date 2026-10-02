@@ -13,6 +13,8 @@ from app.api.auth import limiter
 from app.core.config import settings
 from app.api.middleware.error_reporting import ErrorReportingMiddleware
 from app.api.routes import accounts, billing, dashboard, health, projects, prompts, tasks, trends
+from app.api.routes import threads_login
+from app.services.threads_login_window import login_window
 from app.posting.proxy_manager import ProxyManager
 from app.posting.scheduler import scheduler, setup_posting_scheduler
 from app.telegram.admin_bot import cancel_admin_polling_task, start_admin_bot_polling, stop_admin_bot
@@ -35,6 +37,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
     try:
         yield
     finally:
+        login_window.shutdown()
         await proxy_manager.stop()
         if scheduler.running:
             scheduler.shutdown(wait=False)
@@ -71,6 +74,7 @@ app.include_router(dashboard.router, prefix=API_V1_PREFIX)
 app.include_router(billing.router, prefix=API_V1_PREFIX)
 app.include_router(projects.router, prefix=API_V1_PREFIX)
 app.include_router(accounts.router, prefix=API_V1_PREFIX)
+app.include_router(threads_login.router, prefix=API_V1_PREFIX)
 app.include_router(tasks.router, prefix=API_V1_PREFIX)
 app.include_router(trends.router, prefix=API_V1_PREFIX)
 app.include_router(prompts.router, prefix=API_V1_PREFIX)

@@ -133,7 +133,9 @@ class TelegramBotLoginChallengeTest(unittest.IsolatedAsyncioTestCase):
         app.dependency_overrides[get_db] = override_db
         client = AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver")
         try:
-            started = await client.post("/api/v1/auth/telegram-bot/start", json={})
+            started = await client.post("/api/v1/auth/telegram-bot/start", json={"registration": {
+                "version": "2026-10-02", "terms": True, "privacy": True, "risks": True,
+            }})
             self.assertEqual(started.status_code, 201)
             data = started.json()
             self.assertNotIn(data["browser_secret"], data["bot_url"])

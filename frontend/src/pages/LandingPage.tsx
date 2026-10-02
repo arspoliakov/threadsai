@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { ThemeToggle } from "../components/ThemeToggle";
 import { AppIcon } from "../components/AppIcons";
 
 const steps = [
@@ -37,7 +38,7 @@ const examples = [
 export default function LandingPage() {
   const [selected, setSelected] = useState(0);
   return (
-    <main className="home-refresh bg-[#f8faf9] text-[#162b25]">
+    <main className="home-refresh relative overflow-hidden bg-[#f8faf9] text-[#162b25]">
       <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
         <Link
           to="/"
@@ -52,7 +53,7 @@ export default function LandingPage() {
         </Link>
         <nav
           aria-label="Основная навигация"
-          className="flex items-center gap-5 text-sm font-medium"
+          className="flex items-center gap-2 text-sm font-medium sm:gap-5"
         >
           <a href="#how-it-works" className="hidden text-[#60716a] md:block">
             Как это работает
@@ -63,6 +64,7 @@ export default function LandingPage() {
           <Link to="/pricing/" className="text-[#60716a]">
             Тарифы
           </Link>
+          <ThemeToggle />
           <Link
             to="/login"
             className="rounded-xl border border-[#d5e0d9] bg-white px-4 py-2.5 hover:bg-[#edf3ef]"
@@ -71,7 +73,7 @@ export default function LandingPage() {
           </Link>
         </nav>
       </header>
-      <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-12 sm:px-8 sm:pt-20 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:pb-24">
+      <section className="home-hero mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-12 sm:px-8 sm:pt-20 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:pb-24">
         <div>
           <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#dbe6dd] bg-white px-3.5 py-2 text-xs font-medium text-[#49705a]">
             <AppIcon name="spark" className="h-4 w-4" />
@@ -89,15 +91,13 @@ export default function LandingPage() {
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
-              to="/login?intent=start"
+              to="/register?intent=start"
               data-analytics-cta="start_trial"
               className="home-primary"
             >
               Попробовать 3 дня <span aria-hidden="true">↗</span>
             </Link>
-            <Link to="/threads-ideas-generator/" className="home-secondary">
-              Получить идеи бесплатно
-            </Link>
+            <a href="#how-it-works" className="home-secondary">Как это работает</a>
           </div>
           <p className="mt-4 max-w-lg text-xs leading-5 text-[#738078]">
             Basic: 3 дня бесплатно, затем 1 490 ₽/мес. Для пробного периода
@@ -112,7 +112,11 @@ export default function LandingPage() {
             <span>✓ Расписание публикаций</span>
           </div>
         </div>
-        <ProductPreview />
+        <div className="hero-visual relative min-w-0 pt-14 sm:pt-16">
+          <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden="true" />
+          <img src="/landing/hero-orb.webp" width="1254" height="1254" alt="" className="hero-art pointer-events-none absolute -right-3 -top-16 z-10 h-44 w-44 object-contain sm:-top-20 sm:h-56 sm:w-56" fetchPriority="high" />
+          <ProductPreview />
+        </div>
       </section>
       <section id="how-it-works" className="border-y border-[#e0e8e2] bg-white">
         <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
@@ -144,7 +148,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-      <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2 lg:items-center">
+      <section className="home-enter mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2 lg:items-center">
         <div>
           <p className="home-eyebrow">ВАШ ГОЛОС, ВАШИ ПРАВИЛА</p>
           <h2 className="home-heading mt-3">
@@ -157,7 +161,7 @@ export default function LandingPage() {
             решите, что сохранить.
           </p>
           <Link
-            to="/login?intent=start"
+            to="/register?intent=start"
             className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#315b46]"
           >
             Настроить свой стиль →
@@ -196,6 +200,18 @@ export default function LandingPage() {
             <p className="mt-4 text-xs text-[#738078]">
               Стиль можно изменить в любой момент.
             </p>
+          </div>
+        </div>
+      </section>
+      <section className="home-enter mx-auto max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
+        <div className="idea-landscape relative overflow-hidden rounded-3xl bg-[#07100e] text-white">
+          <img src="/landing/trend-radar.webp" width="1605" height="970" alt="" loading="lazy" className="idea-landscape-image absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#07100e] via-[#07100e]/85 to-[#07100e]/10" />
+          <div className="relative max-w-xl px-6 py-12 sm:px-10 sm:py-16">
+            <p className="text-xs font-semibold tracking-[0.13em] text-[#a6c4b1]">ИЗ ЛЕНТЫ — В ВАШ ПРОЕКТ</p>
+            <h2 className="home-heading mt-4">У интересных тем<br />есть продолжение.</h2>
+            <p className="mt-5 text-sm leading-7 text-[#d3dfd8]">ThreadsGo собирает обсуждаемые темы и помогает превратить их в новые тексты с учётом описания проекта и вашего стиля.</p>
+            <a href="#how-it-works" className="mt-7 inline-flex items-center gap-3 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-medium hover:bg-white/20">Посмотреть первые шаги <span aria-hidden="true">→</span></a>
           </div>
         </div>
       </section>
@@ -282,7 +298,7 @@ export default function LandingPage() {
           На Basic есть пробный период — 3 дня.
         </p>
         <Link
-          to="/login?intent=start"
+          to="/register?intent=start"
           data-analytics-cta="start_trial"
           className="home-primary mx-auto mt-7 w-fit"
         >
@@ -317,14 +333,13 @@ export default function LandingPage() {
             </nav>
           </div>
           <p className="mt-6 max-w-4xl text-xs leading-6 text-[#738078]">
-            Мы ограничиваем активность и приостанавливаем работу при проблемах с
-            доступом. Это не исключает ограничений или блокировки аккаунта: Meta
-            меняет свои правила и способы обнаружения автоматизации. Учитывайте
-            этот риск при подключении профиля.
+            Мы активно совершенствуем наши системы защиты от блокировок. Однако
+            это не исключает ограничений или блокировки аккаунта: Meta постоянно
+            меняет правила и способы обнаружения автоматизации. Учитывайте этот
+            риск при подключении профиля.
           </p>
           <p className="mt-2 text-[11px] leading-5 text-[#738078]">
-            * Деятельность Meta (соцсети Facebook, Threads и Instagram)
-            запрещена в России как экстремистская.
+            *Meta Platforms Inc. признана экстремистской организацией; её деятельность запрещена в России.
           </p>
         </div>
       </footer>
@@ -334,7 +349,7 @@ export default function LandingPage() {
 
 function ProductPreview() {
   return (
-    <div className="relative min-w-0 rounded-[28px] border border-[#d6e3d9] bg-[#eaf1ec] p-3 shadow-[0_30px_80px_-35px_rgba(35,75,50,0.3)] sm:p-5">
+    <div className="product-preview relative min-w-0 rounded-[28px] border border-[#d6e3d9] bg-[#eaf1ec] p-3 shadow-[0_30px_80px_-35px_rgba(35,75,50,0.3)] sm:p-5">
       <div className="overflow-hidden rounded-2xl border border-[#e0e8e2] bg-white">
         <div className="flex items-center justify-between gap-3 border-b border-[#e7ede9] px-5 py-4">
           <span className="text-sm font-semibold">Рабочее пространство</span>

@@ -1,3 +1,5 @@
+@import "./themes.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -70,7 +72,7 @@
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   background: #f6f6f2;
   font-family: Aptos, "Segoe UI", sans-serif;
@@ -78,6 +80,25 @@ body {
 
 html {
   scroll-behavior: smooth;
+}
+
+.home-hero { animation: home-arrive 700ms ease-out both; }
+.hero-art { animation: home-float 7s ease-in-out infinite; filter: drop-shadow(0 18px 30px rgba(0, 160, 135, .18)); }
+.hero-glow { background: radial-gradient(ellipse at 70% 28%, rgba(0, 186, 153, .16), transparent 66%); }
+.product-preview { transition: transform 400ms ease, box-shadow 400ms ease; }
+@media (hover: hover) { .hero-visual:hover .product-preview { transform: translateY(-5px); box-shadow: 0 32px 85px -35px rgba(0, 160, 135, .35); } }
+.idea-landscape-image { animation: home-landscape 18s ease-in-out infinite alternate; }
+.home-enter { animation: home-arrive 650ms ease-out both; }
+@supports (animation-timeline: view()) {
+  .home-enter { animation-timeline: view(); animation-range: entry 0% entry 25%; }
+}
+@keyframes home-arrive { from { opacity: .4; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes home-float { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-12px) rotate(3deg); } }
+@keyframes home-landscape { from { transform: scale(1); } to { transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) {
+  .home-hero, .hero-art, .idea-landscape-image, .home-enter { animation: none; }
+  .product-preview { transition: none; }
+  .hero-visual:hover .product-preview { transform: none; }
 }
 
 .field-label {
@@ -129,6 +150,27 @@ html {
   font-size: 0.95rem;
   line-height: 1.8;
   color: #526056;
+}
+
+.operator-details h2 {
+  font-family: inherit;
+  font-size: 1.125rem;
+  line-height: 1.5;
+  letter-spacing: normal;
+  font-weight: 600;
+}
+
+.operator-details p {
+  margin-top: 0.75rem;
+  line-height: 1.8;
+}
+
+:root[data-theme="dark"] .legal-copy :is(h2, h3) {
+  color: #e5efe8;
+}
+
+:root[data-theme="dark"] .legal-copy p {
+  color: #a7b8ae;
 }
 
 .landing-shell {

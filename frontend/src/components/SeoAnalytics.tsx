@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { COOKIE_CONSENT_EVENT, hasAnalyticsConsent } from "../cookieConsent";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 declare global {
@@ -11,30 +12,49 @@ declare global {
 const FIRST_LANDING_KEY = "threadsgo.first_landing";
 const FIRST_UTM_KEY = "threadsgo.first_utm";
 const FIRST_REFERRER_KEY = "threadsgo.first_referrer";
-const GTM_ID = import.meta.env.VITE_GTM_ID as string | undefined;
-const YANDEX_METRIKA_ID = import.meta.env.VITE_YANDEX_METRIKA_ID as string | undefined;
+const YANDEX_METRIKA_ID = import.meta.env.VITE_YANDEX_METRIKA_ID as
+  string | undefined;
 let analyticsScriptsMounted = false;
 let previousPageUrl = "";
 let cachedClientId: string | undefined;
 const memoryStorage = new Map<string, string>();
 function readStorage(key: string) {
-  try { return window.localStorage.getItem(key) ?? memoryStorage.get(key); } catch { return memoryStorage.get(key); }
+  try {
+    return window.localStorage.getItem(key) ?? memoryStorage.get(key);
+  } catch {
+    return memoryStorage.get(key);
+  }
 }
 function writeStorage(key: string, value: string) {
   memoryStorage.set(key, value);
-  try { window.localStorage.setItem(key, value); } catch { /* Analytics must never block access. */ }
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* Analytics must never block access. */
+  }
 }
 
-export function trackSeoEvent(event: string, payload: Record<string, unknown> = {}) {
-  if (typeof window === "undefined") return;
+export function trackSeoEvent(
+  event: string,
+  payload: Record<string, unknown> = {},
+) {
+  if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
   window.dataLayer = window.dataLayer ?? [];
   window.dataLayer.push({ event, ...payload });
   const counterId = getYandexCounterId();
-  try { if (counterId && window.ym) window.ym(counterId, "reachGoal", event, payload); } catch { /* Nonessential telemetry. */ }
+  try {
+    if (counterId && window.ym)
+      window.ym(counterId, "reachGoal", event, payload);
+  } catch {
+    /* Nonessential telemetry. */
+  }
 }
 
-export function trackSeoEventOnce(event: string, payload: Record<string, unknown> = {}) {
-  if (typeof window === "undefined") return;
+export function trackSeoEventOnce(
+  event: string,
+  payload: Record<string, unknown> = {},
+) {
+  if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
   const scope = readStorage("threadsgo.analytics_user") || "anonymous";
   const storageKey = `threadsgo.analytics.${scope}.${event}`;
   if (readStorage(storageKey)) return;
@@ -48,7 +68,7 @@ export function getSeoAttribution(): {
   utm?: Record<string, string>;
   analytics?: Record<string, string>;
 } {
-  if (typeof window === "undefined") return {};
+  if (typeof window === "undefined" || !hasAnalyticsConsent()) return {};
   const firstLanding = readStorage(FIRST_LANDING_KEY);
   const firstReferrer = readStorage(FIRST_REFERRER_KEY);
   const storedUtm = readStorage(FIRST_UTM_KEY);
@@ -61,9 +81,11 @@ export function getSeoAttribution(): {
     }
   }
   return {
-    first_landing: firstLanding,
-    referrer: firstReferrer,
-    utm: firstUtm,
+    first_landing: firstLanding ? sanitizeLanding(firstLanding) : firstLanding,
+    referrer: firstReferrer ? safeReferrer(firstReferrer) : firstReferrer,
+    utm: Object.fromEntries(
+      campaignParams(new URLSearchParams(firstUtm).toString()).entries(),
+    ),
     analytics: getClientAnalyticsIds(),
   };
 }
@@ -75,29 +97,71 @@ function cleanStringRecord(value: unknown) {
 
   return Object.fromEntries(
     Object.entries(value)
-      .map(([key, item]) => [key, typeof item === "string" ? item : String(item)])
+      .map(([key, item]) => [
+        key,
+        typeof item === "string" ? item : String(item),
+      ])
       .filter(([key, item]) => key && item),
   );
 }
 
 export default function SeoAnalytics() {
   const location = useLocation();
-
+  const [consented, setConsented] = useState(hasAnalyticsConsent);
   useEffect(() => {
-    if (analyticsScriptsMounted) return;
-    analyticsScriptsMounted = true;
-    mountGtm();
-    mountYandexMetrika();
+    const sync = () => setConsented(hasAnalyticsConsent());
+    window.addEventListener(COOKIE_CONSENT_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(COOKIE_CONSENT_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const currentPath = `${location.pathname}${location.search}`;
+    if (!consented) {
+      const id = getYandexCounterId();
+      if (id && window.ym) {
+        try {
+          window.ym(id, "destruct");
+        } catch {}
+      }
+      if (id)
+        (window as unknown as Record<string, unknown>)[
+          `disableYaCounter${id}`
+        ] = true;
+      analyticsScriptsMounted = false;
+      previousPageUrl = "";
+      cachedClientId = undefined;
+      memoryStorage.clear();
+      try {
+        for (const name of [
+          FIRST_LANDING_KEY,
+          FIRST_UTM_KEY,
+          FIRST_REFERRER_KEY,
+          "threadsgo.analytics_user",
+        ])
+          localStorage.removeItem(name);
+      } catch {}
+      return;
+    }
+    if (analyticsScriptsMounted) return;
+    const id = getYandexCounterId();
+    if (id)
+      (window as unknown as Record<string, unknown>)[`disableYaCounter${id}`] =
+        false;
+    analyticsScriptsMounted = true;
+    mountYandexMetrika();
+  }, [consented]);
+
+  useEffect(() => {
+    if (!consented) return;
+    const params = campaignParams(location.search);
+    const currentPath = analyticsPath(location.pathname, location.search);
     if (!readStorage(FIRST_LANDING_KEY)) {
       writeStorage(FIRST_LANDING_KEY, currentPath);
-      writeStorage(FIRST_REFERRER_KEY, document.referrer || "");
-      const utm = Object.fromEntries([...params.entries()].filter(([key]) =>
-        key.startsWith("utm_") || ["yclid", "gclid", "fbclid"].includes(key)));
+      writeStorage(FIRST_REFERRER_KEY, safeReferrer(document.referrer));
+      const utm = Object.fromEntries(params.entries());
       writeStorage(FIRST_UTM_KEY, JSON.stringify(utm));
     }
     const recordPage = () => {
@@ -106,19 +170,34 @@ export default function SeoAnalytics() {
       trackSeoEvent("seo_page_view", { path: location.pathname });
     };
     document.addEventListener("threadsgo:seo-ready", recordPage);
-    const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-    if (canonical && new URL(canonical.href).pathname.replace(/\/$/, "") === location.pathname.replace(/\/$/, "")) recordPage();
-    return () => document.removeEventListener("threadsgo:seo-ready", recordPage);
-  }, [location.pathname, location.search]);
+    const canonical = document.querySelector<HTMLLinkElement>(
+      'link[rel="canonical"]',
+    );
+    if (
+      canonical &&
+      new URL(canonical.href).pathname.replace(/\/$/, "") ===
+        location.pathname.replace(/\/$/, "")
+    )
+      recordPage();
+    return () =>
+      document.removeEventListener("threadsgo:seo-ready", recordPage);
+  }, [location.pathname, location.search, consented]);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
-      const link = event.target instanceof Element ? event.target.closest("a") : null;
+      const link =
+        event.target instanceof Element ? event.target.closest("a") : null;
       if (!link) return;
       const href = link.getAttribute("href");
-      if (href?.split("?")[0] === "/login") {
-        trackSeoEvent("seo_cta_click", { path: location.pathname, label: link.textContent?.trim() });
-        if (link.getAttribute("data-analytics-cta") === "start_trial" || href?.includes("intent=start")) {
+      if (["/login", "/register"].includes(href?.split("?")[0] || "")) {
+        trackSeoEvent("seo_cta_click", {
+          path: location.pathname,
+          label: link.textContent?.trim(),
+        });
+        if (
+          link.getAttribute("data-analytics-cta") === "start_trial" ||
+          href?.includes("intent=start")
+        ) {
           trackSeoEvent("registration_start", { path: location.pathname });
         }
       }
@@ -130,23 +209,56 @@ export default function SeoAnalytics() {
   return null;
 }
 
-function mountGtm() {
-  if (!GTM_ID || typeof document === "undefined") return;
-  window.dataLayer = window.dataLayer ?? [];
-  window.dataLayer.push({ "gtm.start": Date.now(), event: "gtm.js" });
+function safeReferrer(value: string) {
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return "";
+  }
+}
 
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(GTM_ID)}`;
-  document.head.appendChild(script);
+// Only campaign labels and click IDs belong in analytics URLs, never form input.
+function campaignParams(search: string) {
+  const result = new URLSearchParams();
+  const input = new URLSearchParams(search);
+  for (const key of [
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+    "yclid",
+    "gclid",
+    "fbclid",
+  ]) {
+    const value = input.get(key);
+    if (value && /^[a-zA-Z0-9_.:-]{1,256}$/.test(value)) result.set(key, value);
+  }
+  return result;
+}
+
+function analyticsPath(pathname: string, search: string) {
+  const params = campaignParams(search).toString();
+  return params ? `${pathname}?${params}` : pathname;
+}
+
+function sanitizeLanding(value: string) {
+  try {
+    const url = new URL(value, window.location.origin);
+    return analyticsPath(url.pathname, url.search);
+  } catch {
+    return "/";
+  }
 }
 
 function mountYandexMetrika() {
   if (!YANDEX_METRIKA_ID || typeof document === "undefined") return;
   const counterId = getYandexCounterId();
   if (!counterId) return;
-  const existingScript = document.querySelector(`script[src="https://mc.yandex.com/metrika/tag.js?id=${counterId}"]`);
-  if (existingScript) return;
+  const existingScript = document.querySelector(
+    `script[src="https://mc.yandex.com/metrika/tag.js?id=${counterId}"]`,
+  );
 
   window.ym =
     window.ym ||
@@ -159,17 +271,17 @@ function mountYandexMetrika() {
     ssr: true,
     clickmap: true,
     ecommerce: "dataLayer",
-    referrer: document.referrer,
-    url: window.location.href,
+    referrer: safeReferrer(document.referrer),
+    url: `${window.location.origin}${analyticsPath(window.location.pathname, window.location.search)}`,
     trackLinks: true,
     accurateTrackBounce: true,
-    webvisor: true,
+    webvisor: false,
   });
 
   const script = document.createElement("script");
   script.async = true;
   script.src = `https://mc.yandex.com/metrika/tag.js?id=${counterId}`;
-  document.head.appendChild(script);
+  if (!existingScript) document.head.appendChild(script);
 }
 
 function getYandexCounterId() {
@@ -203,11 +315,11 @@ function getYandexClientId(counterId: number | undefined) {
 }
 
 function trackPageView(path: string) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
 
   const currentUrl = `${window.location.origin}${path}`;
   if (currentUrl === previousPageUrl) return;
-  const referrer = previousPageUrl || document.referrer;
+  const referrer = previousPageUrl || safeReferrer(document.referrer);
   previousPageUrl = currentUrl;
 
   const counterId = getYandexCounterId();
@@ -228,16 +340,26 @@ function trackPageView(path: string) {
 }
 
 export async function getSeoAttributionForLogin() {
+  if (!hasAnalyticsConsent()) return {};
   const counterId = getYandexCounterId();
   if (counterId && window.ym && !cachedClientId) {
     await new Promise<void>((resolve) => {
       const timeout = window.setTimeout(resolve, 600);
-      try { window.ym!(counterId, "getClientID", (value: unknown) => {
-        if (typeof value === "string") cachedClientId = value;
-        window.clearTimeout(timeout); resolve();
-      }); } catch { window.clearTimeout(timeout); resolve(); }
+      try {
+        window.ym!(counterId, "getClientID", (value: unknown) => {
+          if (typeof value === "string") cachedClientId = value;
+          window.clearTimeout(timeout);
+          resolve();
+        });
+      } catch {
+        window.clearTimeout(timeout);
+        resolve();
+      }
     });
   }
   return getSeoAttribution();
 }
-export function setAnalyticsUser(userId: number) { writeStorage("threadsgo.analytics_user", String(userId)); }
+export function setAnalyticsUser(userId: number) {
+  if (!hasAnalyticsConsent()) return;
+  writeStorage("threadsgo.analytics_user", String(userId));
+}

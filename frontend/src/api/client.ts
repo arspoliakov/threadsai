@@ -156,6 +156,8 @@ export type LoginResponse = {
   token_type: "bearer";
 };
 
+export type RegistrationConsentPayload = {version: "2026-10-02"; terms: boolean; privacy: boolean; risks: boolean};
+
 export type AuthAttributionPayload = {
   first_landing?: string | null;
   referrer?: string | null;
@@ -208,6 +210,7 @@ export type TelegramAuthPayload = {
   auth_date: number;
   hash: string;
   attribution?: AuthAttributionPayload;
+  registration?: RegistrationConsentPayload;
 };
 
 export type TelegramBotChallenge = {
@@ -512,6 +515,7 @@ export async function login(password: string): Promise<LoginResponse> {
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
+      if (error.response?.data?.detail?.code === "registration_required") throw new LoginError("Профиля пока нет. Перейдите на страницу регистрации, чтобы создать его.");
       if (error.response?.status === 401) {
         throw new LoginError("Неверный пароль.");
       }
@@ -536,11 +540,12 @@ export async function login(password: string): Promise<LoginResponse> {
 export async function loginWithTelegram(
   payload: TelegramAuthPayload,
   attribution?: AuthAttributionPayload,
+  registration?: RegistrationConsentPayload,
 ): Promise<LoginResponse> {
   try {
     const response = await axios.post<LoginResponse>(
       `${API_BASE_URL}/api/v1/auth/telegram`,
-      { ...payload, attribution },
+      { ...payload, attribution, registration },
       {
         headers: {
           "Content-Type": "application/json",
@@ -550,6 +555,7 @@ export async function loginWithTelegram(
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
+      if (error.response?.data?.detail?.code === "registration_required") throw new LoginError("Профиля пока нет. Перейдите на страницу регистрации, чтобы создать его.");
       if (error.response?.status === 401) {
         throw new LoginError("Telegram не подтвердил подлинность входа.");
       }
@@ -574,11 +580,12 @@ export async function loginWithTelegram(
 export async function loginWithTelegramWebApp(
   initData: string,
   attribution?: AuthAttributionPayload,
+  registration?: RegistrationConsentPayload,
 ): Promise<LoginResponse> {
   try {
     const response = await axios.post<LoginResponse>(
       `${API_BASE_URL}/api/v1/auth/telegram-webapp`,
-      { init_data: initData, attribution },
+      { init_data: initData, attribution, registration },
       {
         headers: {
           "Content-Type": "application/json",
@@ -588,6 +595,7 @@ export async function loginWithTelegramWebApp(
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
+      if (error.response?.data?.detail?.code === "registration_required") throw new LoginError("Профиля пока нет. Перейдите на страницу регистрации, чтобы создать его.");
       if (error.response?.status === 401) {
         throw new LoginError("Telegram не подтвердил вход внутри приложения.");
       }
@@ -629,6 +637,7 @@ function botLoginError(error: unknown): TelegramBotLoginError {
   const code = error.response?.data?.detail?.code || (error.response?.status === 429 ? "rate_limited" : "network_error");
   const retryAfter = Number(error.response?.headers?.["retry-after"] || 0);
   const messages: Record<string, string> = {
+    registration_required: "Профиля пока нет. Перейдите на страницу регистрации, чтобы создать его.",
     challenge_invalid: "Попытка входа не найдена. Начните вход заново.",
     challenge_pending: "Подтверждение в Telegram ещё не получено.",
     challenge_expired: "Время подтверждения истекло. Начните вход заново.",
@@ -647,9 +656,9 @@ function botLoginError(error: unknown): TelegramBotLoginError {
   );
 }
 
-export async function startTelegramBotLogin(attribution?: AuthAttributionPayload): Promise<TelegramBotChallenge> {
+export async function startTelegramBotLogin(attribution?: AuthAttributionPayload, registration?: RegistrationConsentPayload): Promise<TelegramBotChallenge> {
   try {
-    const response = await botLoginClient.post<TelegramBotChallenge>("/api/v1/auth/telegram-bot/start", { attribution });
+    const response = await botLoginClient.post<TelegramBotChallenge>("/api/v1/auth/telegram-bot/start", { attribution, registration });
     return response.data;
   } catch (error) {
     throw botLoginError(error);

@@ -3,6 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 import { AppIcon } from "./AppIcons";
 import { FloatingDock, type FloatingDockItem } from "./FloatingDock";
 import { ProfileMenu } from "./ProfileMenu";
+import { ThemeToggle } from "./ThemeToggle";
 import { OnboardingTour } from "./OnboardingTour";
 
 export function AppShell({
@@ -93,7 +94,7 @@ export function AppShell({
                 <p className="truncate text-sm font-semibold">{title}</p>
               </div>
             </div>
-            <ProfileMenu />
+            <div className="flex shrink-0 items-center gap-2"><ThemeToggle /><ProfileMenu /></div>
           </div>
         </header>
         <main
@@ -114,8 +115,7 @@ export function AppShell({
               </a>
             </div>
             <p className="mt-3">
-              *Деятельность Meta (соцсети Facebook, Threads и Instagram)
-              запрещена в России как экстремистская.
+              *Meta Platforms Inc. признана экстремистской организацией; её деятельность запрещена в России.
             </p>
           </footer>
         </main>

@@ -1,13 +1,14 @@
 import { Link } from "react-router-dom";
 import { productUpdates } from "../productUpdates";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 const formatDate = (date: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Moscow" }).format(new Date(`${date}T12:00:00+03:00`));
 
 export default function UpdatesPage() {
-  return <main className="min-h-screen bg-[#f5f6f1] text-[#111]">
+  return <main className="home-refresh public-reader min-h-screen bg-[#f5f6f1] text-[#111]">
     <nav aria-label="Основная навигация" className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-5 py-6 sm:px-8">
       <Link to="/" className="font-display text-2xl">ThreadsGo</Link>
-      <div className="flex flex-wrap gap-5 text-sm text-[#53604f]"><Link to="/pricing/">Тарифы</Link><Link to="/app">Личный кабинет →</Link></div>
+      <div className="flex flex-wrap items-center gap-5 text-sm text-[#53604f]"><Link to="/pricing/">Тарифы</Link><Link to="/app">Личный кабинет →</Link><ThemeToggle /></div>
     </nav>
     <header className="mx-auto max-w-5xl px-5 pb-12 pt-8 sm:px-8 sm:pt-14">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#4f7442]">Сервис развивается</p>

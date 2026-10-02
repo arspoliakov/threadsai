@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   type LoginResponse,
+  type RegistrationConsentPayload,
   TelegramBotChallenge,
   TelegramBotLoginError,
   cancelTelegramBotLogin,
@@ -16,7 +17,7 @@ const STORAGE_KEY = "threadsgo.telegram_bot_login";
 
 export type BotLoginPhase = "idle" | "starting" | "waiting" | "finishing" | "expired" | "denied" | "cancelled";
 
-export function useTelegramBotLogin(onAuthenticated: (response: LoginResponse) => Promise<void>) {
+export function useTelegramBotLogin(onAuthenticated: (response: LoginResponse) => Promise<void>, registration?: RegistrationConsentPayload) {
   const [challenge, setChallenge] = useState<TelegramBotChallenge | null>(() => readStoredChallenge());
   const [phase, setPhase] = useState<BotLoginPhase>(() => (readStoredChallenge() ? "waiting" : "idle"));
   const [message, setMessage] = useState<string | null>(null);
@@ -56,6 +57,12 @@ export function useTelegramBotLogin(onAuthenticated: (response: LoginResponse) =
       } catch (error) {
         if (generation !== generationRef.current) return;
         const loginError = error instanceof TelegramBotLoginError ? error : null;
+        if (loginError?.code === "registration_required") {
+          clearAttempt();
+          setPhase("idle");
+          setMessage(loginError.message);
+          return;
+        }
         if (loginError?.code === "challenge_pending") {
           setPhase("waiting");
           return;
@@ -151,7 +158,7 @@ export function useTelegramBotLogin(onAuthenticated: (response: LoginResponse) =
       setMessage(null);
       try {
         trackSeoEvent("login_start", { method: "bot" });
-        const created = await startTelegramBotLogin(await getSeoAttributionForLogin());
+        const created = await startTelegramBotLogin(await getSeoAttributionForLogin(), registration);
         if (generation !== generationRef.current) return;
         try {
           window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(created));
@@ -174,7 +181,7 @@ export function useTelegramBotLogin(onAuthenticated: (response: LoginResponse) =
         setMessage(error instanceof TelegramBotLoginError ? error.message : "Не удалось начать вход через бота.");
       }
     },
-    [phase, stopTimer],
+    [phase, stopTimer, registration],
   );
 
   const cancel = useCallback(async () => {

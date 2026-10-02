@@ -136,6 +136,7 @@ class User(Base, TimestampMixin):
     first_landing_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     first_referrer: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     first_utm_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    registration_consents_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     first_analytics_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     subscription_status: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     subscription_phase: Mapped[str] = mapped_column(String(32), default="none", nullable=False)

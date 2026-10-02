@@ -575,6 +575,8 @@ export const seoPages: SeoPage[] = [
 ];
 
 export const systemSeoPages: SeoPage[] = [
+  {path: "/register", title: "Регистрация в ThreadsGo", description: "Создать профиль ThreadsGo через Telegram и подтвердить отдельные согласия.", h1: "Регистрация в ThreadsGo", lead: "", kind: "system", index: false, updatedAt: "2026-10-02"},
+  {path: "/consent", title: "Согласие на обработку данных | ThreadsGo", description: "Отдельное согласие при регистрации в ThreadsGo: данные, цели, срок и отзыв.", h1: "Согласие на обработку персональных данных", lead: "", kind: "legal", index: false, updatedAt: "2026-10-02"},
   {
     path: "/",
     title: "ИИ-автопостинг и контент для Threads | ThreadsGo",

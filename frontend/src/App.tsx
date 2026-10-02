@@ -2,11 +2,13 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 
+import CookieNotice from "./components/CookieNotice";
 import SeoAnalytics from "./components/SeoAnalytics";
 import ProtectedRoute from "./ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import TermsPage from "./pages/TermsPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import ConsentPage from "./pages/ConsentPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import LoginPage from "./pages/auth/LoginPage";
 import { seoLandingRoutePaths } from "./seo/routes";
@@ -34,6 +36,7 @@ export default function App() {
     <>
       <Suspense fallback={null}><SeoHead /></Suspense>
       <SeoAnalytics />
+      <CookieNotice />
       <Toaster
         position="top-center"
         richColors
@@ -48,10 +51,12 @@ export default function App() {
       <Suspense fallback={<div className="min-h-screen bg-[#f5f6f1]" />}>
         <Routes>
         <Route index element={<LandingPage />} />
-        <Route path="login" element={<LoginPage />} />
+        <Route path="login" element={<LoginPage key="login" />} />
+        <Route path="register" element={<LoginPage key="register" mode="register" />} />
         <Route path="pricing/" element={<PricingPage />} />
         <Route path="updates/" element={<UpdatesPage />} />
         <Route path="terms" element={<TermsPage />} />
+        <Route path="consent" element={<ConsentPage />} />
         <Route path="privacy" element={<PrivacyPage />} />
         <Route path="resources/" element={<ResourcesPage />} />
         {seoLandingRoutePaths.map((path) => (

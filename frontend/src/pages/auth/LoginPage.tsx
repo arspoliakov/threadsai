@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
   LoginError,
   type LoginResponse,
+  type RegistrationConsentPayload,
   TelegramAuthPayload,
   getCurrentUser,
   loginWithTelegram,
@@ -13,6 +14,7 @@ import {
 } from "../../api/client";
 import { isAuthenticated } from "../../auth";
 import { getSeoAttributionForLogin, trackSeoEvent, trackSeoEventOnce, setAnalyticsUser } from "../../components/SeoAnalytics";
+import { ThemeToggle } from "../../components/ThemeToggle";
 import { useTelegramBotLogin } from "../../hooks/useTelegramBotLogin";
 
 type LocationState = {
@@ -34,10 +36,8 @@ declare global {
 
 const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined;
 const WIDGET_TIMEOUT_MS = 4500;
-const TERMS_ACCEPTED_STORAGE_KEY = "threadsgo.terms.accepted";
-const META_NOTICE_ACCEPTED_STORAGE_KEY = "threadsgo.meta_notice.accepted";
-
-export default function LoginPage() {
+export default function LoginPage({mode = "login"}: {mode?: "login" | "register"}) {
+  const isRegistration = mode === "register";
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as LocationState | null;
@@ -49,13 +49,11 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [widgetKey, setWidgetKey] = useState(0);
   const [widgetStatus, setWidgetStatus] = useState<"loading" | "ready" | "failed">("loading");
-  const [termsAccepted, setTermsAccepted] = useState(
-    () => typeof window !== "undefined" && window.localStorage.getItem(TERMS_ACCEPTED_STORAGE_KEY) === "true",
-  );
-  const [metaNoticeAccepted, setMetaNoticeAccepted] = useState(
-    () => typeof window !== "undefined" && window.localStorage.getItem(META_NOTICE_ACCEPTED_STORAGE_KEY) === "true",
-  );
-  const canLogin = termsAccepted && metaNoticeAccepted;
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [metaNoticeAccepted, setMetaNoticeAccepted] = useState(false);
+  const canLogin = !isRegistration || (termsAccepted && privacyAccepted && metaNoticeAccepted);
+  const registration = useMemo<RegistrationConsentPayload | undefined>(() => isRegistration && canLogin ? {version: "2026-10-02", terms: true, privacy: true, risks: true} : undefined, [isRegistration, canLogin]);
 
   const finishAuthenticated = useCallback(async (response: LoginResponse) => {
     if (response.user_id != null) setAnalyticsUser(response.user_id);
@@ -65,7 +63,7 @@ export default function LoginPage() {
     navigate(await getPostLoginDestination(state?.from), { replace: true });
   }, [navigate, state?.from]);
 
-  const botLogin = useTelegramBotLogin(finishAuthenticated);
+  const botLogin = useTelegramBotLogin(finishAuthenticated, registration);
 
   const handleTelegramAuth = useCallback(
     async (user: TelegramAuthPayload) => {
@@ -73,7 +71,7 @@ export default function LoginPage() {
       setIsLoading(true);
 
       try {
-        const response = await loginWithTelegram(user, await getSeoAttributionForLogin());
+        const response = await loginWithTelegram(user, await getSeoAttributionForLogin(), registration);
         setStoredAuthToken(response.access_token);
         await finishAuthenticated(response);
       } catch (telegramError) {
@@ -87,7 +85,7 @@ export default function LoginPage() {
         setIsLoading(false);
       }
     },
-    [finishAuthenticated],
+    [finishAuthenticated, registration],
   );
 
   useEffect(() => {
@@ -110,7 +108,7 @@ export default function LoginPage() {
       try {
         webApp?.ready?.();
         webApp?.expand?.();
-        const response = await loginWithTelegramWebApp(initData, await getSeoAttributionForLogin());
+        const response = await loginWithTelegramWebApp(initData, await getSeoAttributionForLogin(), registration);
         setStoredAuthToken(response.access_token);
         await finishAuthenticated(response);
         return true;
@@ -128,7 +126,7 @@ export default function LoginPage() {
     }
 
     void tryTelegramWebAppLogin();
-  }, [canLogin, finishAuthenticated]);
+  }, [canLogin, finishAuthenticated, registration]);
 
   useEffect(() => {
     if (!canLogin) {
@@ -183,29 +181,19 @@ export default function LoginPage() {
     };
   }, [canLogin, handleTelegramAuth, widgetKey]);
 
-  function updateTermsAccepted(value: boolean) {
-    setTermsAccepted(value);
-    window.localStorage.setItem(TERMS_ACCEPTED_STORAGE_KEY, String(value));
-  }
-
-  function updateMetaNoticeAccepted(value: boolean) {
-    setMetaNoticeAccepted(value);
-    window.localStorage.setItem(META_NOTICE_ACCEPTED_STORAGE_KEY, String(value));
-  }
-
   if (isAuthenticated()) {
     return <Navigate to={sanitizeReturnPath(state?.from)} replace />;
   }
 
   return (
-    <main className="landing-shell relative grid min-h-screen overflow-hidden bg-[#070909] px-5 py-8 text-[#eff6ed] sm:px-8">
+    <main className="auth-refresh home-refresh relative grid min-h-screen overflow-hidden bg-[#f8faf9] px-5 py-8 text-[#162b25] sm:px-8">
       <div className="pointer-events-none absolute inset-0">
         <div className="landing-aurora absolute left-[-12rem] top-[-12rem] h-[30rem] w-[30rem] rounded-full bg-[#0076ff]/28 blur-[110px]" />
         <div className="landing-aurora absolute bottom-[-14rem] right-[-10rem] h-[34rem] w-[34rem] rounded-full bg-[#73ff2d]/22 blur-[130px] [animation-delay:-6s]" />
         <div className="landing-grid absolute inset-0 opacity-[0.16]" />
       </div>
 
-      <section className="landing-reveal relative m-auto grid w-full max-w-6xl overflow-hidden rounded-[2.2rem] border border-white/10 bg-white/[0.045] shadow-[0_50px_160px_rgba(0,0,0,0.55)] backdrop-blur md:grid-cols-[0.95fr_1.05fr]">
+      <section className="landing-reveal relative m-auto grid w-full max-w-6xl overflow-hidden rounded-[2.2rem] border border-[#dbe6dd] bg-white shadow-[0_30px_100px_rgba(25,65,40,0.12)] backdrop-blur md:grid-cols-[0.95fr_1.05fr]">
         <div className="relative hidden min-h-[22rem] md:block overflow-hidden border-b border-white/10 bg-[#08100d] md:border-b-0 md:border-r md:border-white/10">
           <img
             src="/landing/secure-mobile-console.webp"
@@ -228,20 +216,20 @@ export default function LoginPage() {
 
         <div className="relative p-7 sm:p-9 lg:p-12">
           <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.06]">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-[#dbe6dd] bg-white/[0.06]">
               <img src="/threadsgo-logo.png" alt="ThreadsGo" className="h-9 w-9 object-contain" />
             </span>
             <div>
-              <p className="font-display text-2xl leading-none text-white">ThreadsGo</p>
+              <p className="font-display text-2xl leading-none text-[#162b25]">ThreadsGo</p>
             </div>
           </div>
 
-          <Link to="/" className="mt-5 inline-block text-sm text-white/60 hover:text-white">← На главную</Link>
-          <h1 className="mt-6 font-display text-4xl leading-[0.82] tracking-[-0.06em] text-white sm:text-7xl">
-            Вход в кабинет.
+          <div className="mt-5 flex items-center justify-between"><Link to="/" className="text-sm text-[#60716a]">← На главную</Link><ThemeToggle /></div>
+          <h1 className="mt-6 font-display text-4xl font-semibold leading-tight tracking-[-0.04em] sm:text-5xl">
+            {isRegistration ? "Создать профиль." : "С возвращением."}
           </h1>
 
-          <p className="mt-5 text-sm leading-6 text-white/60">Войдите через Telegram, подтвердите вход у бота и вернитесь на сайт. <Link to="/pricing/" className="text-[#b7ff91] underline">Тарифы и условия 3 дней пробного периода</Link>.</p>
+          <p className="mt-5 text-sm leading-6 text-[#60716a]">Войдите через Telegram, подтвердите вход у бота и вернитесь на сайт. <Link to="/pricing/" className="text-[#b7ff91] underline">Тарифы и условия 3 дней пробного периода</Link>.</p>
 
           {sessionNeedsRefresh ? (
             <div className="mt-6 rounded-2xl border border-[#6cc9ff]/30 bg-[#10212a] px-4 py-3 text-sm leading-6 text-[#ccecff]">
@@ -250,65 +238,48 @@ export default function LoginPage() {
             </div>
           ) : null}
 
-          <div className="mt-8 grid gap-3 rounded-[1.6rem] border border-white/10 bg-black/24 p-5">
-            <AgreementCheckbox
-              checked={termsAccepted}
-              onChange={updateTermsAccepted}
-            >
-              Я принимаю{" "}
-              <Link to="/terms#terms" className="text-white underline decoration-[#70ff35] underline-offset-4">
-                условия использования
-              </Link>{" "}
-              и{" "}
-              <Link to="/terms#privacy" className="text-white underline decoration-[#70ff35] underline-offset-4">
-                политику конфиденциальности
-              </Link>
-              .
-            </AgreementCheckbox>
-            <AgreementCheckbox
-              checked={metaNoticeAccepted}
-              onChange={updateMetaNoticeAccepted}
-            >
-              Я понимаю, что деятельность Meta Platforms Inc. и связанных соцсетей запрещена в РФ,
-              а ответственность за использование Threads, сетевой доступ и публикуемый контент лежит на мне.
-            </AgreementCheckbox>
-          </div>
+          <p className="mt-4 text-sm text-[#60716a]">{isRegistration ? "Уже есть профиль?" : "Ещё нет профиля?"} <Link to={isRegistration ? "/login" : "/register"} className="font-semibold underline underline-offset-4">{isRegistration ? "Войти" : "Зарегистрироваться"}</Link></p>
+          {isRegistration ? <div className="mt-6 grid gap-3 rounded-2xl border border-[#dbe6dd] bg-[#f8faf9] p-5">
+            <AgreementCheckbox checked={termsAccepted} onChange={setTermsAccepted}>Я принимаю <Link to="/terms#terms" className="underline">условия использования</Link>.</AgreementCheckbox>
+            <AgreementCheckbox checked={privacyAccepted} onChange={setPrivacyAccepted}>Я отдельно даю <Link to="/consent" className="underline">согласие на обработку персональных данных</Link> и ознакомился с <Link to="/privacy" className="underline">политикой конфиденциальности</Link>.</AgreementCheckbox>
+            <AgreementCheckbox checked={metaNoticeAccepted} onChange={setMetaNoticeAccepted}>Я понимаю риски ограничений и блокировки профиля при автоматизации. Я ознакомился с <Link to="/terms#meta-notice" className="underline">оговоркой о Meta</Link>.</AgreementCheckbox>
+          </div> : null}
 
-          <div className="mt-8 rounded-[1.6rem] border border-white/10 bg-black/24 p-5">
-            {!canLogin ? <p className="text-center text-sm leading-6 text-white/60">Подтвердите оба пункта выше — появится кнопка входа через бота Telegram.</p> : null}
+          <div className="mt-8 rounded-[1.6rem] border border-[#dbe6dd] bg-[#f8faf9] p-5">
+            {!canLogin ? <p className="text-center text-sm leading-6 text-[#60716a]">Подтвердите три пункта выше, чтобы создать профиль через Telegram.</p> : null}
             {canLogin ? (
-              <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-[#050807]/45 p-4 text-center">
+              <div className="mt-4 rounded-[1.2rem] border border-[#dbe6dd] bg-white p-4 text-center">
                 {botLogin.challenge && ["waiting", "finishing"].includes(botLogin.phase) ? (
                   <>
-                    <p className="text-sm font-medium text-white">Подтвердите вход в Telegram</p>
-                    <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-white/58">
+                    <p className="text-sm font-medium text-[#162b25]">Подтвердите вход в Telegram</p>
+                    <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#60716a]">
                       Нажмите «Да, войти» в сообщении бота, затем вернитесь в эту вкладку. Вход завершится автоматически.
                     </p>
                     <div className="mx-auto mt-4 w-fit rounded-2xl border border-[#70ff35]/30 bg-[#70ff35]/10 px-5 py-3">
-                      <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">код входа</span>
+                      <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-[#738078]">код входа</span>
                       <span className="font-mono text-2xl tracking-[0.25em] text-[#b7ff91]">{botLogin.challenge.display_code}</span>
                     </div>
-                    {botLogin.message ? <p className="mt-3 text-sm text-white/58">{botLogin.message}</p> : null}
+                    {botLogin.message ? <p className="mt-3 text-sm text-[#60716a]">{botLogin.message}</p> : null}
                     <div className="mt-5 flex flex-wrap justify-center gap-3">
                       <a
                         href={botLogin.challenge.bot_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35]"
+                        className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white transition hover:bg-[#244735]"
                       >
                         открыть Telegram ещё раз
                       </a>
                       <button
                         type="button"
                         onClick={() => void botLogin.checkNow()}
-                        className="rounded-full border border-white/14 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white/68 transition hover:border-white/40 hover:text-white"
+                        className="rounded-full border border-white/14 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#60716a] transition hover:border-white/40 hover:text-[#162b25]"
                       >
                         проверить
                       </button>
                       <button
                         type="button"
                         onClick={() => void botLogin.cancel()}
-                        className="rounded-full border border-white/10 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white/45 transition hover:text-white"
+                        className="rounded-full border border-[#dbe6dd] px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#738078] transition hover:text-[#162b25]"
                       >
                         отменить
                       </button>
@@ -316,7 +287,7 @@ export default function LoginPage() {
                   </>
                 ) : (
                   <>
-                    <p className="mx-auto max-w-lg text-sm leading-6 text-white/58">
+                    <p className="mx-auto max-w-lg text-sm leading-6 text-[#60716a]">
                       Удобный вход через чат с ботом. Подтвердите вход одной кнопкой и вернитесь на сайт — эта вкладка авторизуется автоматически.
                     </p>
                     {botLogin.message ? <p className="mt-3 text-sm text-[#ffb4a9]">{botLogin.message}</p> : null}
@@ -328,16 +299,16 @@ export default function LoginPage() {
                         const telegramWindow = window.open("about:blank", "_blank");
                         void botLogin.start(telegramWindow);
                       }}
-                      className="mt-4 inline-flex rounded-full bg-white px-6 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35] disabled:cursor-wait disabled:opacity-60"
+                      className="mt-4 inline-flex rounded-full bg-[#315b46] px-6 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white transition hover:bg-[#244735] disabled:cursor-wait disabled:opacity-60"
                     >
-                      {botLogin.phase === "starting" ? "создаём вход…" : "войти через бота Telegram"}
+                      {botLogin.phase === "starting" ? "создаём вход…" : (isRegistration ? "создать профиль через Telegram" : "войти через бота Telegram")}
                     </button>
                   </>
                 )}
               </div>
             ) : null}
-            <details className="mt-4"><summary className="cursor-pointer text-center text-sm text-white/60">Другой способ входа через Telegram</summary>
-            <div className="relative grid min-h-20 place-items-center rounded-[1.2rem] border border-white/8 bg-[#050807]/70 p-5">
+            <details className="mt-4"><summary className="cursor-pointer text-center text-sm text-[#60716a]">Другой способ входа через Telegram</summary>
+            <div className="relative grid min-h-20 place-items-center rounded-[1.2rem] border border-[#dbe6dd] bg-white p-5">
               {!canLogin ? (
                 <p className="max-w-md text-center text-sm leading-6 text-white/54">
                   Чтобы войти, сначала подтвердите условия beta-доступа и юридическую оговорку выше.
@@ -357,7 +328,7 @@ export default function LoginPage() {
 
               {canLogin && widgetStatus === "failed" ? (
                 <div className="max-w-md text-center">
-                  <p className="text-sm leading-6 text-white/68">
+                  <p className="text-sm leading-6 text-[#60716a]">
                     Telegram-виджет не загрузился. Так бывает, если браузер, VPN или провайдер режет внешний
                     скрипт Telegram.
                   </p>
@@ -365,7 +336,7 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={() => setWidgetKey((current) => current + 1)}
-                      className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#070909] transition hover:bg-[#70ff35]"
+                      className="rounded-full bg-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-white transition hover:bg-[#244735]"
                     >
                       попробовать снова
                     </button>
@@ -378,7 +349,7 @@ export default function LoginPage() {
           </div>
 
           {isLoading ? (
-            <div className="mt-5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <div className="mt-5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-[#738078]">
               <Spinner />
               Проверка Telegram
             </div>
@@ -430,7 +401,7 @@ function AgreementCheckbox({
   children: ReactNode;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/8 bg-[#050807]/48 p-4 text-sm leading-6 text-white/62 transition hover:border-white/18">
+    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#dbe6dd] bg-white p-4 text-sm leading-6 text-[#60716a] transition hover:border-white/18">
       <input
         type="checkbox"
         checked={checked}

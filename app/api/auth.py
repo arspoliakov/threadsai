@@ -8,10 +8,10 @@ import json
 import logging
 from urllib.parse import parse_qsl
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -47,6 +47,16 @@ class AuthAttributionPayload(BaseModel):
     analytics: dict[str, str] = Field(default_factory=dict)
 
 
+class RegistrationConsentPayload(BaseModel):
+    version: Literal["2026-10-02"]
+    terms: StrictBool
+    privacy: StrictBool
+    risks: StrictBool
+
+    def confirmed(self) -> bool:
+        return self.terms and self.privacy and self.risks
+
+
 class TelegramAuthPayload(BaseModel):
     id: int
     first_name: str = Field(min_length=1)
@@ -56,6 +66,7 @@ class TelegramAuthPayload(BaseModel):
     auth_date: int
     hash: str
     attribution: AuthAttributionPayload | None = None
+    registration: RegistrationConsentPayload | None = None
 
 
 class CurrentUserResponse(BaseModel):
@@ -76,10 +87,12 @@ class CurrentUserResponse(BaseModel):
 class TelegramWebAppLoginRequest(BaseModel):
     init_data: str = Field(min_length=1)
     attribution: AuthAttributionPayload | None = None
+    registration: RegistrationConsentPayload | None = None
 
 
 class TelegramBotStartRequest(BaseModel):
     attribution: AuthAttributionPayload | None = None
+    registration: RegistrationConsentPayload | None = None
 
 
 class TelegramBotChallengeRequest(BaseModel):
@@ -179,6 +192,7 @@ async def telegram_webapp_login(
             auth_date=int(dict(parse_qsl(payload.init_data)).get("auth_date", 0)),
             hash=dict(parse_qsl(payload.init_data)).get("hash", ""),
             attribution=payload.attribution,
+            registration=payload.registration,
         ),
         db=db,
     )
@@ -214,7 +228,10 @@ async def telegram_bot_login_start(
         raise _challenge_http_error(bot_login.ChallengeError("bot_unavailable", 503))
     created = await bot_login.create_challenge(
         session=db,
-        attribution=payload.attribution.model_dump() if payload.attribution else None,
+        attribution={
+            **(payload.attribution.model_dump() if payload.attribution else {}),
+            "_registration_consent": payload.registration.model_dump() if payload.registration and payload.registration.confirmed() else None,
+        },
     )
     return TelegramBotStartResponse(
         challenge_id=created.challenge.id,
@@ -306,6 +323,7 @@ async def telegram_bot_login_complete(
             username=profile.get("username"),
             photo_url=None,
             attribution=challenge.attribution_json,
+            registration=(challenge.attribution_json or {}).get("_registration_consent"),
             db=db,
         )
         await _sync_subscription_after_login(user=user, db=db)
@@ -379,7 +397,7 @@ def _validate_telegram_auth(payload: TelegramAuthPayload) -> None:
             detail="Telegram auth payload is expired",
         )
 
-    payload_dict = payload.model_dump(exclude={"hash", "attribution"}, exclude_none=True)
+    payload_dict = payload.model_dump(exclude={"hash", "attribution", "registration"}, exclude_none=True)
     data_check_string = "\n".join(
         f"{key}={value}" for key, value in sorted(payload_dict.items())
     )
@@ -486,6 +504,7 @@ async def _get_or_create_telegram_user(payload: TelegramAuthPayload, db: AsyncSe
         username=payload.username,
         photo_url=payload.photo_url,
         attribution=payload.attribution.model_dump() if payload.attribution else None,
+        registration=payload.registration.model_dump() if payload.registration else None,
         db=db,
     )
 
@@ -498,13 +517,22 @@ async def _get_or_create_verified_telegram_user(
     photo_url: str | None,
     attribution: dict[str, Any] | None,
     db: AsyncSession,
+    registration: dict[str, Any] | None = None,
 ) -> User:
     stmt = select(User).where(User.telegram_id == telegram_id).limit(1)
     user = await db.scalar(stmt)
     is_new_user = user is None
 
     if user is None:
+        consent = RegistrationConsentPayload.model_validate(registration) if registration else None
+        if not consent or not consent.confirmed():
+            raise HTTPException(status_code=409, detail={"code": "registration_required", "message": "Создайте профиль на странице регистрации и подтвердите согласия."})
+        accepted_at = datetime.now(UTC).isoformat()
         user = User(
+            registration_consents_json=[
+                {"purpose": purpose, "version": consent.version, "accepted_at": accepted_at, "method": "telegram_verified"}
+                for purpose in ("terms", "personal_data", "platform_risks")
+            ],
             telegram_id=telegram_id,
             username=username,
             first_name=first_name,

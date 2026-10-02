@@ -59,6 +59,7 @@ class TelegramWidgetAuthTest(unittest.TestCase):
     def test_local_attribution_is_not_signed(self) -> None:
         payload = self.signed_payload(last_name="Семёнов")
         payload.attribution = auth.AuthAttributionPayload(utm={"utm_source": "test"})
+        payload.registration = auth.RegistrationConsentPayload(version="2026-10-02", terms=True, privacy=True, risks=True)
         auth._validate_telegram_auth(payload)
 
 

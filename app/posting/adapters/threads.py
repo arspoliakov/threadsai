@@ -51,6 +51,7 @@ from app.posting.exceptions import (
 )
 from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.posting.profile_lock import ProfileLock
+from app.posting.error_safety import redact_connection_secrets
 
 
 SCREENSHOTS_DIR = Path("./data/screenshots")
@@ -151,6 +152,8 @@ class ThreadsAdapter(BasePostingAdapter):
 
     def _check_session_sync(self, account: Account) -> PublishResult:
         proxy_url = build_threads_proxy_url_for_account(account)
+        if not proxy_url:
+            raise ProxyNetworkException("Account proxy is not configured; direct connection is disabled.")
         proxy_extension_path: Path | None = None
         driver: WebDriver | None = None
 
@@ -178,6 +181,8 @@ class ThreadsAdapter(BasePostingAdapter):
         expected_proxy_ip: str | None = None,
     ) -> PublishResult:
         proxy_url = build_threads_proxy_url_for_account(account)
+        if not proxy_url:
+            raise ProxyNetworkException("Account proxy is not configured; direct connection is disabled.")
 
         for attempt in range(2):
             proxy_extension_path: Path | None = None
@@ -260,23 +265,23 @@ class ThreadsAdapter(BasePostingAdapter):
                     ) from exc
 
                 if self._is_retryable_network_error(exc):
-                    raise ProxyNetworkException(f"Threads proxy/network transport failed: {exc}") from exc
+                    raise ProxyNetworkException(f"Threads proxy/network transport failed: {redact_connection_secrets(str(exc))}") from exc
 
                 if self._is_retryable_ui_error(exc):
                     raise RetryablePostingException(
-                        f"Threads UI race while publishing; task will retry automatically: {exc}"
+                        f"Threads UI race while publishing; task will retry automatically: {redact_connection_secrets(str(exc))}"
                     ) from exc
 
                 screenshot_path = self._save_error_screenshot(driver, task.id)
                 if attempt == 0 and self._is_recoverable_browser_crash(exc):
-                    logger.warning("Threads browser crashed for task #%s, retrying once: %s", task.id, exc)
+                    logger.warning("Threads browser crashed for task #%s, retrying once: %s", task.id, redact_connection_secrets(str(exc)))
                     self._quit_driver_safely(driver)
                     driver = None
                     time.sleep(2)
                     continue
 
                 screenshot_note = f" Screenshot: {screenshot_path}" if screenshot_path else ""
-                raise RuntimeError(f"Threads publishing failed: {exc}.{screenshot_note}") from exc
+                raise RuntimeError(f"Threads publishing failed: {redact_connection_secrets(str(exc))}.{screenshot_note}") from exc
             finally:
                 if deadline_watchdog is not None:
                     deadline_watchdog.set()
@@ -332,7 +337,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 try:
                     current_ip = self._get_proxy_ip_sync(proxy_url)
                 except Exception as exc:
-                    logger.warning("Proxy IP watchdog polling failed for %s: %s", task_label, exc)
+                    logger.warning("Proxy IP watchdog polling failed for %s: %s", task_label, redact_connection_secrets(str(exc)))
                     continue
 
                 watchdog.current_ip = current_ip
@@ -384,8 +389,18 @@ class ThreadsAdapter(BasePostingAdapter):
                 f"Причина импорта: {UNDETECTED_CHROMEDRIVER_IMPORT_ERROR}"
             )
         options = uc.ChromeOptions() if use_undetected_driver else webdriver.ChromeOptions()
+        options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
         user_data_dir = self._get_user_data_dir(account_id)
         fingerprint_profile = _build_fingerprint_profile(account_id)
+        saved_viewport = None
+        try:
+            browser_settings = json.loads((user_data_dir / "browser_settings.json").read_text(encoding="utf-8"))
+            width, height = int(browser_settings["viewport_width"]), int(browser_settings["viewport_height"])
+            if 640 <= width <= 3840 and 480 <= height <= 2160:
+                saved_viewport = {"width": width, "height": height, "deviceScaleFactor": 1, "mobile": False}
+                fingerprint_profile = BrowserFingerprintProfile(width=width, height=height)
+        except (OSError, ValueError, TypeError, KeyError):
+            pass  # Existing and imported profiles retain their established account seed.
         profile_lock = _get_profile_lock(account_id)
 
         if profile_lock is not None:
@@ -395,6 +410,8 @@ class ThreadsAdapter(BasePostingAdapter):
             logger.info("Chrome profile lock acquired: account #%s", account_id)
 
         user_data_dir.mkdir(parents=True, exist_ok=True)
+        if os.name != "nt":
+            user_data_dir.chmod(0o700)
 
         if _is_headless_browser_enabled():
             options.add_argument("--headless=new")
@@ -451,6 +468,10 @@ class ThreadsAdapter(BasePostingAdapter):
             },
         )
         if proxy_extension_path is not None:
+            endpoint_file = proxy_extension_path / "proxy_endpoint.json"
+            # Command-line routing remains active even if the auth extension fails.
+            endpoint = json.loads(endpoint_file.read_text(encoding="utf-8"))
+            options.add_argument(f"--proxy-server={endpoint['scheme']}://{endpoint['host']}:{endpoint['port']}")
             options.add_argument(f"--load-extension={proxy_extension_path}")
 
         try:
@@ -464,6 +485,16 @@ class ThreadsAdapter(BasePostingAdapter):
                 driver = uc.Chrome(options=options, use_subprocess=True)
             else:
                 driver = webdriver.Chrome(options=options)
+            if saved_viewport is not None:
+                try:
+                    driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", saved_viewport)
+                except Exception:
+                    try:
+                        driver.quit()
+                    except Exception:
+                        pass
+                    raise
+            setattr(driver, "_threadsai_account_id", account_id)
             setattr(driver, "_threadsai_user_data_dir", user_data_dir)
             setattr(driver, "_threadsai_persistent_profile", account_id is not None)
             setattr(driver, "_threadsai_profile_lock", profile_lock)
@@ -477,11 +508,11 @@ class ThreadsAdapter(BasePostingAdapter):
             if account_id is None:
                 self._remove_directory_safely(user_data_dir)
             if proxy_extension_path is not None:
-                raise ProxyNetworkException(f"Chrome/proxy driver startup failed: {exc}") from exc
+                raise ProxyNetworkException(f"Chrome/proxy driver startup failed: {redact_connection_secrets(str(exc))}") from exc
             raise RuntimeError(
                 "Chrome не смог стартовать на сервере. Проверь установку google-chrome/chromium, "
                 "совместимость ChromeDriver и системные библиотеки. "
-                f"Исходная ошибка: {exc}"
+                f"Исходная ошибка: {redact_connection_secrets(str(exc))}"
             ) from exc
         except Exception as exc:
             if profile_lock is not None:
@@ -491,7 +522,7 @@ class ThreadsAdapter(BasePostingAdapter):
                     pass
             if account_id is None:
                 self._remove_directory_safely(user_data_dir)
-            raise ProxyNetworkException(f"Chrome/proxy driver startup failed: {exc}") from exc
+            raise ProxyNetworkException(f"Chrome/proxy driver startup failed: {redact_connection_secrets(str(exc))}") from exc
 
     def _apply_network_blocking(self, driver: WebDriver) -> None:
         # Save large media transfers without altering scripts, images or fonts.
@@ -827,7 +858,7 @@ class ThreadsAdapter(BasePostingAdapter):
                     ) from exc
                 if published_count > 0:
                     raise ThreadChainPartialSuccess(
-                        f"Threads chain stopped after {published_count}/{len(posts_chain)} submissions: {exc}",
+                        f"Threads chain stopped after {published_count}/{len(posts_chain)} submissions: {redact_connection_secrets(str(exc))}",
                         published_count=published_count,
                     ) from exc
                 raise
@@ -931,7 +962,7 @@ class ThreadsAdapter(BasePostingAdapter):
                     return
             except (TimeoutException, WebDriverException, StaleElementReferenceException) as exc:
                 last_error = exc
-                logger.warning("Threads composer strict DOM scan failed on attempt %s: %s", attempt, exc)
+                logger.warning("Threads composer strict DOM scan failed on attempt %s: %s", attempt, redact_connection_secrets(str(exc)))
 
         for composer_url in self.COMPOSER_DIRECT_URLS:
             try:
@@ -947,7 +978,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 self._assert_no_blocking_challenge(driver)
             except (TimeoutException, WebDriverException, StaleElementReferenceException) as exc:
                 last_error = exc
-                logger.warning("Threads direct composer URL fallback failed (%s): %s", composer_url, exc)
+                logger.warning("Threads direct composer URL fallback failed (%s): %s", composer_url, redact_connection_secrets(str(exc)))
 
         if last_error is not None:
             raise RetryablePostingException(
@@ -1660,7 +1691,7 @@ class ThreadsAdapter(BasePostingAdapter):
                     action_name,
                     attempt,
                     retries,
-                    exc,
+                    redact_connection_secrets(str(exc)),
                 )
                 time.sleep(retry_delay_seconds)
 
@@ -1885,6 +1916,8 @@ class ThreadsAdapter(BasePostingAdapter):
         PROXY_EXTENSIONS_DIR.mkdir(parents=True, exist_ok=True)
         extension_path = PROXY_EXTENSIONS_DIR / f"{task_id}_{int(time.time() * 1000)}_proxy_auth"
         extension_path.mkdir(parents=True, exist_ok=True)
+        if os.name != "nt":
+            extension_path.chmod(0o700)
         username = unquote(parsed_proxy.username or "")
         password = unquote(parsed_proxy.password or "")
         scheme = json.dumps(parsed_proxy.scheme)
@@ -1936,8 +1969,14 @@ chrome.webRequest.onAuthRequired.addListener(
 );
 """
 
+        (extension_path / "proxy_endpoint.json").write_text(json.dumps({
+            "scheme": parsed_proxy.scheme, "host": parsed_proxy.hostname, "port": port,
+        }), encoding="utf-8")
         (extension_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         (extension_path / "background.js").write_text(background_js, encoding="utf-8")
+        if os.name != "nt":
+            for private_file in extension_path.iterdir():
+                private_file.chmod(0o600)
 
         return extension_path
 
@@ -2090,6 +2129,11 @@ chrome.webRequest.onAuthRequired.addListener(
         profile_lock = getattr(driver, "_threadsai_profile_lock", None)
 
         try:
+            try:
+                from app.posting.proxy_telemetry import collect_browser_estimate
+                collect_browser_estimate(driver, getattr(driver, "_threadsai_account_id", None))
+            except Exception:
+                pass
             driver.quit()
         except WebDriverException:
             pass

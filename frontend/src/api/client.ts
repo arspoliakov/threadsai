@@ -166,6 +166,7 @@ export type AuthAttributionPayload = {
 };
 
 export type CurrentUser = {
+  is_operator?: boolean;
   id: number;
   telegram_id: number | null;
   username: string | null;

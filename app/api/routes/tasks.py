@@ -423,7 +423,7 @@ async def schedule_task(task_id: int, payload: ScheduleInput, db: AsyncSession =
     account_id = payload.account_id or task.account_id
     account = await db.scalar(select(Account).where(Account.id == account_id, Account.owner_id == user.id,
         Account.project_id == project.id, Account.platform == Platform.THREADS, Account.status == AccountStatus.ACTIVE,
-        Account.cookies_encrypted.is_not(None), Account.assigned_port.is_not(None)))
+        Account.cookies_encrypted.is_not(None), or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly")))
     if account is None:
         raise HTTPException(409, "Выберите подключённый рабочий профиль Threads этого проекта")
     if account.cooldown_until and when < _as_utc(account.cooldown_until):
@@ -432,7 +432,7 @@ async def schedule_task(task_id: int, payload: ScheduleInput, db: AsyncSession =
     locked = await db.execute(update(Account).where(
         Account.id == account.id, Account.owner_id == user.id, Account.project_id == project.id,
         Account.status == AccountStatus.ACTIVE, Account.cookies_encrypted.is_not(None),
-        Account.assigned_port.is_not(None),
+        or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"),
         or_(Account.cooldown_until.is_(None), Account.cooldown_until <= when),
     ).values(last_error=Account.last_error))
     if locked.rowcount != 1:

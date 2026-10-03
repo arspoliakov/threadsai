@@ -60,6 +60,8 @@ class ThreadsTrendScraper:
         expected_proxy_ip: str | None = None,
     ) -> list[dict[str, Any]]:
         proxy_url = build_threads_proxy_url_for_account(account)
+        if not proxy_url:
+            raise ProxyNetworkException("Account proxy is not configured; direct connection is disabled.")
         proxy_extension_path: Path | None = None
         driver: WebDriver | None = None
         deadline_watchdog = None

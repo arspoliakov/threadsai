@@ -503,6 +503,21 @@ def _apply_tariff(user: User, tariff: TariffLimits) -> None:
     user.tariff_queue_days = tariff.queue_days
 
 
+def has_current_subscription_access(user: User, *, now: datetime | None = None) -> bool:
+    """Known expiration is authoritative; legacy channel access has no end date."""
+    if not user.subscription_status:
+        return False
+    current = _as_utc(now) or datetime.now(UTC)
+    gift_end = _as_utc(user.complimentary_access_expires_at)
+    if gift_end is not None and gift_end > current:
+        return True
+    # Gift-only access must not turn into unlimited legacy access after expiration.
+    if user.subscription_phase == "gift":
+        return False
+    paid_end = _as_utc(user.subscription_expires_at)
+    return paid_end is None or paid_end > current
+
+
 def _apply_active_complimentary_access(user: User, *, now: datetime | None = None) -> bool:
     if not _is_future(user.complimentary_access_expires_at, now=now):
         return False

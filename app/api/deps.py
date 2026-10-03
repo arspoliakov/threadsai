@@ -14,6 +14,31 @@ from app.db.session import AsyncSessionLocal
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+async def require_operator(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> str:
+    """Operator permission is separate from tenant/dashboard admission."""
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = credentials.credentials
+    if settings.web_admin_token and hmac.compare_digest(token.encode(), settings.web_admin_token.encode()):
+        return "operator-token"
+    from app.api.auth import verify_access_token
+    try:
+        payload = verify_access_token(token)
+        telegram_id = int(payload.get("telegram_id"))
+        user_id = int(payload.get("sub"))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=403, detail="Operator access required") from None
+    if not settings.admin_tg_id or telegram_id != settings.admin_tg_id:
+        raise HTTPException(status_code=403, detail="Operator access required")
+    async with AsyncSessionLocal() as session:
+        user = await session.get(User, user_id)
+        if user is None or user.telegram_id != telegram_id:
+            raise HTTPException(status_code=403, detail="Operator access required")
+    return str(user_id)
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
@@ -83,7 +108,8 @@ async def get_current_user(
 async def require_active_subscription(
     user: User = Depends(get_current_user),
 ) -> User:
-    if user.subscription_status:
+    from app.services.subscriptions import has_current_subscription_access
+    if has_current_subscription_access(user):
         return user
 
     raise HTTPException(

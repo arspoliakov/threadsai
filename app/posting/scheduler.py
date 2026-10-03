@@ -29,6 +29,7 @@ from app.db.models import (
 from app.db.session import AsyncSessionLocal
 from app.services.admin_notifier import send_admin_alert
 from app.services.proxy_pool import build_threads_proxy_url_for_account
+from app.services.subscriptions import has_current_subscription_access
 from app.telegram.notifications import send_admin_notification
 
 
@@ -154,7 +155,7 @@ async def recover_proxy_error_accounts() -> None:
                     .where(
                         Account.platform == Platform.THREADS,
                         Account.status == AccountStatus.PROXY_ERROR,
-                        Account.assigned_port.is_not(None),
+                        or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"),
                     )
                     .order_by(Account.id.asc())
                 )
@@ -211,7 +212,7 @@ async def check_queue_health() -> None:
                 PostingTask.scheduled_at.is_not(None),
                 PostingTask.scheduled_at <= now,
                 Account.status == AccountStatus.ACTIVE,
-                Account.assigned_port.is_not(None),
+                or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"),
                 Project.is_active.is_(True),
                 User.subscription_status.is_(True),
             )
@@ -383,7 +384,7 @@ async def ensure_project_queue(project_id: int, *, generation_budget: int = MAX_
             return 0
 
         owner = await session.get(User, project.owner_id) if project.owner_id is not None else None
-        if owner is None or not owner.subscription_status:
+        if owner is None or not has_current_subscription_access(owner):
             return 0
 
         accounts = await _get_project_posting_accounts(project.id, session)
@@ -414,7 +415,7 @@ async def ensure_account_queue(
             return 0
 
         owner = await session.get(User, project.owner_id) if project.owner_id is not None else None
-        if owner is None or not owner.subscription_status:
+        if owner is None or not has_current_subscription_access(owner):
             return 0
 
         async with _get_account_queue_lock(account.id):
@@ -439,7 +440,7 @@ async def _ensure_account_queue_for_project(
         return 0
 
     owner = await session.get(User, project.owner_id) if project.owner_id is not None else None
-    if owner is None or not owner.subscription_status:
+    if owner is None or not has_current_subscription_access(owner):
         return 0
 
     if (
@@ -448,7 +449,7 @@ async def _ensure_account_queue_for_project(
         or account.project_id != project.id
         or account.status != AccountStatus.ACTIVE
         or account.platform != Platform.THREADS
-        or account.assigned_port is None
+        or (account.assigned_port is None and account.proxy_provider != "proxly")
         or not account.cookies_encrypted
     ):
         return 0
@@ -506,7 +507,7 @@ async def _ensure_account_queue_for_project(
             working_account = await session.execute(update(Account).where(
                 Account.id == account_id, Account.owner_id == owner_id, Account.project_id == project_id,
                 Account.status == AccountStatus.ACTIVE, Account.platform == Platform.THREADS,
-                Account.assigned_port.is_not(None), Account.cookies_encrypted.is_not(None),
+                or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"), Account.cookies_encrypted.is_not(None),
             ).values(last_error=Account.last_error))
             exists = await session.scalar(select(Project.id).where(Project.id == project_id, Project.owner_id == owner_id))
             if exists is None:
@@ -666,7 +667,7 @@ async def _get_project_posting_accounts(project_id: int, session: AsyncSession) 
             Account.project_id == project_id,
             Account.status == AccountStatus.ACTIVE,
             Account.platform == Platform.THREADS,
-            Account.assigned_port.is_not(None),
+            or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"),
             Account.cookies_encrypted.is_not(None),
             Account.owner_id.in_(select(Project.owner_id).where(Project.id == project_id)),
             User.subscription_status.is_(True),

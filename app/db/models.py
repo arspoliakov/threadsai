@@ -199,6 +199,7 @@ class Account(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_accounts_project_platform", "project_id", "platform"),
         Index("ix_accounts_assigned_port_unique", "assigned_port", unique=True),
+        Index("ix_accounts_proxy_session_id_unique", "proxy_session_id", unique=True),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -212,6 +213,9 @@ class Account(Base, TimestampMixin):
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     proxy_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     assigned_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    proxy_provider: Mapped[str] = mapped_column(String(32), default="proxymarket", server_default="proxymarket", nullable=False)
+    proxy_session_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    proxy_credentials_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     session_data_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     cookies_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[AccountStatus] = mapped_column(
@@ -227,6 +231,34 @@ class Account(Base, TimestampMixin):
     project: Mapped[Project | None] = relationship(back_populates="accounts")
     owner: Mapped[User | None] = relationship(back_populates="accounts")
     posting_tasks: Mapped[list[PostingTask]] = relationship(back_populates="account")
+
+
+class ProxyProviderConfig(Base, TimestampMixin):
+    __tablename__ = "proxy_provider_configs"
+
+    provider: Mapped[str] = mapped_column(String(32), primary_key=True)
+    credentials_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    host: Mapped[str] = mapped_column(String(255), nullable=False)
+    port: Mapped[int] = mapped_column(Integer, nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False)
+    sticky_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    package_gb: Mapped[float] = mapped_column(Float, nullable=False)
+    package_cost_rub: Mapped[float] = mapped_column(Float, nullable=False)
+    next_session_id: Mapped[int] = mapped_column(Integer, default=11, server_default="11", nullable=False)
+
+
+class ProxyUsageEvent(Base):
+    __tablename__ = "proxy_usage_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True, index=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    service: Mapped[str] = mapped_column(String(32), default="threadsgo", nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    operation: Mapped[str] = mapped_column(String(32), nullable=False)
+    estimated_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    source: Mapped[str] = mapped_column(String(48), default="browser_encoded_response", nullable=False)
+    status: Mapped[str] = mapped_column(String(48), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class PostingTask(Base, TimestampMixin):

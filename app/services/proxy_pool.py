@@ -104,6 +104,11 @@ async def assign_threads_proxy_port(session: AsyncSession) -> int:
 
 
 def build_threads_proxy_url_for_account(account: Account) -> str | None:
+    if account.proxy_provider == "proxly":
+        from app.services.proxly_config import build_proxly_url_for_account
+        return build_proxly_url_for_account(account)
+    if account.proxy_provider not in (None, "proxymarket"):
+        raise HTTPException(status_code=409, detail="Unsupported Threads proxy provider. Contact support.")
     if account.assigned_port is None:
         return None
 

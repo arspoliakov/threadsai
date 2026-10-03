@@ -102,6 +102,8 @@ export function ProfileMenu() {
             Что нового в сервисе
           </Link>
 
+          {user?.is_operator ? <Link to="/app/admin/proxies" onClick={() => setIsOpen(false)} className="mt-3 flex h-12 items-center justify-center rounded-full border bg-white text-sm">Администрирование прокси</Link> : null}
+
           <button
             type="button"
             onClick={handleRestartOnboarding}

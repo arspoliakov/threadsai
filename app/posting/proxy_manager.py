@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import ipaddress
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -37,6 +38,9 @@ from app.posting.scheduler import (
 )
 from app.services.admin_notifier import send_admin_alert
 from app.services.proxy_pool import build_threads_proxy_url_for_account
+from app.services.subscriptions import has_current_subscription_access
+from app.posting.browser_capacity import browser_semaphore
+from app.posting.error_safety import redact_connection_secrets
 
 
 IP_CHECK_URL = "https://api.ipify.org"
@@ -63,7 +67,7 @@ PROXY_FAILURE_MARKERS = (
 )
 
 logger = logging.getLogger(__name__)
-browser_semaphore = asyncio.Semaphore(MAX_CONCURRENT_BROWSERS)
+
 
 
 @dataclass(slots=True)
@@ -162,8 +166,8 @@ class ProxyManager:
                 continue
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                logger.exception("Account proxy manager discovery loop failed.")
+            except Exception as exc:
+                logger.warning("Account proxy manager discovery loop failed (%s).", type(exc).__name__)
                 await asyncio.sleep(ACCOUNT_POLL_SECONDS)
 
 
@@ -171,13 +175,13 @@ async def discover_active_proxy_accounts() -> list[tuple[int, str]]:
     async with AsyncSessionLocal() as session:
         accounts = list(
             (
-                await session.scalars(
-                    select(Account)
+                await session.execute(
+                    select(Account, User)
                     .join(User, Account.owner_id == User.id)
                     .where(
                         Account.platform == Platform.THREADS,
                         Account.status == AccountStatus.ACTIVE,
-                        Account.assigned_port.is_not(None),
+                        or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"),
                         User.subscription_status.is_(True),
                     )
                     .order_by(Account.id.asc())
@@ -186,16 +190,23 @@ async def discover_active_proxy_accounts() -> list[tuple[int, str]]:
         )
 
     active_accounts: list[tuple[int, str]] = []
-    for account in accounts:
+    for account, user in accounts:
+        if not has_current_subscription_access(user):
+            continue
         try:
             proxy_url = _account_proxy_url(account)
         except HTTPException as exc:
             logger.warning("Account proxy manager is waiting for base proxy config: %s", exc.detail)
-            return []
+            continue
         if proxy_url:
             active_accounts.append((account.id, proxy_url))
 
     return active_accounts
+
+
+class _BrowserTaskDeferred(Exception):
+    def __init__(self, delay: float):
+        self.delay = delay
 
 
 async def run_account_worker(account_id: int, proxy_url: str, stop_event: asyncio.Event) -> None:
@@ -208,55 +219,87 @@ async def run_account_worker(account_id: int, proxy_url: str, stop_event: asynci
             await _sleep_or_stop(stop_event, ACCOUNT_POLL_SECONDS)
             continue
 
-        try:
-            current_ip = await get_current_ip(proxy_url)
-        except Exception as exc:
-            logger.warning("Proxy IP polling failed for account #%s via %s: %s", account_id, _safe_proxy_label(proxy_url), exc)
-            await record_proxy_failure(account_id, f"Proxy IP polling failed: {exc}")
-            await release_claimed_task(task, f"Proxy IP polling failed before browser start: {exc}")
-            await _sleep_or_stop(stop_event, PROXY_FAILURE_RETRY_DELAY_SECONDS)
-            continue
-
+        retry_delay = 0.0
         state.active_task_id = task.task_id
         async with browser_semaphore:
             try:
+                # Re-read configuration and access AFTER waiting for capacity.
+                async with AsyncSessionLocal() as session:
+                    account = await session.get(Account, account_id)
+                    user = await session.get(User, account.owner_id) if account else None
+                    if account is None or account.status != AccountStatus.ACTIVE or user is None or not has_current_subscription_access(user):
+                        await release_claimed_task(task, "Работа остановлена: профиль или подписка недоступны.")
+                        raise _BrowserTaskDeferred(ACCOUNT_POLL_SECONDS)
+                    state.proxy_url = _account_proxy_url(account) or ""
+                if not state.proxy_url:
+                    await release_claimed_task(task, "Прокси не назначен. Прямое подключение отключено.")
+                    raise _BrowserTaskDeferred(PROXY_FAILURE_RETRY_DELAY_SECONDS)
+                try:
+                    current_ip = await get_current_ip(state.proxy_url)
+                except Exception as exc:
+                    # Error strings from HTTP clients can contain credentials.
+                    error = f"Proxy connection check failed ({type(exc).__name__})."
+                    logger.warning("Account #%s: %s", account_id, error)
+                    await record_proxy_failure(account_id, error)
+                    await release_claimed_task(task, error)
+                    raise _BrowserTaskDeferred(PROXY_FAILURE_RETRY_DELAY_SECONDS)
                 await _run_claimed_task(task, state.proxy_url, current_ip)
                 await reset_proxy_failure_count(account_id)
+            except _BrowserTaskDeferred as deferred:
+                retry_delay = deferred.delay
+            except HTTPException:
+                retry_delay = PROXY_FAILURE_RETRY_DELAY_SECONDS
+                await release_claimed_task(task, "Прокси не настроен или отключён. Прямое подключение отключено.")
             except RetryablePostingException as exc:
+                safe_error = redact_connection_secrets(str(exc))
                 if _is_proxy_ip_changed_message(str(exc)):
                     logger.warning(
                         "Account #%s browser window was interrupted by proxy IP rotation; task will retry without opening circuit breaker: %s",
                         account_id,
-                        exc,
+                        safe_error,
                     )
                 elif _is_proxy_failure_message(str(exc)):
-                    await record_proxy_failure(account_id, str(exc))
+                    await record_proxy_failure(account_id, safe_error)
                 else:
                     logger.warning(
                         "Account #%s task will retry after a transient browser/UI error: %s",
                         account_id,
-                        exc,
+                        safe_error,
                     )
                 retry_delay = (
                     PROXY_FAILURE_RETRY_DELAY_SECONDS
                     if _is_proxy_failure_message(str(exc))
                     else TASK_RETRY_DELAY_SECONDS
                 )
-                await _sleep_or_stop(stop_event, retry_delay)
-            except Exception:
-                logger.exception("Account worker failed while executing %s task #%s.", task.kind, task.task_id)
+            except Exception as exc:
+                retry_delay = TASK_RETRY_DELAY_SECONDS
+                await release_claimed_task(task, f"Browser task failed ({type(exc).__name__}).")
+                logger.warning("Account worker failed while executing %s task #%s (%s).", task.kind, task.task_id, type(exc).__name__)
             finally:
                 state.active_task_id = None
+                try:
+                    from app.posting.proxy_telemetry import flush_browser_estimates
+                    await flush_browser_estimates()
+                except Exception:
+                    logger.warning("Browser traffic estimate could not be saved for account #%s.", account_id)
+        if retry_delay:
+            await _sleep_or_stop(stop_event, retry_delay)
 
 
 async def get_current_ip(proxy_url: str) -> str:
-    async with httpx.AsyncClient(proxy=proxy_url, timeout=10.0) as client:
-        response = await client.get(IP_CHECK_URL)
-        response.raise_for_status()
-        current_ip = response.text.strip()
-
-    if not current_ip:
-        raise RetryablePostingException("Empty ipify response from account proxy.")
+    async with httpx.AsyncClient(proxy=proxy_url, timeout=10.0, trust_env=False, follow_redirects=False) as client:
+        async with client.stream("GET", IP_CHECK_URL) as response:
+            response.raise_for_status()
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                if len(body) + len(chunk) > 512:
+                    raise RetryablePostingException("Proxy IP response exceeded safe size.")
+                body.extend(chunk)
+            current_ip = body.decode("ascii").strip()
+    try:
+        ipaddress.ip_address(current_ip)
+    except ValueError as exc:
+        raise RetryablePostingException("Proxy IP response did not contain a valid address.") from exc
 
     return current_ip
 
@@ -330,7 +373,7 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
                         PostingTask.scheduled_at <= now,
                         Account.status == AccountStatus.ACTIVE,
                         Account.platform == Platform.THREADS,
-                        Account.assigned_port.is_not(None),
+                        or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"),
                         Project.is_active.is_(True),
                         User.subscription_status.is_(True),
                     )
@@ -341,6 +384,12 @@ async def claim_oldest_due_task_for_account(account_id: int) -> int | None:
         )
 
         for task, account, project, user in candidate_rows:
+            if not has_current_subscription_access(user, now=now):
+                continue
+            if (task.generation_metadata or {}).get("publication_confirmation_pending"):
+                task.status = PostingTaskStatus.DRAFT
+                task.scheduled_at = None
+                continue
             publish_now_requested = _is_publish_now_requested(task)
 
             if not publish_now_requested and not _is_project_in_active_window(project, now):
@@ -399,7 +448,7 @@ async def claim_oldest_scraping_operation_for_account(account_id: int) -> int | 
         candidate_rows = list(
             (
                 await session.execute(
-                    select(ProjectOperation, Account, Project)
+                    select(ProjectOperation, Account, Project, User)
                     .join(Project, ProjectOperation.project_id == Project.id)
                     .join(Account, Account.project_id == Project.id)
                     .join(User, Account.owner_id == User.id)
@@ -411,7 +460,7 @@ async def claim_oldest_scraping_operation_for_account(account_id: int) -> int | 
                         Account.platform == Platform.THREADS,
                         or_(Account.cooldown_until.is_(None), Account.cooldown_until <= datetime.now(UTC)),
                         Account.cookies_encrypted.is_not(None),
-                        Account.assigned_port.is_not(None),
+                        or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"),
                         Project.is_active.is_(True),
                         User.subscription_status.is_(True),
                     )
@@ -421,7 +470,9 @@ async def claim_oldest_scraping_operation_for_account(account_id: int) -> int | 
             ).all()
         )
 
-        for operation, account, _project in candidate_rows:
+        for operation, account, _project, user in candidate_rows:
+            if not has_current_subscription_access(user):
+                continue
             claim_result = await session.execute(
                 update(ProjectOperation)
                 .where(
@@ -509,6 +560,7 @@ async def execute_scraping_operation(
             logger.info("Project scraping operation %s completed.", operation.id)
             return None
         except SessionExpiredException as exc:
+            exc = SessionExpiredException(redact_connection_secrets(str(exc)))
             await session.rollback()
             failed_operation = await session.get(ProjectOperation, operation_id)
             account = await session.get(Account, account_id) if account_id is not None else None
@@ -529,6 +581,7 @@ async def execute_scraping_operation(
                 await _notify_account_owner_about_session(account)
             return None
         except RetryablePostingException as exc:
+            exc = RetryablePostingException(redact_connection_secrets(str(exc)))
             await session.rollback()
             retry_operation = await session.get(ProjectOperation, operation_id)
             account = await session.get(Account, account_id) if account_id is not None else None
@@ -551,21 +604,23 @@ async def execute_scraping_operation(
             logger.warning("Project scraping operation %s returned to queue: %s", operation_id, exc)
             return str(exc) if _is_proxy_failure_message(str(exc)) else None
         except Exception as exc:
+            safe_error = f"Scraping failed ({type(exc).__name__})."
             await session.rollback()
             failed_operation = await session.get(ProjectOperation, operation_id)
 
             if failed_operation is not None:
                 failed_operation.status = ProjectOperationStatus.FAILED
                 failed_operation.message = "Подборку не удалось обновить. Ошибка уже отправлена команде."
-                failed_operation.result_json = {"error": str(exc)}
+                failed_operation.result_json = {"error": safe_error}
                 failed_operation.finished_at = datetime.now(UTC)
                 await session.commit()
 
-            logger.exception("Project scraping operation %s failed.", operation_id)
-            return str(exc) if _is_proxy_failure_message(str(exc)) else None
+            logger.warning("Project scraping operation %s failed (%s).", operation_id, type(exc).__name__)
+            return safe_error if _is_proxy_failure_message(str(exc)) else None
 
 
 async def record_proxy_failure(account_id: int, error_message: str) -> None:
+    error_message = redact_connection_secrets(error_message)
     async with AsyncSessionLocal() as session:
         account = await session.get(Account, account_id)
         if account is None or account.status != AccountStatus.ACTIVE:

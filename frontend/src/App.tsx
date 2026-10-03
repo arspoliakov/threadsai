@@ -23,6 +23,7 @@ const GlobalLayout = lazy(() => import("./layouts/GlobalLayout"));
 const ProjectLayout = lazy(() => import("./layouts/ProjectLayout"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const StudioPage = lazy(() => import("./pages/StudioPage"));
+const ProxyAdminPage = lazy(() => import("./pages/global/ProxyAdminPage"));
 const BillingPage = lazy(() => import("./pages/BillingPage"));
 const InfrastructurePage = lazy(() => import("./pages/global/InfrastructurePage"));
 const GlobalSettingsPage = lazy(() => import("./pages/global/GlobalSettingsPage"));
@@ -73,6 +74,7 @@ export default function App() {
             <Route path="how-it-works" element={<HowItWorksPage />} />
             <Route path="infrastructure" element={<InfrastructurePage />} />
             <Route path="settings" element={<GlobalSettingsPage />} />
+            <Route path="admin/proxies" element={<ProxyAdminPage />} />
           </Route>
 
           <Route path="app/projects/:id" element={<ProjectLayout />}>

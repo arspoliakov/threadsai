@@ -7,7 +7,7 @@ from unicodedata import normalize
 
 from pydantic import BaseModel, ConfigDict
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db, require_active_subscription
@@ -600,7 +600,7 @@ async def _get_active_threads_account_id(project_id: int, owner_id: int, db: Asy
             Account.platform == Platform.THREADS,
             Account.status == AccountStatus.ACTIVE,
             Account.cookies_encrypted.is_not(None),
-            Account.assigned_port.is_not(None),
+            or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"),
         )
         .order_by(Account.last_used_at.asc().nullsfirst(), Account.created_at.asc())
         .limit(1)

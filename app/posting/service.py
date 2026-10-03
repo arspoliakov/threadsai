@@ -1,4 +1,6 @@
 from datetime import UTC, datetime, timedelta
+import time
+from app.posting.error_safety import redact_connection_secrets
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +20,7 @@ from app.posting.exceptions import (
 from app.posting.scheduler import schedule_account_queue_refill
 from app.services.admin_notifier import send_admin_alert
 from app.services.proxy_pool import build_threads_proxy_url_for_account
+from app.services.subscriptions import has_current_subscription_access
 from app.telegram.notifications import send_user_notification
 
 
@@ -118,6 +121,28 @@ async def execute_posting_task(
 
     account: Account = task.account
 
+    if account.project is None or account.project.owner is None or not has_current_subscription_access(account.project.owner):
+        task.status = PostingTaskStatus.QUEUED
+        task.started_at = None
+        task.error_message = "Подписка закончилась. Возобновите доступ для публикации."
+        await session.commit()
+        return task
+
+    owner = account.project.owner
+    # Do not begin a send after known access expiration even within this job.
+    access_end = owner.subscription_expires_at
+    gift_end = owner.complimentary_access_expires_at
+    if owner.subscription_phase == "gift":
+        access_end = gift_end
+    elif access_end is not None and gift_end is not None:
+        normalized_paid = access_end if access_end.tzinfo else access_end.replace(tzinfo=UTC)
+        normalized_gift = gift_end if gift_end.tzinfo else gift_end.replace(tzinfo=UTC)
+        access_end = max(normalized_paid, normalized_gift)
+    if access_end is not None:
+        access_end = access_end if access_end.tzinfo else access_end.replace(tzinfo=UTC)
+        access_deadline = time.monotonic() + max(0, (access_end - datetime.now(UTC)).total_seconds())
+        deadline_at = min(deadline_at, access_deadline) if deadline_at is not None else access_deadline
+
     if account.status != AccountStatus.ACTIVE:
         task.status = PostingTaskStatus.QUEUED
         task.started_at = None
@@ -167,12 +192,12 @@ async def execute_posting_task(
         schedule_account_queue_refill(task.project_id, account.id)
         return task
     except SessionExpiredException as exc:
-        error_message = str(exc)
+        error_message = redact_connection_secrets(str(exc))
         await _mark_session_expired(session, task, account, error_message)
         await _notify_account_owner_about_session(account)
         return task
     except ThreadChainPartialSuccess as exc:
-        error_message = str(exc)
+        error_message = redact_connection_secrets(str(exc))
         await _mark_partial_success(session, task, account, error_message, exc.published_count)
         if _should_quarantine_account(error_message, task.retry_count):
             account.status = AccountStatus.ERROR
@@ -180,7 +205,7 @@ async def execute_posting_task(
             await _notify_account_owner_about_quarantine(account, task, error_message)
         return task
     except PublicationVerificationPending as exc:
-        error_message = str(exc)
+        error_message = redact_connection_secrets(str(exc))
         await _mark_partial_success(session, task, account, error_message, 0)
         task.generation_metadata = {**(task.generation_metadata or {}), "publication_confirmation_pending": True}
         account.status = AccountStatus.ERROR
@@ -188,7 +213,7 @@ async def execute_posting_task(
         await _notify_account_owner_about_quarantine(account, task, error_message)
         return task
     except RetryablePostingException as exc:
-        error_message = str(exc)
+        error_message = redact_connection_secrets(str(exc))
         if _should_quarantine_account(error_message, task.retry_count):
             await _mark_account_needs_review(session, task, account, error_message)
             await _notify_account_owner_about_quarantine(account, task, error_message)
@@ -196,7 +221,7 @@ async def execute_posting_task(
             await _mark_retryable(session, task, account, error_message)
         return task
     except Exception as exc:
-        error_message = str(exc)
+        error_message = redact_connection_secrets(str(exc))
         await _mark_failed(session, task, error_message)
         await _notify_account_owner_about_posting_error(account, task, error_message)
         return task

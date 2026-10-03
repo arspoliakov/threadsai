@@ -70,6 +70,7 @@ class TelegramAuthPayload(BaseModel):
 
 
 class CurrentUserResponse(BaseModel):
+    is_operator: bool = False
     id: int
     telegram_id: int | None
     username: str | None
@@ -361,6 +362,7 @@ async def get_current_user_profile(
         )
 
     return CurrentUserResponse(
+        is_operator=bool(settings.admin_tg_id and user.telegram_id == settings.admin_tg_id),
         id=user.id,
         telegram_id=user.telegram_id,
         username=user.username,

@@ -5,10 +5,17 @@ import json
 import sys
 
 from app.posting.adapters.base import PublishResult
+from app.posting.error_safety import redact_connection_secrets
 from app.posting.exceptions import ProxyNetworkException, SessionExpiredException
 
 
 async def check_session_in_subprocess(account_id: int, *, timeout_seconds: int = 60) -> PublishResult:
+    from app.posting.browser_capacity import browser_semaphore
+    async with browser_semaphore:
+        return await _check_session_in_subprocess(account_id, timeout_seconds=timeout_seconds)
+
+
+async def _check_session_in_subprocess(account_id: int, *, timeout_seconds: int = 60) -> PublishResult:
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
@@ -31,7 +38,7 @@ async def check_session_in_subprocess(account_id: int, *, timeout_seconds: int =
 
     if payload is None:
         message = stderr_text.strip() or stdout_text.strip() or f"Session check subprocess exited with {process.returncode}."
-        raise ProxyNetworkException(message)
+        raise ProxyNetworkException(redact_connection_secrets(message))
 
     status = payload.get("status")
     if status == "ok":
@@ -44,7 +51,7 @@ async def check_session_in_subprocess(account_id: int, *, timeout_seconds: int =
     if status == "session_expired":
         raise SessionExpiredException(message)
 
-    raise ProxyNetworkException(message)
+    raise ProxyNetworkException(redact_connection_secrets(message))
 
 
 def _extract_json_payload(stdout_text: str) -> dict[str, object] | None:

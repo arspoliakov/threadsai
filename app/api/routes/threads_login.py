@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Header
@@ -13,6 +14,7 @@ from app.db.models import Account, AccountStatus, Platform, User
 from app.schemas.account import AccountRead
 from app.services.proxy_pool import assign_threads_proxy_port, threads_proxy_assignment_lock
 from app.services.threads_login_window import login_window
+from app.posting.browser_capacity import browser_semaphore
 
 router = APIRouter(prefix="/threads-login", tags=["accounts"])
 
@@ -41,7 +43,31 @@ async def start(payload: Start, db: AsyncSession = Depends(get_db), user: User =
     async with threads_proxy_assignment_lock:
         await check_capacity(db, user)
         port = await assign_threads_proxy_port(db)
-    return await asyncio.to_thread(login_window.start, user.id, payload.username, port)
+    try:
+        await asyncio.wait_for(browser_semaphore.acquire(), timeout=5)
+    except TimeoutError:
+        raise HTTPException(409, "Все окна браузера заняты. Попробуйте подключить профиль через несколько минут.") from None
+    loop = asyncio.get_running_loop()
+    claimed = threading.Event()
+    release_guard = threading.Lock()
+    released = False
+    def release_capacity():
+        nonlocal released
+        with release_guard:
+            if released:
+                return
+            released = True
+        try:
+            loop.call_soon_threadsafe(browser_semaphore.release)
+        except RuntimeError:
+            pass  # The process/event loop is already shutting down.
+    try:
+        return await asyncio.to_thread(login_window.start, user.id, payload.username, port, release_capacity, claimed)
+    except BaseException:
+        # A started worker owns the reservation until Chrome actually closes.
+        if not claimed.is_set():
+            release_capacity()
+        raise
 
 
 @router.get("/frame")
@@ -73,7 +99,17 @@ async def finish(token: str = Header(alias="X-Login-Window"), db: AsyncSession =
                           status=AccountStatus.ACTIVE, assigned_port=room["port"],
                           cookies_encrypted=encrypt_secret(json.dumps(cookies)))
         db.add(account)
-        await db.commit()
+        await db.flush()  # Allocate a destination ID without exposing an incomplete account.
+        try:
+            await asyncio.to_thread(login_window.command, user.id, token, "adopt", {"account_id": account.id})
+            await db.commit()
+        except BaseException:
+            # Keep the DB reservation during cleanup, including a cancelled request.
+            try:
+                await asyncio.shield(asyncio.to_thread(login_window.discard_adopted_profile, user.id, token, account.id))
+            finally:
+                await asyncio.shield(db.rollback())
+            raise
         await db.refresh(account)
         login_window.close(user.id, token)
         return account

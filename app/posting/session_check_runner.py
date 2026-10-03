@@ -8,6 +8,7 @@ from app.db.models import Account
 from app.db.session import AsyncSessionLocal
 from app.posting.adapters.threads import ThreadsAdapter
 from app.posting.exceptions import SessionExpiredException
+from app.posting.error_safety import redact_connection_secrets
 
 
 async def _load_account(account_id: int) -> Account:
@@ -33,6 +34,11 @@ def main() -> int:
     try:
         account = asyncio.run(_load_account(account_id))
         result = ThreadsAdapter(timeout_seconds=20)._check_session_sync(account)
+        try:
+            from app.posting.proxy_telemetry import flush_browser_estimates
+            asyncio.run(flush_browser_estimates())
+        except Exception:
+            pass  # Estimate failure must not change a successful login check.
         _emit(
             {
                 "status": "ok",
@@ -42,10 +48,10 @@ def main() -> int:
         )
         return 0
     except SessionExpiredException as exc:
-        _emit({"status": "session_expired", "message": str(exc)})
+        _emit({"status": "session_expired", "message": redact_connection_secrets(str(exc))})
         return 0
     except Exception as exc:
-        _emit({"status": "error", "message": str(exc)})
+        _emit({"status": "error", "message": redact_connection_secrets(str(exc))})
         return 0
 
 

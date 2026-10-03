@@ -79,6 +79,9 @@ def _get_account_queue_lock(account_id: int) -> asyncio.Lock:
 
 
 def setup_posting_scheduler() -> AsyncIOScheduler:
+    from app.services.retention import retention_tick
+    if not scheduler.get_job("retention_messages"):
+        scheduler.add_job(retention_tick, trigger="interval", minutes=5, id="retention_messages", max_instances=1, coalesce=True)
     if not scheduler.get_job("check_and_run_posting_tasks"):
         scheduler.add_job(
             check_and_run_tasks,

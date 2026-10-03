@@ -24,6 +24,8 @@ const ProjectLayout = lazy(() => import("./layouts/ProjectLayout"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const StudioPage = lazy(() => import("./pages/StudioPage"));
 const ProxyAdminPage = lazy(() => import("./pages/global/ProxyAdminPage"));
+const RetentionAdminPage = lazy(() => import("./pages/global/RetentionAdminPage"));
+const NotificationSettingsPage = lazy(() => import("./pages/global/NotificationSettingsPage"));
 const BillingPage = lazy(() => import("./pages/BillingPage"));
 const InfrastructurePage = lazy(() => import("./pages/global/InfrastructurePage"));
 const GlobalSettingsPage = lazy(() => import("./pages/global/GlobalSettingsPage"));
@@ -75,6 +77,8 @@ export default function App() {
             <Route path="infrastructure" element={<InfrastructurePage />} />
             <Route path="settings" element={<GlobalSettingsPage />} />
             <Route path="admin/proxies" element={<ProxyAdminPage />} />
+            <Route path="admin/retention" element={<RetentionAdminPage />} />
+            <Route path="notifications" element={<NotificationSettingsPage />} />
           </Route>
 
           <Route path="app/projects/:id" element={<ProjectLayout />}>

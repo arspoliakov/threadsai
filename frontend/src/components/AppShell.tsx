@@ -55,6 +55,10 @@ export function AppShell({
           ))}
         </nav>
         <div className="mt-auto space-y-1 pt-8">
+          <Link to="/app/notifications" className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#67786e] hover:bg-[#f5f8f6]">
+            <AppIcon name="user" />
+            Сообщения в Telegram
+          </Link>
           <Link
             to="/app/billing"
             className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#67786e] hover:bg-[#f5f8f6]"

@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { getCurrentUser, type CurrentUser } from "../api/client";
@@ -103,6 +103,8 @@ export function ProfileMenu() {
           </Link>
 
           {user?.is_operator ? <Link to="/app/admin/proxies" onClick={() => setIsOpen(false)} className="mt-3 flex h-12 items-center justify-center rounded-full border bg-white text-sm">Администрирование прокси</Link> : null}
+          {user?.is_operator ? <Link to="/app/admin/retention" onClick={() => setIsOpen(false)} className="mt-3 flex h-12 items-center justify-center rounded-full border bg-white text-sm">Рассылки и удержание</Link> : null}
+          <Link to="/app/notifications" onClick={() => setIsOpen(false)} className="mt-3 flex h-12 items-center justify-center rounded-full border bg-white text-sm">Сообщения в Telegram</Link>
 
           <button
             type="button"

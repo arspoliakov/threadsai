@@ -164,9 +164,65 @@ class User(Base, TimestampMixin):
     tariff_projects_limit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     tariff_queue_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     studio_trial_used: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    marketing_consent: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    onboarding_consent: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    retention_consent_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     projects: Mapped[list[Project]] = relationship(back_populates="owner")
     accounts: Mapped[list[Account]] = relationship(back_populates="owner")
+
+
+class RetentionBotContact(Base, TimestampMixin):
+    __tablename__ = "retention_bot_contacts"
+    telegram_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    reachable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class RetentionConsentEvent(Base, TimestampMixin):
+    __tablename__ = "retention_consent_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    marketing_consent: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    onboarding_consent: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class RetentionSettings(Base):
+    __tablename__ = "retention_settings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sending_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    automated_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class RetentionCampaign(Base, TimestampMixin):
+    __tablename__ = "retention_campaigns"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(150), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    segment: Mapped[str] = mapped_column(String(32), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False)
+    recipient_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+
+
+class RetentionDelivery(Base, TimestampMixin):
+    __tablename__ = "retention_deliveries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    campaign_id: Mapped[int | None] = mapped_column(ForeignKey("retention_campaigns.id"), nullable=True, index=True)
+    dedupe_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    rule_key: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False, index=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    telegram_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 
 class StudioDraft(Base, TimestampMixin):

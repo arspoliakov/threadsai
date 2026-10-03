@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.services.subscriptions import activate_user_subscription, handle_user_left_tariff_chat
 from app.services.telegram_login import ChallengeError, bind_bot_challenge, decide_challenge
+from app.services.retention import note_bot_contact, note_bot_blocked, unsubscribe_user
 
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,9 @@ async def status_handler(message: Message) -> None:
 
 @dp.message(Command("start"))
 async def start_handler(message: Message, command: CommandObject) -> None:
+    if message.chat.type == "private" and message.from_user and not message.from_user.is_bot:
+        async with AsyncSessionLocal() as session:
+            await note_bot_contact(session, int(message.from_user.id))
     argument = (command.args or "").strip()
     if argument.startswith("login_"):
         await _handle_login_start(message, argument.removeprefix("login_"))
@@ -114,6 +118,8 @@ async def telegram_login_callback(callback: CallbackQuery) -> None:
     approve = parts[1] == "ok"
     try:
         async with AsyncSessionLocal() as session:
+            if callback.message is not None and callback.message.chat.type == "private":
+                await note_bot_contact(session, int(sender.id))
             await decide_challenge(
                 session=session,
                 challenge_id=parts[2],
@@ -141,6 +147,42 @@ async def telegram_login_callback(callback: CallbackQuery) -> None:
             await callback.message.edit_text(result_text, reply_markup=None)
         except TelegramAPIError:
             logger.warning("Could not edit Telegram login confirmation message for user_id=%s", sender.id)
+
+
+@dp.message(Command("unsubscribe"))
+async def unsubscribe_handler(message: Message) -> None:
+    if message.chat.type != "private" or message.from_user is None:
+        return
+    async with AsyncSessionLocal() as session:
+        await unsubscribe_user(session, int(message.from_user.id))
+    await message.answer(
+        "Рассылки и напоминания о начале работы отключены. "
+        "Настройки можно изменить в кабинете. Служебные сообщения о публикациях сохраняются."
+    )
+
+
+@dp.callback_query(F.data == "retention:unsubscribe")
+async def unsubscribe_callback(callback: CallbackQuery) -> None:
+    async with AsyncSessionLocal() as session:
+        await unsubscribe_user(session, int(callback.from_user.id))
+    await callback.answer("Рассылки и напоминания отключены", show_alert=True)
+    if callback.message is not None:
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except TelegramAPIError:
+            pass
+
+
+@dp.my_chat_member()
+async def bot_membership_handler(event: ChatMemberUpdated) -> None:
+    if event.chat.type != "private":
+        return
+    status = str(getattr(event.new_chat_member.status, "value", event.new_chat_member.status))
+    async with AsyncSessionLocal() as session:
+        if status in {"kicked", "left"}:
+            await note_bot_blocked(session, int(event.chat.id))
+        elif status == "member":
+            await note_bot_contact(session, int(event.chat.id))
 
 
 @dp.chat_member()

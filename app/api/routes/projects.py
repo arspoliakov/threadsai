@@ -184,8 +184,29 @@ async def update_project(
             },
         )
 
+    if payload.auto_generate is True and current_user.subscription_expires_at is not None:
+        expiries = [current_user.subscription_expires_at]
+        if current_user.complimentary_access_expires_at is not None:
+            expiries.append(current_user.complimentary_access_expires_at)
+        expires_at = max(value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC) for value in expiries)
+        if expires_at <= datetime.now(UTC):
+            raise HTTPException(402, "Срок доступа истёк. Продлите подписку перед включением автоматической публикации")
+
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(project, key, value)
+
+    if payload.auto_generate is False:
+        # Flush the mode change first, so queue completion sees it under the same
+        # write lock. Never touch an explicitly approved or uncertain publication.
+        await db.flush()
+        await db.execute(update(PostingTask).where(
+            PostingTask.project_id == project.id,
+            PostingTask.status == PostingTaskStatus.QUEUED,
+            PostingTask.generation_metadata["auto_generated"].as_boolean().is_(True),
+            PostingTask.generation_metadata["approved_by_owner"].as_boolean().is_not(True),
+            PostingTask.generation_metadata["publication_confirmation_pending"].as_boolean().is_not(True),
+        ).values(status=PostingTaskStatus.DRAFT, scheduled_at=None,
+                 error_message="Автоматическая публикация выключена. Проверьте текст и согласуйте время."))
 
     await db.commit()
     await db.refresh(project)

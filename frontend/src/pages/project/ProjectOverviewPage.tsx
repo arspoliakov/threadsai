@@ -171,7 +171,7 @@ export default function ProjectOverviewPage() {
   }
 
   return (
-    <section className="space-y-5">
+    <section className="workspace-page space-y-5">
       <header className="grid gap-4 rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm md:grid-cols-[1fr_auto] sm:p-6">
         <div>
           <h1 className="font-display text-4xl leading-none">

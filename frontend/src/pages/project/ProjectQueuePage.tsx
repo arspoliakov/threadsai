@@ -165,7 +165,7 @@ export default function ProjectQueuePage() {
   const visibleTasks = tasks.filter(task => !selectedDay || (selectedDay === "drafts" ? task.status === "draft" : task.status !== "draft" && task.status !== "cancelled" && task.scheduled_at && localDay(new Date(task.scheduled_at)) === selectedDay));
 
   return (
-    <section className="space-y-5">
+    <section className="workspace-page space-y-5">
       <header>
         <h1 className="font-display text-4xl leading-none">Черновики и календарь</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">

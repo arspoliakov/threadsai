@@ -108,7 +108,7 @@ export default function GlobalSettingsPage() {
   }
 
   return (
-    <section className="space-y-5">
+    <section className="workspace-page space-y-5">
       <header className="relative overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#090d0c] p-5 text-white shadow-sm sm:p-6">
         <div className="absolute right-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-[#70ff35]/18 blur-[110px]" />
         <div className="absolute bottom-[-10rem] left-[20%] h-80 w-80 rounded-full bg-[#0076ff]/22 blur-[110px]" />

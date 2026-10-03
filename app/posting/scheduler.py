@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai_engine.generators import generate_post
@@ -449,6 +449,7 @@ async def _ensure_account_queue_for_project(
         or account.status != AccountStatus.ACTIVE
         or account.platform != Platform.THREADS
         or account.assigned_port is None
+        or not account.cookies_encrypted
     ):
         return 0
 
@@ -466,6 +467,7 @@ async def _ensure_account_queue_for_project(
         remaining_generation_budget,
     )
 
+    project_id, account_id, owner_id = project.id, account.id, owner.id
     for offset in range(missing_count):
         scheduled_at = await _calculate_next_account_slot(
             project,
@@ -487,7 +489,39 @@ async def _ensure_account_queue_for_project(
                 account_id=account.id,
                 scheduled_at=scheduled_at,
                 use_trends=True,
+                persist=False,
             )
+            # AI can finish after the owner switches the mode or disconnects an
+            # account. Finish the read transaction, then recheck under a write lock.
+            await session.commit()
+            subscription = await session.execute(update(User).where(
+                User.id == owner_id, User.subscription_status.is_(True),
+                or_(User.subscription_expires_at.is_(None), User.subscription_expires_at > scheduled_at,
+                    User.complimentary_access_expires_at > scheduled_at),
+            ).values(subscription_status=User.subscription_status))
+            mode = await session.execute(update(Project).where(
+                Project.id == project_id, Project.owner_id == owner_id,
+                Project.auto_generate.is_(True), Project.is_active.is_(True),
+            ).values(is_active=Project.is_active))
+            working_account = await session.execute(update(Account).where(
+                Account.id == account_id, Account.owner_id == owner_id, Account.project_id == project_id,
+                Account.status == AccountStatus.ACTIVE, Account.platform == Platform.THREADS,
+                Account.assigned_port.is_not(None), Account.cookies_encrypted.is_not(None),
+            ).values(last_error=Account.last_error))
+            exists = await session.scalar(select(Project.id).where(Project.id == project_id, Project.owner_id == owner_id))
+            if exists is None:
+                await session.rollback()
+                return generated_count
+            automatic = (mode.rowcount == 1 and working_account.rowcount == 1
+                         and subscription.rowcount == 1)
+            task.generation_metadata = {**(task.generation_metadata or {}), "auto_generated": True}
+            if not automatic:
+                task.status = PostingTaskStatus.DRAFT
+                task.scheduled_at = None
+                task.account_id = None
+                task.error_message = "Публикация не запланирована: проверьте автоматический режим, доступ и подключение профиля."
+            session.add(task)
+            await session.commit()
             generated_count += 1
             logger.info(
                 "Generated scheduled task #%s for project #%s, account @%s. Scheduled at: %s.",
@@ -496,13 +530,16 @@ async def _ensure_account_queue_for_project(
                 account.username,
                 task.scheduled_at,
             )
+            if not automatic:
+                break
         except Exception:
             await session.rollback()
             logger.exception(
                 "Account-based generation failed for project #%s, account #%s.",
-                project.id,
-                account.id,
+                project_id,
+                account_id,
             )
+            return generated_count
 
     return generated_count
 
@@ -522,7 +559,8 @@ async def _calculate_next_account_slot_today(
         return None
 
     minimum_slot = max(now + timedelta(minutes=FIRST_POST_DELAY_MINUTES), start_at)
-    posts_per_day = _project_posts_per_day(project)
+    owner = await session.get(User, project.owner_id) if project.owner_id is not None else None
+    posts_per_day = _project_posts_per_day(project, owner.tariff_posts_per_day if owner else None)
     window_seconds = max(60, int((end_at - start_at).total_seconds()))
     slot_seconds = window_seconds / posts_per_day
     reserved = reserved_slots or []
@@ -608,7 +646,7 @@ def _stable_slot_jitter_minutes(project_id: int, account_id: int, day_start: dat
 
 
 def _is_slot_taken(candidate: datetime, slots: list[datetime | None]) -> bool:
-    min_gap = timedelta(minutes=20)
+    min_gap = timedelta(minutes=max(20, settings.posting_min_interval_minutes))
     for slot in slots:
         if slot is None:
             continue
@@ -629,6 +667,8 @@ async def _get_project_posting_accounts(project_id: int, session: AsyncSession) 
             Account.status == AccountStatus.ACTIVE,
             Account.platform == Platform.THREADS,
             Account.assigned_port.is_not(None),
+            Account.cookies_encrypted.is_not(None),
+            Account.owner_id.in_(select(Project.owner_id).where(Project.id == project_id)),
             User.subscription_status.is_(True),
         )
         .order_by(Account.last_used_at.asc().nulls_first(), Account.id.asc())
@@ -779,15 +819,15 @@ def _build_account_topic(project: Project, account: Account, todays_count: int) 
 def _build_engagement_mode(project: Project, account: Account, todays_count: int) -> str:
     modes = [
         (
-            "discussion question: finish with a native question a tutor can answer from experience. "
+            "discussion question: finish with a native question the project audience can answer from experience. "
             "No generic 'agree?' bait. The question must be about a concrete daily situation."
         ),
         (
-            "tiny disagreement: make one slightly arguable statement about tutor admin work, "
+            "tiny disagreement: make one slightly arguable statement grounded in the project niche and audience, "
             "then leave room for people to push back."
         ),
         (
-            "useful micro-rule: give one small operational rule or boundary from tutor life. "
+            "useful micro-rule: give one small operational rule or boundary relevant to the project niche. "
             "It must be practical, not motivational."
         ),
         (
@@ -795,7 +835,7 @@ def _build_engagement_mode(project: Project, account: Account, todays_count: int
             "that invites 'same' replies."
         ),
         (
-            "anti-advice: start from something tutors are usually told to do, then gently question it "
+            "anti-advice: start from something the project audience is usually told to do, then gently question it "
             "through a concrete example."
         ),
         (

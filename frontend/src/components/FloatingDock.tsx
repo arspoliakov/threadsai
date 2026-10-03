@@ -13,7 +13,7 @@ export function FloatingDock({ items }: { items: FloatingDockItem[] }) {
   return (
     <nav
       aria-label="Навигация кабинета"
-      className="fixed inset-x-0 bottom-3 z-40 px-3 pb-[env(safe-area-inset-bottom)] sm:bottom-4"
+      className="workspace-dock fixed inset-x-0 bottom-3 z-40 px-3 pb-[env(safe-area-inset-bottom)] sm:bottom-4"
     >
       <div className="mx-auto flex max-w-[42rem] items-center justify-center gap-1 rounded-[1.6rem] border border-white/55 bg-white/90 p-1 shadow-[0_18px_60px_rgba(8,14,12,0.16)] backdrop-blur-2xl sm:gap-1.5 sm:rounded-[1.9rem] sm:p-1.5">
         {items.map((item) => (

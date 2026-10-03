@@ -126,7 +126,7 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[22px] border border-[#dfe4dc] bg-white/88 p-5 shadow-sm sm:p-7">
+      <section className="workspace-intro rounded-[22px] border border-[#dfe4dc] bg-white/88 p-5 shadow-sm sm:p-7">
         <div className="max-w-3xl">
           <h1 className="font-display text-4xl leading-tight text-[#111] sm:text-5xl">Выберите свой формат работы</h1>
           <p className="mt-4 text-base leading-7 text-[#5f675f]">

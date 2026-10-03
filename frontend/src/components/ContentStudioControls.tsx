@@ -43,7 +43,7 @@ export function WeekPlanBuilder({ projectId, onCreated }: { projectId: number; o
       <label className="grid gap-2 text-sm">Рубрики через запятую<input className={field} value={rubrics} maxLength={500} onChange={e => setRubrics(e.target.value)} disabled={busy} /></label>
       <label className="grid gap-2 text-sm">Что хотите рассказать на этой неделе?<textarea className={field} rows={3} value={goal} minLength={10} maxLength={1000} required disabled={busy}
         placeholder="Например: объяснить, как выбрать специалиста, разобрать частую ошибку клиентов и рассказать о новой услуге. Укажите реальные факты." onChange={e => setGoal(e.target.value)} /></label>
-      <p className="text-xs text-[#67786e]">ИИ учитывает описание и стиль проекта. Новые тексты сохранятся как черновики; даты вы выберете после проверки.</p>
+      <p className="text-xs text-[#67786e]">ИИ учитывает описание и стиль проекта. Этот план всегда сохраняется в черновиках, даже при автоматической публикации проекта. Даты вы выберете после проверки.</p>
       <button className={button} disabled={busy}>{busy ? "Готовим семь черновиков…" : "Подготовить 7 черновиков"}</button>
     </form>}
   </section>;

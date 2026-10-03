@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import "../workspace-refresh.css";
 import { Link, NavLink } from "react-router-dom";
 import { AppIcon } from "./AppIcons";
 import { FloatingDock, type FloatingDockItem } from "./FloatingDock";
@@ -16,17 +17,17 @@ export function AppShell({
   children: ReactNode;
 }) {
   return (
-    <div className="app-refresh min-h-screen bg-[#f6f8f7] text-[#162b25]">
+    <div className="app-refresh workspace-shell min-h-screen bg-[#f6f8f7] text-[#162b25]">
       <a
         href="#workspace-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-white focus:p-4"
       >
         К содержимому
       </a>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-[#e0e8e2] bg-white px-4 py-7 lg:flex">
+      <aside className="workspace-sidebar fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-[#e0e8e2] bg-white px-4 py-7 lg:flex">
         <Link
           to="/app"
-          className="flex items-center gap-3 px-3 text-xl font-bold tracking-tight"
+          className="workspace-brand flex items-center gap-3 px-3 text-xl font-bold tracking-tight"
         >
           <img
             src="/threadsgo-logo.png"
@@ -38,14 +39,14 @@ export function AppShell({
         <p className="mb-3 mt-10 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#67786e]">
           Рабочее пространство
         </p>
-        <nav aria-label="Навигация кабинета" className="space-y-1">
+        <nav aria-label="Навигация кабинета" className="workspace-navigation space-y-1">
           {navigation.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end ?? item.to === "/app"}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${isActive ? "bg-[#e9f1eb] text-[#315b46]" : "text-[#67786e] hover:bg-[#f5f8f6] hover:text-[#162b25]"}`
+                `workspace-nav-item flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${isActive ? "bg-[#e9f1eb] text-[#315b46]" : "text-[#67786e] hover:bg-[#f5f8f6] hover:text-[#162b25]"}`
               }
             >
               <AppIcon name={item.icon} />
@@ -77,7 +78,7 @@ export function AppShell({
         </div>
       </aside>
       <div className="lg:pl-60">
-        <header className="sticky top-0 z-30 border-b border-[#e0e8e2] bg-white/95 px-4 py-3 backdrop-blur-xl sm:px-8">
+        <header className="workspace-topbar sticky top-0 z-30 border-b border-[#e0e8e2] bg-white/95 px-4 py-3 backdrop-blur-xl sm:px-8">
           <div className="mx-auto flex max-w-[1320px] items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <Link to="/app" aria-label="Все проекты" className="lg:hidden">
@@ -100,10 +101,10 @@ export function AppShell({
         <main
           id="workspace-content"
           tabIndex={-1}
-          className="mx-auto max-w-[1320px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 sm:px-8 sm:pt-9 lg:pb-8"
+          className="workspace-content mx-auto max-w-[1320px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 sm:px-8 sm:pt-9 lg:pb-8"
         >
           {children}
-          <footer className="mt-12 border-t border-[#e0e8e2] pt-5 text-xs leading-6 text-[#67786e]">
+          <footer className="workspace-footer mt-12 border-t border-[#e0e8e2] pt-5 text-xs leading-6 text-[#67786e]">
             <div className="flex flex-wrap gap-5">
               <Link to="/updates/">Что нового</Link>
               <Link to="/terms">Условия и политика</Link>

@@ -65,6 +65,7 @@ export default function ProjectSettingsPage() {
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [isSavingStopWords, setIsSavingStopWords] = useState(false);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+  const [isSavingMode, setIsSavingMode] = useState(false);
   const [savingCookiesId, setSavingCookiesId] = useState<number | null>(null);
   const [checkingAccountId, setCheckingAccountId] = useState<number | null>(null);
   const [unlinkingAccountId, setUnlinkingAccountId] = useState<number | null>(null);
@@ -326,14 +327,26 @@ export default function ProjectSettingsPage() {
       </header>
 
       {project && <section className="rounded-2xl border border-[#d8e2da] bg-white p-5">
-        <h2 className="font-semibold">Как появляются публикации</h2>
-        <p className="mt-2 text-sm leading-6 text-[#67786e]">{project.auto_generate ? "Автоматический режим включён: система сама готовит и планирует посты по расписанию проекта." : "Режим согласования: создавайте черновики и подтверждайте текст, профиль и время каждого поста."}</p>
-        <label className="mt-4 flex items-start gap-3 text-sm"><input type="checkbox" checked={project.auto_generate} onChange={async e => {
-          const enabled = e.target.checked;
-          try { await updateProject(project.id, { auto_generate: enabled }); await loadSettings({ silent: true }); toast.success(enabled ? "Автоматическая подготовка включена" : "Автоматическая подготовка выключена"); }
-          catch (error) { toast.error(getApiErrorMessage(error, "Не удалось изменить режим")); }
-        }} />Автоматически готовить и планировать новые посты</label>
-        <p className="mt-2 text-xs leading-5 text-[#67786e]">Выключение не отменяет уже согласованные публикации. Снять конкретный пост с расписания можно в разделе черновиков и календаря.</p>
+        <h2 className="font-semibold">Режим публикации</h2>
+        <p className="mt-2 text-sm leading-6 text-[#67786e]">Вы решаете, нужна ли проверка каждого нового поста. Новые проекты начинают с согласования.</p>
+        <fieldset className="mt-4 grid gap-3" disabled={isSavingMode}>
+          <legend className="sr-only">Выберите режим публикации проекта</legend>
+          {[{ enabled: false, title: "С согласованием", description: "Создавайте черновики, проверяйте текст и сами назначайте время каждого поста." },
+            { enabled: true, title: "Автоматическая генерация и публикация", description: "Система сама создаёт новые посты и публикует их без проверки по расписанию и лимитам проекта. Нужны действующая подписка и подключённый рабочий профиль Threads." }].map(mode =>
+            <label key={String(mode.enabled)} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d8e2da] p-4">
+              <input type="radio" name="publication-mode" className="mt-1" checked={project.auto_generate === mode.enabled} onChange={async () => {
+                if (isSavingMode || project.auto_generate === mode.enabled) return;
+                setIsSavingMode(true);
+                try { await updateProject(project.id, { auto_generate: mode.enabled }); await loadSettings({ silent: true });
+                  toast.success(mode.enabled ? "Автоматическая генерация и публикация включена" : "Включён режим согласования"); }
+                catch (error) { toast.error(getApiErrorMessage(error, "Не удалось изменить режим")); }
+                finally { setIsSavingMode(false); }
+              }} />
+              <span><strong className="block">{mode.title}</strong><span className="mt-1 block text-sm leading-6 text-[#67786e]">{mode.description}</span></span>
+            </label>)}
+        </fieldset>
+        <p className="mt-3 text-xs leading-5 text-[#67786e]">Кнопка «Создать черновик», план недели и перенос из бесплатной студии всегда сохраняют тексты для вашей проверки, даже в автоматическом режиме. Включение режима не отправляет накопленные черновики.</p>
+        <p className="mt-2 text-xs leading-5 text-[#67786e]">При переходе к согласованию новые автоматические посты снимаются с расписания. Посты, которые вы уже согласовали вручную, и публикации, начавшие отправляться, сохраняют своё состояние. Посты из прежнего автоматического режима могут оставаться в очереди: проверьте календарь и снимите ненужные.</p>
       </section>}
 
       {loadError ? (

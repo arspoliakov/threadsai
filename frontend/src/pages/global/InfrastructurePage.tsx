@@ -108,7 +108,7 @@ export default function InfrastructurePage() {
   }
 
   return (
-    <section className="space-y-5">
+    <section className="workspace-page space-y-5">
       <header className="grid gap-4 border-b border-[#c9c9c3] pb-5 md:grid-cols-[1fr_auto]">
         <div>
           <h1 className="font-display text-4xl leading-none">Профили Threads</h1>

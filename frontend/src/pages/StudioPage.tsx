@@ -57,7 +57,7 @@ export default function StudioPage() {
     try { await navigator.clipboard.writeText(text); toast.success("Текст скопирован"); }
     catch { toast.error("Не удалось скопировать — выделите текст вручную"); }
   }
-  return <section className="space-y-5"><header><p className="text-xs font-semibold uppercase tracking-wider text-[#49705a]">Попробуйте до подключения аккаунта</p>
+  return <section className="workspace-page space-y-5"><header><p className="text-xs font-semibold uppercase tracking-wider text-[#49705a]">Попробуйте до подключения аккаунта</p>
     <h1 className="mt-3 font-display text-4xl">Первый текст — без лишних шагов</h1><p className="mt-4 max-w-2xl text-sm leading-6 text-[#67786e]">Три бесплатных черновика после регистрации. Карта и вход в Threads не нужны. Здесь ничего не публикуется: тексты сохраняются в вашем кабинете.</p></header>
     {loadError ? <div role="alert" className="rounded-2xl border p-5"><p>{loadError}</p><button onClick={() => void load()} className="mt-3 underline">Повторить</button></div> : !trial ? <p>Загружаем черновики…</p> : <>
       <form onSubmit={e => { e.preventDefault(); void generate(); }} className="grid gap-4 rounded-2xl border border-[#d8e2da] bg-white p-5 sm:p-7">

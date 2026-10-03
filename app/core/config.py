@@ -105,6 +105,9 @@ class Settings(BaseSettings):
         default="./data/chrome_profiles",
         validation_alias="CHROME_PROFILES_DIR",
     )
+    chrome_profile_limit_mb: int = Field(default=128, ge=16, validation_alias="CHROME_PROFILE_LIMIT_MB")
+    chrome_profiles_total_limit_mb: int = Field(default=1024, ge=64, validation_alias="CHROME_PROFILES_TOTAL_LIMIT_MB")
+    chrome_disk_cache_limit_mb: int = Field(default=8, ge=1, le=32, validation_alias="CHROME_DISK_CACHE_LIMIT_MB")
     proxy_extensions_dir: str = Field(
         default="./data/proxy_extensions",
         validation_alias="PROXY_EXTENSIONS_DIR",

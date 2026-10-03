@@ -48,9 +48,19 @@ def main() -> int:
         )
         return 0
     except SessionExpiredException as exc:
+        try:
+            from app.posting.proxy_telemetry import flush_browser_estimates
+            asyncio.run(flush_browser_estimates())
+        except Exception:
+            pass
         _emit({"status": "session_expired", "message": redact_connection_secrets(str(exc))})
         return 0
     except Exception as exc:
+        try:
+            from app.posting.proxy_telemetry import flush_browser_estimates
+            asyncio.run(flush_browser_estimates())
+        except Exception:
+            pass
         _emit({"status": "error", "message": redact_connection_secrets(str(exc))})
         return 0
 

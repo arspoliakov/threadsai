@@ -23,7 +23,7 @@ class ProfileHandoffTest(unittest.TestCase):
     def test_full_profile_moves_only_after_chrome_quit(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
-            source, destination = root / "ephemeral_test", root / "account_17"
+            source, destination = root / "ephemeral_1_2", root / "account_17"
             (source / "Default").mkdir(parents=True)
             (source / "Default" / "local_storage_fixture").write_text("state", encoding="utf-8")
             window = LoginWindow()
@@ -43,7 +43,7 @@ class ProfileHandoffTest(unittest.TestCase):
             adapter._get_user_data_dir.return_value = destination
             lock = Mock()
             lock.acquire.return_value = True
-            with patch("app.services.threads_login_window.ThreadsAdapter", return_value=adapter), patch("app.services.threads_login_window.build_threads_proxy_url", return_value="proxy"), patch("app.services.threads_login_window._get_profile_lock", return_value=lock):
+            with patch("app.services.threads_login_window.ThreadsAdapter", return_value=adapter), patch("app.services.threads_login_window.build_threads_proxy_url", return_value="proxy"), patch("app.services.threads_login_window._get_profile_lock", return_value=lock), patch("app.services.threads_login_window.ensure_profile_capacity"), patch("app.services.threads_login_window.cleanup_closed_profile"):
                 worker = threading.Thread(target=window._worker, args=(room,))
                 worker.start()
                 self.assertTrue(room["ready"].wait(2))
@@ -60,7 +60,7 @@ class ProfileHandoffTest(unittest.TestCase):
     def test_existing_destination_is_never_overwritten(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
-            source, destination = root/"ephemeral_test", root/"account_17"
+            source, destination = root/"ephemeral_1_2", root/"account_17"
             source.mkdir()
             destination.mkdir()
             protected = destination/"existing"
@@ -70,7 +70,7 @@ class ProfileHandoffTest(unittest.TestCase):
             adapter._get_user_data_dir.return_value = destination
             lock = Mock()
             lock.acquire.return_value = True
-            with patch("app.services.threads_login_window._get_profile_lock", return_value=lock):
+            with patch("app.services.threads_login_window._get_profile_lock", return_value=lock), patch("app.services.threads_login_window.ensure_profile_capacity"), patch("app.services.threads_login_window.cleanup_closed_profile"):
                 with self.assertRaises(ValueError):
                     LoginWindow()._adopt_closed_profile(room, adapter, source, 17, threading.Event(), time.monotonic()+30)
             self.assertEqual(protected.read_text(), "preserve")

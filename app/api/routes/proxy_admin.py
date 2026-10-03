@@ -74,6 +74,21 @@ async def summary(db: AsyncSession = Depends(get_db)):
                 if (a.id, a.proxy_provider) in latest else None} for a in accounts]}
 
 
+@router.get("/storage")
+async def storage_summary():
+    from app.services.profile_storage import get_profile_storage_summary
+    return await asyncio.to_thread(get_profile_storage_summary)
+
+
+@router.post("/storage/cleanup")
+async def cleanup_storage():
+    from app.services.profile_storage import ProfileStorageLimit, cleanup_inactive_profiles
+    try:
+        return await asyncio.to_thread(cleanup_inactive_profiles)
+    except ProfileStorageLimit as exc:
+        raise HTTPException(409, str(exc)) from None
+
+
 @router.put("/config")
 async def configure(payload: ConfigWrite, db: AsyncSession = Depends(get_db)):
     await save_proxly_config(db, access_login=payload.access_login.get_secret_value(),

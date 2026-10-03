@@ -6,6 +6,7 @@ type Summary = { config: { configured: boolean; package_gb?: number; package_cos
 const panel = "rounded-2xl border border-[#e0e8e2] bg-white p-5";
 const button = "rounded-xl border border-[#e0e8e2] px-4 py-2 text-sm disabled:opacity-40";
 const bytes = (value: number) => `${(value / 1_000_000).toFixed(3)} МБ`;
+type Storage = { total_bytes: number; global_limit_bytes: number; per_profile_limit_bytes: number; free_disk_bytes: number; over_global_limit: boolean; profiles: {account_id: number | null; bytes: number; over_limit: boolean; busy: boolean; kind: string}[] };
 export default function ProxyAdminPage() {
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState("");
@@ -13,7 +14,8 @@ export default function ProxyAdminPage() {
   const [busy, setBusy] = useState(false);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
-  async function load() { const response = await apiClient.get<Summary>("/api/v1/admin/proxies"); setData(response.data); }
+  const [storage, setStorage] = useState<Storage | null>(null);
+  async function load() { const [response, disk] = await Promise.all([apiClient.get<Summary>("/api/v1/admin/proxies"), apiClient.get<Storage>("/api/v1/admin/proxies/storage")]); setData(response.data); setStorage(disk.data); }
   useEffect(() => { void load().catch(e => setError(getApiErrorMessage(e, "Доступ разрешён только владельцу сервиса."))); }, []);
   async function action(fn: () => Promise<unknown>, success: string) {
     setBusy(true); setError(""); setNotice("");
@@ -47,6 +49,7 @@ export default function ProxyAdminPage() {
         <h3 className="mb-2 mt-5 font-semibold">По пользователям</h3>
         {data.users.map(u => <p key={`${u.owner_id}-${u.provider}`}>{u.owner_id ? `Пользователь #${u.owner_id}` : "Общие проверки"} · {u.provider}: {bytes(u.estimated_bytes)} · оценка {u.estimated_cost_rub.toFixed(2)} ₽</p>)}
       </div>
+      {storage && <div className={`${panel} space-y-3`}><h2 className="text-xl font-semibold">Хранилище браузерных профилей</h2><p>{bytes(storage.total_bytes)} из {(storage.global_limit_bytes / 1_048_576).toFixed(0)} МиБ · лимит одного профиля {(storage.per_profile_limit_bytes / 1_048_576).toFixed(0)} МиБ</p><p className="text-sm">Кэш очищается после закрытия браузера. Cookies, данные входа и настройки сохраняются. Если очистки недостаточно, новые браузерные операции останавливаются. Общие размеры — снимок на момент загрузки страницы.</p>{storage.over_global_limit && <p role="alert" className="text-red-700">Общий лимит превышен. Проверьте хранилище; данные входа автоматически не удаляются.</p>}<p className="text-sm">Свободно на диске: {bytes(storage.free_disk_bytes)}</p>{storage.profiles.map((p, index) => <p className="text-sm" key={`${p.account_id}-${index}`}>{p.account_id ? `Аккаунт #${p.account_id}` : "Временное окно входа"}: {bytes(p.bytes)}{p.busy ? " · браузер работает" : ""}{p.over_limit ? " · лимит превышен" : ""}</p>)}<button disabled={busy} className={button} onClick={() => void action(() => apiClient.post("/api/v1/admin/proxies/storage/cleanup"), "Кэш закрытых профилей очищен. Работающие браузеры и данные входа сохранены.")}>Очистить кэш закрытых профилей</button></div>}
       <div className="space-y-4"><h2 className="text-xl font-semibold">Аккаунты и пилот</h2><p className="text-sm">Переключайте только выбранный тестовый аккаунт. Проверка соединения не подтверждает вход в Threads. Перед расширением пилота проверьте сохранение входа и публикацию.</p>
         {data.accounts.map(a => <article key={a.id} className={`${panel} space-y-3`}><div className="flex flex-wrap justify-between gap-3"><h3 className="font-semibold">@{a.username} <span className="font-normal">· #{a.id} · пользователь #{a.owner_id}</span></h3><span>{a.provider} · {a.status}</span></div><p>Session ID: {a.session_id ?? "не назначен"} · наблюдаемый расход: {bytes(a.estimated_bytes)}</p><p className="text-sm">Соединение: {a.check_status === "connected" ? "доступно" : a.check_status === "connection_failed" ? "ошибка" : "не проверено"}{a.checked_at ? ` · ${new Date(a.checked_at).toLocaleString("ru-RU")}` : ""}</p><div className="flex flex-wrap gap-2">
           <button className={button} disabled={busy || !data.config.configured} onClick={() => { if (window.confirm(`Переключить только аккаунт @${a.username} на Proxly? IP и страна подключения изменятся; профиль будет поставлен на паузу для проверки.`)) void action(() => apiClient.put(`/api/v1/admin/proxies/accounts/${a.id}`, {provider:"proxly"}), "Привязка Proxly сохранена, профиль на паузе. Проверьте соединение, затем вход на странице «Аккаунты» и включите работу вручную."); }}>Подключить Proxly к этому аккаунту</button>

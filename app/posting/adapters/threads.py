@@ -51,13 +51,13 @@ from app.posting.exceptions import (
 )
 from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.posting.profile_lock import ProfileLock
+from app.services.profile_storage import ProfileStorageLimit, cleanup_closed_profile, ensure_profile_capacity
 from app.posting.error_safety import redact_connection_secrets
 
 
 SCREENSHOTS_DIR = Path("./data/screenshots")
 PROXY_EXTENSIONS_DIR = Path(settings.proxy_extensions_dir)
 CHROME_PROFILES_DIR = Path(settings.chrome_profiles_dir)
-CHROME_PROFILE_CACHE_LIMIT_MB = int(os.getenv("CHROME_PROFILE_CACHE_LIMIT_MB", "20"))
 SESSION_EXPIRY_CONFIRMATION_ATTEMPTS = 3
 PROFILE_LOCKS: dict[int, Any] = {}
 PROFILE_LOCKS_GUARD = threading.Lock()
@@ -242,6 +242,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 )
             except (
                 PostingDeadlineExceeded,
+                ProfileStorageLimit,
                 ProxyNetworkException,
                 PublicationVerificationPending,
                 RetryablePostingException,
@@ -401,7 +402,7 @@ class ThreadsAdapter(BasePostingAdapter):
                 fingerprint_profile = BrowserFingerprintProfile(width=width, height=height)
         except (OSError, ValueError, TypeError, KeyError):
             pass  # Existing and imported profiles retain their established account seed.
-        profile_lock = _get_profile_lock(account_id)
+        profile_lock = _get_profile_lock(account_id) or ProfileLock(user_data_dir.parent / (user_data_dir.name + ".lock"))
 
         if profile_lock is not None:
             logger.info("Waiting for Chrome profile lock: account #%s", account_id)
@@ -429,7 +430,7 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_argument("--webrtc-ip-handling-policy=disable_non_proxied_udp")
         options.add_argument(f"--window-size={fingerprint_profile.width},{fingerprint_profile.height}")
         options.add_argument(f"--user-data-dir={user_data_dir}")
-        options.add_argument("--disk-cache-size=52428800")
+        options.add_argument(f"--disk-cache-size={settings.chrome_disk_cache_limit_mb * 1024 * 1024}")
         options.add_argument("--media-cache-size=1")
         options.add_argument("--disable-notifications")
         options.add_argument("--disable-popup-blocking")
@@ -480,7 +481,7 @@ class ThreadsAdapter(BasePostingAdapter):
             pass
 
         try:
-            self._trim_chrome_profile_cache(user_data_dir)
+            ensure_profile_capacity(user_data_dir, lock_held=True)
             if use_undetected_driver:
                 driver = uc.Chrome(options=options, use_subprocess=True)
             else:
@@ -499,6 +500,10 @@ class ThreadsAdapter(BasePostingAdapter):
             setattr(driver, "_threadsai_persistent_profile", account_id is not None)
             setattr(driver, "_threadsai_profile_lock", profile_lock)
             return driver
+        except ProfileStorageLimit:
+            if profile_lock is not None:
+                profile_lock.release()
+            raise
         except WebDriverException as exc:
             if profile_lock is not None:
                 try:
@@ -2094,32 +2099,8 @@ chrome.webRequest.onAuthRequired.addListener(
         return CHROME_PROFILES_DIR / f"account_{account_id}"
 
     def _trim_chrome_profile_cache(self, user_data_dir: Path) -> None:
-        max_bytes = CHROME_PROFILE_CACHE_LIMIT_MB * 1024 * 1024
-        profile_size = _get_directory_size(user_data_dir)
-
-        if profile_size <= max_bytes:
-            return
-
-        logger.info(
-            "Chrome profile cache cleanup started for %s: %.1f MB > %s MB",
-            user_data_dir,
-            profile_size / 1024 / 1024,
-            CHROME_PROFILE_CACHE_LIMIT_MB,
-        )
-        for relative_path in (
-            "Default/Cache",
-            "Default/Code Cache",
-            "Default/GPUCache",
-            "Default/Media Cache",
-            "Default/Service Worker/CacheStorage",
-            "Default/Service Worker/ScriptCache",
-            "ShaderCache",
-            "GrShaderCache",
-            "GraphiteDawnCache",
-        ):
-            self._remove_directory_safely(user_data_dir / relative_path)
-
-        logger.info("Chrome profile cache cleanup completed for %s", user_data_dir)
+        # Compatibility entry point: only clean closed, OS-unlocked profiles.
+        cleanup_closed_profile(user_data_dir)
 
     def _quit_driver_safely(self, driver: WebDriver | None) -> None:
         if driver is None:
@@ -2128,6 +2109,7 @@ chrome.webRequest.onAuthRequired.addListener(
         is_persistent_profile = bool(getattr(driver, "_threadsai_persistent_profile", False))
         profile_lock = getattr(driver, "_threadsai_profile_lock", None)
 
+        closed = False
         try:
             try:
                 from app.posting.proxy_telemetry import collect_browser_estimate
@@ -2135,12 +2117,19 @@ chrome.webRequest.onAuthRequired.addListener(
             except Exception:
                 pass
             driver.quit()
+            closed = True
         except WebDriverException:
-            pass
+            logger.warning("Chrome shutdown was not confirmed; retaining profile lock for safety.")
         finally:
-            if isinstance(user_data_dir, Path) and not is_persistent_profile:
-                self._remove_directory_safely(user_data_dir)
-            if profile_lock is not None:
+            if closed and isinstance(user_data_dir, Path):
+                if is_persistent_profile:
+                    try:
+                        cleanup_closed_profile(user_data_dir, lock_held=True)
+                    except Exception:
+                        logger.warning("Closed-profile cache cleanup could not complete.")
+                else:
+                    self._remove_directory_safely(user_data_dir)
+            if closed and profile_lock is not None:
                 try:
                     profile_lock.release()
                 except RuntimeError:

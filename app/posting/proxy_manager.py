@@ -39,6 +39,7 @@ from app.posting.scheduler import (
 from app.services.admin_notifier import send_admin_alert
 from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.services.subscriptions import has_current_subscription_access
+from app.services.profile_storage import ProfileStorageLimit
 from app.posting.browser_capacity import browser_semaphore
 from app.posting.error_safety import redact_connection_secrets
 
@@ -558,6 +559,19 @@ async def execute_scraping_operation(
             operation.finished_at = datetime.now(UTC)
             await session.commit()
             logger.info("Project scraping operation %s completed.", operation.id)
+            return None
+        except ProfileStorageLimit as exc:
+            await session.rollback()
+            paused_operation = await session.get(ProjectOperation, operation_id)
+            account = await session.get(Account, account_id) if account_id else None
+            if paused_operation:
+                paused_operation.status = ProjectOperationStatus.QUEUED
+                paused_operation.message = str(exc)
+                paused_operation.finished_at = None
+            if account:
+                account.status = AccountStatus.ERROR
+                account.last_error = str(exc)
+            await session.commit()
             return None
         except SessionExpiredException as exc:
             exc = SessionExpiredException(redact_connection_secrets(str(exc)))

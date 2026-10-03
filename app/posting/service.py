@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 import time
 from app.posting.error_safety import redact_connection_secrets
+from app.services.profile_storage import ProfileStorageLimit
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -190,6 +191,15 @@ async def execute_posting_task(
         await session.commit()
         await session.refresh(task)
         schedule_account_queue_refill(task.project_id, account.id)
+        return task
+    except ProfileStorageLimit as exc:
+        task.status = PostingTaskStatus.QUEUED
+        task.started_at = None
+        task.finished_at = None
+        task.error_message = str(exc)
+        account.status = AccountStatus.ERROR
+        account.last_error = str(exc)
+        await session.commit()
         return task
     except SessionExpiredException as exc:
         error_message = redact_connection_secrets(str(exc))

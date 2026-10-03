@@ -16,6 +16,7 @@ from fastapi import HTTPException
 
 from app.posting.adapters.threads import ThreadsAdapter, _get_profile_lock
 from app.services.proxy_pool import build_threads_proxy_url
+from app.services.profile_storage import ProfileStorageLimit, cleanup_closed_profile, ensure_profile_capacity
 
 
 class LoginWindow:
@@ -42,7 +43,7 @@ class LoginWindow:
                 raise
         if not room["ready"].wait(45) or room["error"]:
             room["stop"].set()
-            raise HTTPException(503, "Не удалось открыть Threads. Используйте импорт сессии или попробуйте позже.")
+            raise HTTPException(503, room.get("startup_message") or "Не удалось открыть Threads. Используйте импорт сессии или попробуйте позже.")
         return {"token":room["token"], "expires_in":max(0, int(room["expires"] - time.monotonic()))}
 
     def access(self, owner, token):
@@ -138,6 +139,7 @@ class LoginWindow:
                 raise ValueError("Папка профиля уже существует. Повторите подключение после проверки командой сервиса.")
             if cancelled.is_set() or time.monotonic() >= deadline or room["stop"].is_set():
                 raise ValueError("Сохранение профиля отменено.")
+            ensure_profile_capacity(source, lock_held=True)
             if os.name != "nt":
                 source.chmod(0o700)
             (source / "browser_settings.json").write_text(json.dumps({
@@ -250,6 +252,10 @@ class LoginWindow:
                         except Exception:
                             driver._threadsai_persistent_profile = False
                             raise ValueError("Браузер не завершил работу. Повторите подключение.") from None
+                        cleanup_closed_profile(source, lock_held=True)
+                        source_lock = getattr(driver, "_threadsai_profile_lock", None)
+                        if source_lock is not None:
+                            source_lock.release()
                         driver = None
                         try:
                             value = self._adopt_closed_profile(room, adapter, source, int(payload["account_id"]), cancelled, deadline)
@@ -261,10 +267,14 @@ class LoginWindow:
                     else:
                         raise ValueError("Неизвестное действие")
                     answer.put((True,value))
-                except ValueError as exc:
+                except (ValueError, ProfileStorageLimit) as exc:
                     answer.put((False,str(exc)))
                 except Exception:
                     answer.put((False,"Действие не завершилось. Проверьте окно перед повторением."))
+        except ProfileStorageLimit as exc:
+            room["error"] = True
+            room["startup_message"] = str(exc)
+            room["ready"].set()
         except Exception:
             room["error"] = True
             room["ready"].set()

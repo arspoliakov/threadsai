@@ -1,84 +1,55 @@
 import { Link } from "react-router-dom";
 
-const notes = [
-  {
-    title: "Не рекламный текст",
-    text: "Не превращаем каждый пост в прямую рекламу. Если постоянно просить перейти по ссылке, подписчики быстро устанут. Текст звучит как обычная живая заметка — естественно и по делу.",
-  },
-  {
-    title: "Коротко, но не пусто",
-    text: "В Threads ценится лаконичность. Лучше одна меткая мысль, чем длинный монолог. Пост должен зацепить с первых слов — без долгих вступлений.",
-  },
-  {
-    title: "Тренды нужны для ритма",
-    text: "Мы не копируем чужие идеи. Нейросеть анализирует живую ленту: как люди формулируют мысли, где рождается интерес, какой ритм сейчас актуален.",
-  },
-  {
-    title: "Увод не в каждом посте",
-    text: "Ссылка в закрепе или профиле — это финальная точка маршрута. Не нужно ставить её в каждый пост: так профиль сохранит естественный тон.",
-  },
-];
-
 export default function HowItWorksPage() {
   return (
     <section className="space-y-5">
       <header className="tg-reveal grid items-center gap-5 rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm sm:p-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="max-w-3xl">
           <h1 className="font-display text-4xl leading-[0.95] tracking-[-0.04em] text-[#111] sm:text-5xl">
-            Как звучат посты от нейросети?
+            Как начать работу
           </h1>
           <p className="mt-5 text-sm leading-7 text-[#667066]">
-            Наша цель — не навязывать продукт, а заинтересовать. Нейросеть пишет живые заметки, которые откликаются читателю.
-            Человек сначала читает интересную мысль, потом заходит в профиль — и уже там видит, куда можно перейти.
+            Расскажите ИИ о своей теме, подключите Threads и выберите расписание.
+            ИИ сможет писать и публиковать посты сам. Если хотите проверять каждый текст, выберите режим с согласованием.
           </p>
         </div>
         <img src="/images/threadsgo-creative-flow-v1.webp" width="1536" height="1024" alt="" loading="lazy" decoding="async" className="tg-illustration mx-auto w-full max-w-sm object-contain" />
       </header>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        {notes.map((note) => (
-          <article key={note.title} className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm">
-            <h2 className="text-lg text-[#111]">{note.title}</h2>
-            <p className="mt-3 text-sm leading-6 text-[#667066]">{note.text}</p>
-          </article>
-        ))}
-      </section>
-
       <section className="rounded-[28px] border border-[#dfe4dc] bg-[#fbfcf7] p-6 shadow-sm">
-        <h2 className="font-display text-3xl leading-none text-[#111]">Что вам нужно настроить</h2>
+        <h2 className="font-display text-3xl leading-none text-[#111]">Три шага до публикаций</h2>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <SmallCard
-            title="Стиль"
-            text="Найдите свой голос: спокойный, дерзкий, ироничный, экспертный или просто ваш."
+            title="1. Создайте проект"
+            text="Укажите тему, аудиторию и желаемый тон. Если сложно описать стиль, ответьте на вопросы ИИ-помощника."
           />
           <SmallCard
-            title="Проект"
-            text="Опишите задачу: что предлагаете, кому это нужно и что волнует ваших читателей."
+            title="2. Подключите аккаунт"
+            text="В разделе «Аккаунты» войдите в Threads через отдельное окно или перенесите данные входа. Добавьте аккаунт в настройки проекта."
           />
           <SmallCard
-            title="Аккаунт"
-            text="Подключите перед публикацией: через отдельное окно браузера или импорт данных входа. Для подготовки черновиков профиль не нужен."
+            title="3. Выберите режим и время"
+            text="В настройках проекта выберите автоматическую публикацию или согласование и задайте расписание. Для публикаций нужна действующая подписка."
           />
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-[#dfe4dc] bg-[#eef4ec] p-6 shadow-sm">
-        <h2 className="font-display text-3xl leading-none text-[#111]">Сначала текст, потом публикация</h2>
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-[#667066]">
-          В пробной студии доступны три черновика без карты и подключения Threads. В проекте можно подготовить один текст
-          или семь черновиков по рубрикам на неделю. В редакторе ИИ предложит правку с предпросмотром: вы решаете,
-          принять её или оставить исходный вариант. После проверки выбирайте профиль и время в календаре.
-          Ручная генерация не запускает отправку; новые проекты начинают с согласования.
-        </p>
-        <Link to="/app/studio" className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">Попробовать черновики</Link>
+      <section className="grid gap-4 md:grid-cols-2">
+        <SmallCard
+          title="ИИ пишет и публикует сам"
+          text="ИИ готовит новые посты по настройкам проекта и отправляет их по расписанию. Создавать отдельный черновик для каждого поста не нужно. Готовые посты можно посмотреть в проекте."
+        />
+        <SmallCard
+          title="С согласованием"
+          text="Готовьте тексты с ИИ, правьте их и сами назначайте время выхода. Такие посты публикуются только после вашего подтверждения."
+        />
       </section>
 
       <section className="rounded-[28px] border border-[#dfe4dc] bg-white p-6 shadow-sm">
-        <h2 className="font-display text-3xl leading-none text-[#111]">Почему пост может выглядеть простым</h2>
+        <h2 className="font-display text-3xl leading-none text-[#111]">А если хочется свой пост?</h2>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-[#667066]">
-          Секрет в простоте — она выглядит искренне. Нейросеть не грузит «продажей», а создает живую историю:
-          задает вопрос, делится наблюдением или рисует мини-сценку. Такие посты хочется дочитать до конца,
-          поставить лайк и отправить другу.
+          Напишите его в проекте и сохраните черновиком. Можно также попросить ИИ подготовить один текст
+          или план недели. Эти черновики ждут вашего подтверждения и выбора времени даже в автоматическом режиме.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
@@ -88,13 +59,15 @@ export default function HowItWorksPage() {
             Перейти к проектам
           </Link>
           <Link
-            to="/app/settings"
+            to="/app/studio"
             className="inline-flex h-11 items-center justify-center rounded-full border border-[#141815] px-5 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white"
           >
-            Настроить стиль публикаций
+            Попробовать текст без подключения Threads
           </Link>
         </div>
       </section>
+
+      <p className="text-sm leading-6 text-[#667066]">Идеи из ленты доступны после подключения рабочего аккаунта Threads. Без него ИИ опирается на тему и настройки проекта.</p>
     </section>
   );
 }

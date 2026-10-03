@@ -46,7 +46,7 @@ export function StyleAssistant({ onApply, disabled = false }: { onApply: (body: 
       if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
     }}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h2 className="text-lg font-semibold">Не знаете, что писать в глобальном промпте?</h2><p className="mt-2 text-sm leading-6 text-[#52634f]">Ответьте на несколько вопросов — нейросеть соберёт ваш стиль. Писать инструкции вручную не нужно.</p></div>
+        <div><h2 className="text-lg font-semibold">Помочь настроить стиль постов?</h2><p className="mt-2 text-sm leading-6 text-[#52634f]">Ответьте на несколько вопросов — нейросеть составит инструкции для ваших текстов.</p></div>
         <button type="button" disabled={disabled || isGenerating} onClick={() => setOpen(!open)} aria-expanded={open} className="rounded-full bg-[#18351e] px-5 py-3 text-sm text-white disabled:opacity-50">{open ? "Свернуть" : "Помочь со стилем"}</button>
       </div>
       {open ? <div className="mt-5 space-y-5">

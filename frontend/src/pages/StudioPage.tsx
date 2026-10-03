@@ -85,7 +85,7 @@ export default function StudioPage() {
       {projects.length > 0 && <label className="grid gap-2 text-sm">Переносить тексты в проект<select className={field} value={projectId} disabled={busy} onChange={e => setProjectId(Number(e.target.value))}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
       <div className="grid gap-4 md:grid-cols-2">{trial.drafts.map(draft => <article className="min-w-0 rounded-2xl border border-[#d8e2da] bg-white p-5" key={draft.id}><h2 className="break-words text-sm font-semibold">{draft.topic}</h2><p className="mt-4 whitespace-pre-wrap break-words text-sm leading-7">{draft.content_text}</p>
         <div className="mt-5 flex flex-wrap gap-3"><button className="rounded-xl border px-4 py-2 text-sm" onClick={() => void copyText(draft.content_text)}>Скопировать</button>
-          {draft.imported_task_id ? <span className="text-sm text-[#67786e]">Уже перенесён в проект</span> : projectId ? <button className="rounded-xl border px-4 py-2 text-sm" disabled={busy} onClick={() => void transfer(draft.id)}>Сохранить в проект как черновик</button> : <Link className="rounded-xl border px-4 py-2 text-sm" to="/app/billing">К проекту и публикациям</Link>}</div></article>)}</div>
+          {draft.imported_task_id ? <span className="text-sm text-[#67786e]">Уже перенесён в проект</span> : projectId ? <button className="rounded-xl border px-4 py-2 text-sm" disabled={busy} onClick={() => void transfer(draft.id)}>Сохранить в проект как черновик</button> : <Link className="rounded-xl border px-4 py-2 text-sm" to="/app">Создать проект</Link>}</div></article>)}</div>
     </>}
   </section>;
 }

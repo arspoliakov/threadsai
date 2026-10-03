@@ -134,6 +134,18 @@ class ApiSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([project["id"] for project in projects], [1])
         self.assertEqual(projects[0]["active_accounts_count"], 1)
         self.assertEqual(projects[0]["paused_accounts_count"], 0)
+        self.assertEqual(projects[0]["ready_accounts_count"], 0)
+
+    async def test_paused_project_remains_visible_only_to_owner(self) -> None:
+        async with self.session_factory() as session:
+            project = await session.get(Project, 1)
+            project.is_active = False
+            await session.commit()
+        response = await self.client.get("/api/v1/dashboard/summary")
+        self.assertEqual(response.status_code, 200, response.text)
+        projects = response.json()["projects"]
+        self.assertEqual([project["id"] for project in projects], [1])
+        self.assertFalse(projects[0]["is_active"])
 
     async def test_active_subscriber_can_create_project(self) -> None:
         response = await self.client.post(

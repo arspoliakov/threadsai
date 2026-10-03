@@ -321,6 +321,8 @@ export type DashboardProjectSummary = {
   next_post_time: string | null;
   active_accounts_count: number;
   paused_accounts_count: number;
+  is_active: boolean;
+  ready_accounts_count: number;
   avg_engagement: number | null;
 };
 

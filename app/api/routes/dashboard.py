@@ -4,11 +4,11 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db
-from app.db.models import Account, AccountStatus, PostingTask, PostingTaskStatus, Project
+from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project
 from app.posting.scheduler import scheduler
 
 
@@ -22,6 +22,8 @@ class DashboardProjectSummary(BaseModel):
     next_post_time: datetime | None
     active_accounts_count: int
     paused_accounts_count: int
+    is_active: bool
+    ready_accounts_count: int
     avg_engagement: float | None = None
 
 
@@ -41,7 +43,7 @@ async def get_dashboard_summary(
     projects = list(
         (
             await db.scalars(
-                select(Project).where(Project.is_active.is_(True)).order_by(Project.id.asc())
+                select(Project).order_by(Project.id.asc())
                 .where(Project.owner_id == current_user_id)
             )
         ).all()
@@ -71,6 +73,14 @@ async def get_dashboard_summary(
                 Account.status == AccountStatus.ACTIVE,
             )
         )
+        ready_accounts_count = await db.scalar(select(func.count(Account.id)).where(
+            Account.project_id == project.id,
+            Account.owner_id == current_user_id,
+            Account.platform == Platform.THREADS,
+            Account.status == AccountStatus.ACTIVE,
+            Account.cookies_encrypted.is_not(None),
+            or_(Account.assigned_port.is_not(None), Account.proxy_provider == "proxly"),
+        ))
 
         summaries.append(
             DashboardProjectSummary(
@@ -80,6 +90,8 @@ async def get_dashboard_summary(
                 next_post_time=next_post_time,
                 active_accounts_count=active_accounts_count or 0,
                 paused_accounts_count=max(0, (accounts_count or 0) - (active_accounts_count or 0)),
+                is_active=project.is_active,
+                ready_accounts_count=ready_accounts_count or 0,
                 avg_engagement=None,
             )
         )

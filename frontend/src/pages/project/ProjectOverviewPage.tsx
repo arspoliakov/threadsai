@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import {
   getApiErrorMessage,
-  getActiveGlobalPrompts,
+  getCurrentUser,
   getLatestProjectOperation,
   getProjectDashboard,
   getProjectOperations,
@@ -16,7 +16,6 @@ import {
   type ProjectDashboard,
   type ProjectOperation,
 } from "../../api/client";
-import { DismissibleTip } from "../../components/DismissibleTip";
 import { trackSeoEvent, trackSeoEventOnce } from "../../components/SeoAnalytics";
 import { JourneyNextStep } from "../../components/JourneyNextStep";
 
@@ -33,7 +32,7 @@ export default function ProjectOverviewPage() {
   const [runningAction, setRunningAction] = useState<RunningAction>(null);
   const [latestScrapingOperation, setLatestScrapingOperation] = useState<ProjectOperation | null>(null);
   const [operations, setOperations] = useState<ProjectOperation[]>([]);
-  const [hasGlobalPrompt, setHasGlobalPrompt] = useState(false);
+  const [subscriptionActive, setSubscriptionActive] = useState<boolean | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,14 +42,12 @@ export default function ProjectOverviewPage() {
     setError(null);
 
     try {
-      const [dashboardResult, operationsResult, promptsResult] = await Promise.all([
+      const [dashboardResult, operationsResult] = await Promise.all([
         getProjectDashboard(projectId),
         getProjectOperations(projectId, 12),
-        getActiveGlobalPrompts(),
       ]);
       setDashboard(dashboardResult);
       setOperations(operationsResult);
-      setHasGlobalPrompt(promptsResult.some((prompt) => prompt.is_active && prompt.prompt_type === "virality" && prompt.body.trim().length > 0));
     } catch (loadError) {
       const message = getApiErrorMessage(loadError, "Не удалось загрузить проект. Попробуйте ещё раз.");
       toast.error(message);
@@ -98,6 +95,9 @@ export default function ProjectOverviewPage() {
 
     void loadDashboard();
     void refreshScrapingOperation();
+    let active = true;
+    void getCurrentUser().then(user => { if (active) setSubscriptionActive(user.subscription_status); }).catch(() => undefined);
+    return () => { active = false; };
   }, [projectId]);
 
   useEffect(() => {
@@ -182,8 +182,7 @@ export default function ProjectOverviewPage() {
             {dashboard?.project.name || "Обзор проекта"}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            ИИ пишет посты по вашей теме и в вашем стиле. Подключите Threads и выберите режим:
-            публиковать автоматически или сначала показывать тексты вам. Черновики нужны для отдельного поста и ваших правок.
+            Тема, стиль и расписание — в настройках. Готовые тексты и время их выхода — в разделе «Посты».
           </p>
         </div>
         {dashboard ? (
@@ -199,45 +198,39 @@ export default function ProjectOverviewPage() {
 
       {dashboard && !isLoading ? (
         <ProjectNextStep dashboard={dashboard} projectId={projectId} runningAction={runningAction}
-          onGenerate={() => void handleTriggerGeneration()} />
+          subscriptionActive={subscriptionActive} onGenerate={() => void handleTriggerGeneration()} />
       ) : null}
 
       {dashboard ? (
-        <JourneyNextStep
-          title={dashboard.project.auto_generate ? "ИИ пишет и публикует сам" : "Сейчас вы проверяете каждый пост"}
-          description={dashboard.project.auto_generate
-            ? "Автоматические посты выходят по расписанию проекта, когда профиль готов и подписка действует. Создавать черновики вручную не обязательно."
-            : "Для работы без ручной проверки включите автоматическую публикацию. ИИ будет сам готовить новые посты и отправлять их по расписанию."}
-          action="Настроить режим публикации" to={`/app/projects/${projectId}/settings#publication-mode`} />
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dfe4dc] bg-white px-5 py-4 text-sm">
+          <span>Режим: <strong>{dashboard.project.auto_generate ? "ИИ пишет и публикует сам" : "Вы проверяете и планируете посты"}</strong></span>
+          <Link className="underline underline-offset-4" to={`/app/projects/${projectId}/settings#publication-mode`}>Изменить режим</Link>
+        </div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <details className="rounded-2xl border border-[#dfe4dc] bg-white p-5">
+        <summary className="cursor-pointer text-sm font-medium">Дополнительно: отдельный пост и идеи из ленты</summary>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
         <ActionPanel
           title="Обновить идеи для постов"
-          description="Прочитаем ленту подключённого профиля и сохраним удачные приёмы: начало поста, подачу и ритм. ИИ использует их для ваших текстов. Без рабочего профиля сбор не запускается."
+          description="Дополнительно: найдём удачные приёмы в ленте вашего аккаунта. ИИ умеет писать и без этой подборки."
           buttonText="Обновить идеи для постов"
           isLoading={runningAction === "scraping"}
           isDisabled={runningAction !== null || isLoading || !hasActiveAccount(dashboard)}
-          disabledReason={!hasActiveAccount(dashboard) ? "Сначала подключите рабочий профиль Threads" : undefined}
+          disabledReason={!hasActiveAccount(dashboard) ? "Сначала подключите рабочий аккаунт Threads" : undefined}
           onClick={() => void handleTriggerScraping()}
         />
         <ActionPanel
-          title="Подготовить отдельный пост"
-          description="Для поста вне автоматического расписания. ИИ подготовит черновик; можно переписать его или заменить своим текстом, затем выбрать время. Сам он не опубликуется."
-          buttonText="Создать черновик"
+          title="Отдельный пост с ИИ"
+          description="Подготовим один текст по теме проекта. Он останется черновиком, пока вы не выберете время публикации."
+          buttonText="Подготовить текст"
           isLoading={runningAction === "generation"}
           isDisabled={runningAction !== null || isLoading}
           disabledReason={undefined}
           onClick={() => void handleTriggerGeneration()}
         />
       </div>
-
-      {dashboard ? (
-        <Link to={`/app/projects/${projectId}/queue`} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dfe4dc] bg-white px-5 py-4 text-sm transition hover:bg-[#eef4ec]">
-          <span><strong>Черновики и календарь</strong><span className="mt-1 block text-[#667066]">Посмотрите автоматические посты или отредактируйте отдельный черновик, в том числе своим текстом.</span></span>
-          <span aria-hidden="true">Открыть →</span>
-        </Link>
-      ) : null}
+      </details>
 
       {dashboard ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
@@ -248,7 +241,6 @@ export default function ProjectOverviewPage() {
           />
           <ReadinessChecklist
             dashboard={dashboard}
-            hasGlobalPrompt={hasGlobalPrompt}
             projectId={projectId}
           />
         </div>
@@ -262,10 +254,8 @@ export default function ProjectOverviewPage() {
       {statusMessage ? <Notice tone="neutral">{statusMessage}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
 
-      <section className="overflow-hidden rounded-[2rem] border border-[#dfe4dc] bg-white shadow-sm">
-        <header className="border-b border-[#c9c9c3] px-5 py-5">
-          <h2 className="font-display text-3xl">Что система успела сделать</h2>
-        </header>
+      <details className="overflow-hidden rounded-2xl border border-[#dfe4dc] bg-white shadow-sm">
+        <summary className="cursor-pointer px-5 py-5 text-sm font-medium">История работы и ошибки</summary>
 
         {isLoading ? (
           <EmptyLine text="Загрузка сводки" />
@@ -274,9 +264,7 @@ export default function ProjectOverviewPage() {
         ) : (
           <EmptyLine text="Нет данных" />
         )}
-      </section>
-
-      <ContentFormulaNote />
+      </details>
 
       {isEditOpen && dashboard ? (
         <EditProjectPanel
@@ -292,19 +280,32 @@ export default function ProjectOverviewPage() {
   );
 }
 
-function ProjectNextStep({ dashboard, projectId, runningAction, onGenerate }: {
+function ProjectNextStep({ dashboard, projectId, runningAction, onGenerate, subscriptionActive = null }: {
   dashboard: ProjectDashboard; projectId: number; runningAction: RunningAction;
   onGenerate: () => void;
+  subscriptionActive?: boolean | null;
 }) {
+  if (subscriptionActive === false) {
+    return <JourneyNextStep title="Для публикаций нужна подписка" description="Проект и тексты сохранены. Посмотрите тарифы или проверьте уже оплаченную подписку."
+      action="Проверить подписку" to="/app/billing" />;
+  }
+  if (dashboard.project.is_active === false) {
+    return <JourneyNextStep title="Проект на паузе" description="Новые автоматические посты сейчас не готовятся. Настройки и тексты сохранены."
+      action="Открыть настройки" to={`/app/projects/${projectId}/settings`} />;
+  }
   if (!(dashboard.project.global_context || dashboard.project.description || "").trim()) {
     return <JourneyNextStep title="Расскажите, о чём писать" description="Опишите вашу тему, аудиторию и пользу. Это основа текстов; остальные настройки можно уточнить позже."
       action="Описать проект" to={`/app/projects/${projectId}/settings`} />;
   }
   const queued = dashboard.posting_tasks_by_status.queued ?? 0;
   const drafts = dashboard.posting_tasks_by_status.draft ?? 0;
+  if (dashboard.project.auto_generate && !hasActiveAccount(dashboard)) {
+    return <JourneyNextStep title="Подключите аккаунт для автоматических постов" description="Сейчас ИИ не может публиковать. Добавьте аккаунт Threads в проект или проверьте его вход."
+      action="Проверить аккаунты" to={`/app/projects/${projectId}/settings#profiles`} />;
+  }
   if (dashboard.project.auto_generate && hasActiveAccount(dashboard)) {
     return <JourneyNextStep title="Автоматическая публикация включена"
-      description={queued > 0 ? "Посты уже в календаре и выйдут сами. Проверять каждый текст не обязательно; при желании его можно изменить или отменить." : "ИИ будет готовить посты по расписанию проекта. Дополнительный черновик нужен только если хотите сделать отдельный пост."}
+      description={queued > 0 ? "Посты уже в календаре. Они отправятся по расписанию при действующей подписке и рабочем аккаунте. Текст и время можно изменить." : "ИИ будет готовить новые посты по расписанию при действующей подписке и рабочем аккаунте. Отдельный черновик создавать не обязательно."}
       action="Открыть календарь" to={`/app/projects/${projectId}/queue`} />;
   }
   if (queued > 0 || drafts > 0) {
@@ -325,7 +326,7 @@ function SystemStatusCard({
   operations: ProjectOperation[];
   latestScrapingOperation: ProjectOperation | null;
 }) {
-  const activeAccounts = dashboard.account_states.filter((account) => account.status === "active").length;
+  const activeAccounts = dashboard.account_states.filter((account) => account.ready_for_ideas === true).length;
   const failedAccounts = dashboard.account_states.filter(
     (account) => account.status === "cookies_expired" || account.status === "blocked" || account.status === "error" || account.status === "proxy_error",
   ).length;
@@ -337,8 +338,9 @@ function SystemStatusCard({
     runningOperation,
     activeAccounts,
     failedAccounts,
-    trendsCount: dashboard.saved_trends_count,
     queuedCount,
+    autoGenerate: dashboard.project.auto_generate,
+    projectActive: dashboard.project.is_active,
   });
 
   return (
@@ -353,13 +355,13 @@ function SystemStatusCard({
           </span>
           <p className="text-sm font-medium text-white/80">Сейчас система</p>
         </div>
-        <h2 className="mt-5 font-display text-4xl leading-[0.95] tracking-[-0.04em]">
+        <h2 className="mt-4 font-display text-2xl leading-tight">
           {status.title}
         </h2>
-        <p className="mt-4 max-w-xl text-sm leading-6 text-white/58">{status.description}</p>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-white/58">{status.description}</p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <MiniMetric label="Активные профили" value={String(activeAccounts)} />
+          <MiniMetric label="Готовые аккаунты" value={String(activeAccounts)} />
           <MiniMetric label="Идеи" value={String(dashboard.saved_trends_count)} />
           <MiniMetric label="В плане" value={String(queuedCount)} />
         </div>
@@ -370,14 +372,12 @@ function SystemStatusCard({
 
 function ReadinessChecklist({
   dashboard,
-  hasGlobalPrompt,
   projectId,
 }: {
   dashboard: ProjectDashboard;
-  hasGlobalPrompt: boolean;
   projectId: number;
 }) {
-  const activeAccounts = dashboard.account_states.filter((account) => account.status === "active").length;
+  const activeAccounts = dashboard.account_states.filter((account) => account.ready_for_ideas === true).length;
   const checklist = [
     {
       title: "Опишите проект",
@@ -386,27 +386,15 @@ function ReadinessChecklist({
       to: `/app/projects/${projectId}/settings`,
     },
     {
-      title: "Выберите общий стиль",
-      done: hasGlobalPrompt,
-      hint: "Ответьте на несколько вопросов — нейросеть соберёт общий голос для всех проектов.",
-      to: "/app/settings",
-    },
-    {
-      title: "Подключите Threads-профиль",
+      title: "Подключите аккаунт Threads",
       done: activeAccounts > 0,
       hint: "Нужен для публикации и сбора ленты. Черновики можно готовить до подключения.",
       to: `/app/projects/${projectId}/settings#profiles`,
     },
     {
-      title: "Дополнительно: идеи из ленты",
-      done: dashboard.saved_trends_count > 0,
-      hint: "Необязательный шаг: добавьте наблюдения из ленты к теме и стилю проекта.",
-      to: `/app/projects/${projectId}/trends`,
-    },
-    {
       title: "Настройте расписание",
       done: Boolean(dashboard.project.posts_per_day && dashboard.project.active_hours_start && dashboard.project.active_hours_end),
-      hint: "Сколько постов в день выпускать по каждому профилю и в какие часы.",
+      hint: "Сколько постов в день выпускать с каждого аккаунта и в какие часы.",
       to: `/app/projects/${projectId}/settings`,
     },
   ];
@@ -428,8 +416,7 @@ function ReadinessChecklist({
         </span>
       </div>
       <p className="mt-3 text-xs leading-5 text-[#687168]">
-        Следующий шаг показан выше. Общий стиль и расписание можно уточнять по ходу работы.
-        Перед запуском проверьте тексты и состояние профиля.
+        Это основные настройки для публикаций. Стиль и идеи из ленты можно уточнить позже.
       </p>
 
       <div className="mt-5 grid gap-2">
@@ -455,26 +442,6 @@ function ReadinessChecklist({
         ))}
       </div>
     </section>
-  );
-}
-
-function ContentFormulaNote() {
-  return (
-    <DismissibleTip
-      storageKey="threadsgo.project-post-style-tip"
-      title="Какие посты пишет нейросеть?"
-      action={
-        <Link
-          to="/app/how-it-works"
-          className="inline-flex h-10 items-center justify-center rounded-full border border-[#141815] px-4 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white"
-        >
-          Подробнее
-        </Link>
-      }
-    >
-      Обычно это короткие заметки для ленты: мысль, сцена, вопрос или маленькое напряжение. Прямой увод в био или закреп
-      появляется не в каждом посте, чтобы профиль не выглядел как реклама.
-    </DismissibleTip>
   );
 }
 
@@ -510,7 +477,7 @@ function ActivityLog({
         ))
       )}
 
-      <LogRow label="Профили" value={formatAccountStates(dashboard.account_states)} />
+      <LogRow label="Аккаунты" value={formatAccountStates(dashboard.account_states)} />
       <LogRow label="Публикации" value={formatTaskStatuses(dashboard.posting_tasks_by_status)} />
       <LogRow
         label="Последняя ошибка"
@@ -832,16 +799,18 @@ function getProjectSystemStatus({
   runningOperation,
   activeAccounts,
   failedAccounts,
-  trendsCount,
   queuedCount,
+  autoGenerate,
+  projectActive,
 }: {
   runningOperation: ProjectOperation | null;
   activeAccounts: number;
   failedAccounts: number;
-  trendsCount: number;
   queuedCount: number;
+  autoGenerate: boolean;
+  projectActive: boolean;
 }) {
-  if (activeAccounts === 0 && runningOperation?.action_type === "scraping") {
+  if (activeAccounts === 0 && runningOperation?.action_type === "scraping" && ["queued", "running"].includes(runningOperation.status)) {
     return { title: "нужен профиль для сбора идей", description: "Рабочий профиль не подключён. Лента не читается; можно подготовить текст по описанию проекта.", dotClass: "bg-[#9aa39a]", pulse: false };
   }
   if (runningOperation?.status === "queued") {
@@ -877,18 +846,9 @@ function getProjectSystemStatus({
 
   if (activeAccounts === 0) {
     return {
-      title: "готов к черновикам",
-      description: "Готовьте и редактируйте тексты уже сейчас. Подключённый Threads-профиль понадобится для публикации и сбора идей из ленты.",
+      title: "нет рабочего аккаунта",
+      description: "Публикация пока недоступна. Существующие тексты сохранены в разделе «Посты».",
       dotClass: "bg-[#9aa39a]",
-      pulse: false,
-    };
-  }
-
-  if (trendsCount === 0) {
-    return {
-      title: "готов к черновикам",
-      description: "Профиль подключён. Создайте текст по теме проекта или дополнительно обновите идеи из ленты.",
-      dotClass: "bg-[#0076ff]",
       pulse: false,
     };
   }
@@ -902,9 +862,16 @@ function getProjectSystemStatus({
     };
   }
 
+  if (!projectActive) {
+    return { title: "проект на паузе", description: "Новые автоматические посты не готовятся. Тексты сохранены в разделе «Посты».", dotClass: "bg-[#9aa39a]", pulse: false };
+  }
+  if (autoGenerate) {
+    return { title: "автоматический режим включён", description: "ИИ готовит посты по расписанию при действующей подписке и рабочем аккаунте. Сбор идей из ленты необязателен.", dotClass: "bg-[#70ff35]", pulse: false };
+  }
+
   return {
-    title: "готов к генерации",
-    description: "Создайте черновик и проверьте его в редакторе. Автоматическая подготовка и отправка работают только при включённом автоматическом режиме в настройках проекта.",
+    title: "готов к работе",
+    description: "Подготовьте текст с ИИ или напишите свой в разделе «Посты». Для отправки выберите аккаунт и время.",
     dotClass: "bg-[#70ff35]",
     pulse: false,
   };

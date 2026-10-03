@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -63,6 +64,8 @@ export default function InfrastructurePage() {
       const result = await promise;
       if (result.status === "active") trackSeoEvent("threads_connected", { method: "session_check" });
       await loadAccounts();
+    } catch {
+      // The promise toast already explains the failure.
     } finally {
       setCheckingId(null);
     }
@@ -111,61 +114,58 @@ export default function InfrastructurePage() {
     <section className="workspace-page space-y-5">
       <header className="grid gap-4 border-b border-[#c9c9c3] pb-5 md:grid-cols-[1fr_auto]">
         <div>
-          <h1 className="font-display text-4xl leading-none">Профили Threads</h1>
+          <h1 className="font-display text-4xl leading-none">Аккаунты Threads</h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Здесь хранятся профили Threads. Свободный профиль можно добавить в любой проект,
-            проверить его доступ или удалить из системы.
+            Подключите свой аккаунт Threads, затем выберите его в проекте.
+            Один профиль можно использовать в одном проекте за раз.
           </p>
         </div>
-        <div className="grid gap-3 self-end sm:flex">
-          <button type="button" onClick={() => setIsBrowserOpen(true)} className="h-11 rounded-2xl border border-[#151515] bg-[#151515] px-5 text-sm text-white">Войти через браузер</button>
-          <button
-            type="button"
-            onClick={() => setIsBulkOpen(true)}
-            className="h-11 rounded-2xl border border-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] text-[#151515] transition hover:bg-[#151515] hover:text-white"
-          >
-            Массовый импорт
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsCreateOpen(true)}
-            className="h-11 rounded-2xl border border-[#151515] bg-[#151515] px-5 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515]"
-          >
-            Импортировать сессию
-          </button>
+        <div className="grid gap-3 self-end">
+          <button type="button" onClick={() => setIsBrowserOpen(true)} className="h-11 rounded-2xl border border-[#151515] bg-[#151515] px-5 text-sm text-white">Подключить Threads</button>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-[#66645d]">Другие способы подключения</summary>
+            <div className="mt-3 grid gap-2">
+              <button type="button" onClick={() => setIsCreateOpen(true)} className="rounded-2xl border border-[#151515] px-4 py-2 text-left transition hover:bg-[#151515] hover:text-white">
+                Вставить данные входа
+              </button>
+              <button type="button" onClick={() => setIsBulkOpen(true)} className="rounded-2xl border border-[#151515] px-4 py-2 text-left transition hover:bg-[#151515] hover:text-white">
+                Добавить несколько профилей
+              </button>
+            </div>
+          </details>
         </div>
       </header>
       <AccountRiskNotice />
 
-      <section className="grid overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#07100e] text-white shadow-sm lg:grid-cols-[0.95fr_1.05fr]">
+      {!isLoading && !loadError && accounts.length === 0 ? <section className="grid overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#07100e] text-white shadow-sm lg:grid-cols-[0.95fr_1.05fr]">
         <div className="p-5 sm:p-6">
           <div className="flex items-center gap-3">
             <span className="grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/8">
               <img src="/threadsgo-logo.png" alt="" className="h-8 w-8 object-contain" />
             </span>
             <div>
-              <p className="text-sm font-medium">Пул профилей</p>
-              <p className="mt-1 text-xs text-white/45">доступ и состояние профилей</p>
+              <p className="text-sm font-medium">Ваш аккаунт остаётся вашим</p>
             </div>
           </div>
           <h2 className="mt-5 max-w-xl font-display text-3xl leading-none tracking-[-0.035em] sm:text-4xl">
-            Профили
+            Подключение в три шага
           </h2>
           <p className="mt-4 max-w-xl text-sm leading-6 text-white/58">
-            Каждый Threads-профиль работает отдельно и может быть подключен только к одному проекту.
-            Если сессия слетит, система остановит публикации и покажет проблему здесь.
+            Нажмите «Подключить Threads», войдите в своём аккаунте в открывшемся окне
+            и завершите подключение. Затем выберите этот профиль в проекте —
+            там настраиваются тексты и расписание.
           </p>
         </div>
         <div className="relative min-h-48 overflow-hidden lg:min-h-full">
           <img src="/interface/accounts-health.webp" alt="" className="h-full w-full object-cover opacity-88" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#07100e] via-[#07100e]/10 to-transparent lg:bg-gradient-to-l" />
         </div>
-      </section>
+      </section> : null}
 
       <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-4">
           <div>
-            <h2 className="font-display text-3xl">Все профили</h2>
+            <h2 className="font-display text-3xl">Ваши аккаунты</h2>
           </div>
         </div>
 
@@ -174,15 +174,15 @@ export default function InfrastructurePage() {
             <AccountSkeleton />
           ) : loadError ? (
             <EmptyState
-              title="Профили пока не загрузились"
+              title="Аккаунты пока не загрузились"
               description={loadError}
               actionLabel="Попробовать снова"
               onAction={() => void loadAccounts()}
             />
           ) : accounts.length === 0 ? (
             <EmptyState
-              title="Профилей пока нет"
-              description="Добавьте Threads-профиль. После проверки система сама определит его имя."
+              title="Аккаунтов пока нет"
+              description="Войдите в Threads через кнопку «Подключить Threads». Данные входа сохранятся для следующих запусков."
             />
           ) : (
             accounts.map((account) => (
@@ -192,6 +192,7 @@ export default function InfrastructurePage() {
                 checking={checkingId === account.id}
                 unlinking={unlinkingId === account.id}
                 deleting={deletingId === account.id}
+                busy={checkingId !== null || unlinkingId !== null || deletingId !== null}
                 onCheck={() => void handleCheckSession(account.id)}
                 onUnlink={() => void handleUnlink(account.id)}
                 onDelete={() => setAccountToDelete(account)}
@@ -215,8 +216,8 @@ export default function InfrastructurePage() {
       {isBulkOpen ? (
         <BulkImportPanel
           onClose={() => setIsBulkOpen(false)}
-          onImported={async () => {
-            setIsBulkOpen(false);
+          onImported={async (completed) => {
+            if (completed) setIsBulkOpen(false);
             await loadAccounts();
           }}
         />
@@ -239,6 +240,7 @@ function AccountCard({
   checking,
   unlinking,
   deleting,
+  busy,
   onCheck,
   onUnlink,
   onDelete,
@@ -247,6 +249,7 @@ function AccountCard({
   checking: boolean;
   unlinking: boolean;
   deleting: boolean;
+  busy: boolean;
   onCheck: () => void;
   onUnlink: () => void;
   onDelete: () => void;
@@ -260,33 +263,46 @@ function AccountCard({
         </div>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">Статус</p>
-          <StatusBadge status={account.status} />
+          {account.username === SESSION_USERNAME_PLACEHOLDER && account.status === "active" ? (
+            <span className="mt-1 inline-flex rounded-full bg-[#fff4df] px-3 py-1 text-xs text-[#8a4b00]">Нужно проверить вход</span>
+          ) : <StatusBadge status={account.status} />}
         </div>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">Проект</p>
           <p className="mt-1 text-sm text-[#24231f]">
-            {account.project_id === null ? "Свободен" : `Привязан к проекту #${account.project_id}`}
+            {account.project_id === null ? "Ещё не выбран в проекте" : (
+              <Link to={`/app/projects/${account.project_id}`} className="underline underline-offset-4">Открыть проект #{account.project_id}</Link>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ActionButton onClick={onCheck} disabled={checking || unlinking || deleting}>
-            {checking ? "проверка..." : "Проверить доступ"}
+          <ActionButton onClick={onCheck} disabled={busy}>
+            {checking ? "Проверяем..." : account.status === "active" ? "Проверить вход" : "Проверить и возобновить"}
           </ActionButton>
           {account.project_id !== null ? (
-            <ActionButton onClick={onUnlink} disabled={checking || unlinking || deleting}>
+            <ActionButton onClick={onUnlink} disabled={busy}>
               {unlinking ? "отключаем..." : "Отключить от проекта"}
             </ActionButton>
           ) : null}
-          <ActionButton danger onClick={onDelete} disabled={checking || unlinking || deleting}>
-            {deleting ? "удаление..." : "удалить"}
+          <ActionButton danger onClick={onDelete} disabled={busy}>
+            {deleting ? "Удаляем..." : "Удалить"}
           </ActionButton>
         </div>
       </div>
 
+      {account.status !== "active" ? (
+        <p className="mt-3 text-xs leading-5 text-[#66645d]">
+          Публикации приостановлены. Успешная проверка входа снимет паузу
+          {account.project_id !== null ? " и возобновит публикации по расписанию." : "."}
+        </p>
+      ) : account.username === SESSION_USERNAME_PLACEHOLDER ? (
+        <p className="mt-3 text-xs leading-5 text-[#66645d]">Данные входа сохранены. Нажмите «Проверить вход», чтобы убедиться, что они работают.</p>
+      ) : null}
+
       {account.last_error ? (
         <div className="mt-4 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
-          <p className="font-medium">Профиль сейчас не готов к публикации.</p>
-          <p className="mt-1 text-[#8a4a44]">Нажмите «Проверить доступ». Если проблема останется, она уже видна поддержке.</p>
+          <p className="font-medium">Последняя попытка завершилась с ошибкой.</p>
+          <p className="mt-1 text-[#8a4a44]">При повторном входе сначала пройдите возможную проверку в Threads. Если ошибка повторяется, <a href="https://t.me/cuartenlol" target="_blank" rel="noreferrer" className="underline underline-offset-4">напишите в поддержку</a>.</p>
           <details className="mt-2">
             <summary className="cursor-pointer text-[#7a625f]">Техническая информация</summary>
             <p className="mt-2 break-words text-[#7a625f]">{account.last_error}</p>
@@ -326,11 +342,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
       await onCreated();
     } catch (submitError) {
       toast.error("Профиль не добавлен");
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Проверьте формат cookies и доступность API.",
-      );
+      setError(getApiErrorMessage(submitError, "Не удалось добавить профиль. Проверьте данные входа и попробуйте снова."));
     } finally {
       setIsSubmitting(false);
     }
@@ -341,11 +353,12 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
       <aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-black bg-[#f6f6f2]">
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
-            <h2 className="font-display text-3xl">Добавить профиль</h2>
+            <h2 className="font-display text-3xl">Вставить данные входа</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
+            disabled={isSubmitting}
             className="rounded-2xl border border-[#151515] px-3 py-2 font-mono text-xs uppercase transition hover:bg-[#151515] hover:text-white"
           >
             Закрыть
@@ -353,15 +366,9 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
         </header>
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-y-auto px-7 py-8">
-          <label className="grid gap-2">
-            <span className="field-label">Платформа</span>
-            <select value={THREADS_PLATFORM} disabled className="field-control opacity-70">
-              <option value="threads">Threads</option>
-            </select>
-          </label>
-
-          <div className="mt-8 rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
-            Имя пользователя вводить не нужно: после проверки доступа система сама определит профиль Threads.
+          <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
+            Этот способ подходит, если вы уже вошли в Threads в своём браузере.
+            После добавления нажмите «Проверить вход» — ThreadsGo проверит доступ и определит имя профиля.
           </div>
 
           <label className="mt-8 grid gap-2">
@@ -369,6 +376,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
             <textarea
               value={cookiesInput}
               onChange={(event) => setCookiesInput(event.target.value)}
+              disabled={isSubmitting}
               required
               rows={8}
               placeholder='[{"name":"sessionid","value":"...","domain":".threads.net"}]'
@@ -401,11 +409,12 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
   );
 }
 
-function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImported: () => Promise<void> }) {
+function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImported: (completed: boolean) => Promise<void> }) {
   const [rawInput, setRawInput] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [needsReview, setNeedsReview] = useState(false);
 
   async function handleBulkImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -448,7 +457,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
         created += 1;
         trackSeoEvent("threads_profile_added", { method: "bulk_cookies" });
       } catch (importError) {
-        failed.push(`#${index + 1}: ${importError instanceof Error ? importError.message : "ошибка API"}`);
+        failed.push(`#${index + 1}: ${getApiErrorMessage(importError, "не удалось добавить профиль")}`);
       } finally {
         setProgress({ done: index + 1, total: items.length });
       }
@@ -457,14 +466,15 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
     setIsImporting(false);
 
     if (failed.length > 0) {
-      setError(`Создано ${created} из ${items.length}. Ошибки: ${failed.slice(0, 3).join("; ")}`);
+      setError(`Добавлено ${created} из ${items.length}. ${failed.slice(0, 3).join("; ")}. Перед повтором оставьте в поле только профили, которые не добавились.`);
+      setNeedsReview(true);
       toast.error(`Импорт частично завершен: ${created}/${items.length}`);
-      await onImported();
+      await onImported(false);
       return;
     }
 
     toast.success(`Импортировано профилей: ${created}`);
-    await onImported();
+    await onImported(true);
   }
 
   return (
@@ -472,7 +482,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
       <aside className="ml-auto flex h-full w-full max-w-2xl flex-col border-l border-black bg-[#f6f6f2]">
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
-            <h2 className="font-display text-3xl">Массовый импорт профилей</h2>
+            <h2 className="font-display text-3xl">Добавить несколько профилей</h2>
           </div>
           <button
             type="button"
@@ -489,14 +499,14 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
             Для подключения нескольких профилей вставьте JSON-массив объектов вида
             <code className="mx-1 rounded bg-[#f1f1eb] px-1">{"[{\"cookies\": [...]}]"}</code>.
             Можно также разделить несколько экспортов строкой <code className="rounded bg-[#f1f1eb] px-1">---</code>.
-            После импорта профили появятся в списке. Проверяйте их постепенно, чтобы не запускать много браузеров одновременно.
+            После добавления проверьте вход каждого профиля в списке.
           </div>
 
           <label className="mt-6 grid gap-2">
             <span className="field-label">Экспортированные данные входа</span>
             <textarea
               value={rawInput}
-              onChange={(event) => setRawInput(event.target.value)}
+              onChange={(event) => { setRawInput(event.target.value); setNeedsReview(false); }}
               disabled={isImporting}
               rows={16}
               placeholder={`[
@@ -533,7 +543,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
           <div className="mt-auto border-t border-[#d4d4ce] pt-6">
             <button
               type="submit"
-              disabled={isImporting}
+              disabled={isImporting || needsReview || !rawInput.trim()}
               className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isImporting ? <Spinner /> : null}
@@ -584,13 +594,13 @@ function StatusBadge({ status }: { status: AccountStatus }) {
 }
 
 const statusLabels: Record<AccountStatus, string> = {
-  active: "готов к работе",
-  disabled: "приостановлен",
-  error: "нужна проверка",
-  warming_up: "подготавливается",
-  cookies_expired: "нужен повторный вход",
-  blocked: "недоступен в Threads",
-  proxy_error: "автопауза: проверяем прокси",
+  active: "Подключён",
+  disabled: "На паузе",
+  error: "Нужна проверка",
+  warming_up: "Подготавливается",
+  cookies_expired: "Нужен повторный вход",
+  blocked: "Ограничение Threads",
+  proxy_error: "Ошибка подключения",
 };
 
 function DeleteAccountDialog({
@@ -765,5 +775,5 @@ function isCookieList(value: unknown[]): boolean {
 }
 
 function formatUsername(username: string) {
-  return username === SESSION_USERNAME_PLACEHOLDER ? "Из сессии" : `@${username.replace(/^@/, "")}`;
+  return username === SESSION_USERNAME_PLACEHOLDER ? "Имя определится после проверки" : `@${username.replace(/^@/, "")}`;
 }

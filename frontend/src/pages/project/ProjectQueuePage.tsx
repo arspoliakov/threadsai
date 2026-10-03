@@ -167,7 +167,7 @@ export default function ProjectQueuePage() {
       const updatePromise = updateTask(taskId, contentText, expectedPostsChain);
       toast.promise(updatePromise, {
         loading: "Сохраняем текст...",
-        success: "Текст сохранён. Для публикации согласуйте время.",
+        success: "Текст сохранён. Для публикации выберите время.",
         error: (error) => getApiErrorMessage(error, "Не удалось сохранить текст."),
       });
       const updatedTask = await updatePromise;

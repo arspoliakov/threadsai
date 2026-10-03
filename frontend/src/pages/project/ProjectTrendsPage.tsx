@@ -154,8 +154,8 @@ export default function ProjectTrendsPage() {
       </header>
 
       {!isLoading && dashboard && !hasThreadsProfile ? (
-        <JourneyNextStep title="Для сбора идей нужен рабочий профиль" description="Подключите Threads в разделе «Профили», затем выберите его в настройках проекта. Сохранённые идеи остаются доступными."
-          action="Выбрать профиль" to={`/app/projects/${projectId}/settings#profiles`} />
+        <JourneyNextStep title="Для сбора идей нужен аккаунт Threads" description="Подключите его в разделе «Аккаунты» и добавьте в проект. Сохранённая подборка остаётся доступной; ИИ умеет писать и без неё."
+          action="Проверить аккаунты" to={`/app/projects/${projectId}/settings#profiles`} />
       ) : !isLoading && trends.length > 0 ? (
         <JourneyNextStep title="Идеи готовы — пора создать свой текст" description="Подборка помогает выбрать подачу. Вернитесь в обзор проекта, чтобы создать пост на вашу тему."
           action="К созданию поста" to={`/app/projects/${projectId}`} />

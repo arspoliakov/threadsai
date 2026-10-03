@@ -8,7 +8,6 @@ import {
   type LoginResponse,
   type RegistrationConsentPayload,
   TelegramAuthPayload,
-  getCurrentUser,
   loginWithTelegram,
   loginWithTelegramWebApp,
   setStoredAuthToken,
@@ -235,7 +234,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
             {isRegistration ? "Создать профиль." : "С возвращением."}
           </h1>
 
-          <p className="mt-5 text-sm leading-6 text-[#60716a]">Войдите через Telegram, подтвердите вход у бота и вернитесь на сайт. <Link to="/pricing/" className="text-[#315b46] underline underline-offset-4">Тарифы и условия 3 дней пробного периода</Link>.</p>
+          <p className="mt-5 text-sm leading-6 text-[#60716a]">{isRegistration ? "Создайте профиль через Telegram. Аккаунт Threads подключите позже в кабинете." : "Вход в кабинет через ваш Telegram."}</p>
 
           {sessionNeedsRefresh ? (
             <div className="mt-6 rounded-2xl border border-[#6cc9ff]/30 bg-[#10212a] px-4 py-3 text-sm leading-6 text-[#ccecff]">
@@ -295,7 +294,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
                 ) : (
                   <>
                     <p className="mx-auto max-w-lg text-sm leading-6 text-[#60716a]">
-                      Удобный вход через чат с ботом. Подтвердите вход одной кнопкой и вернитесь на сайт — эта вкладка авторизуется автоматически.
+                      Откроется бот Telegram. Нажмите «Да, войти» и вернитесь сюда — кабинет откроется автоматически.
                     </p>
                     {botLogin.message ? <p role="status" className="mt-3 text-sm text-[#b42318]">{botLogin.message}</p> : null}
                     <button
@@ -375,15 +374,6 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
 }
 
 async function getPostLoginDestination(requestedPath?: string) {
-  try {
-    const user = await getCurrentUser();
-    if (!user.subscription_status) {
-      return requestedPath === "/app/billing" ? "/app/billing" : "/app/studio";
-    }
-  } catch {
-    // The normal API interceptor will handle invalid access; keep a safe fallback here.
-  }
-
   return sanitizeReturnPath(requestedPath);
 }
 

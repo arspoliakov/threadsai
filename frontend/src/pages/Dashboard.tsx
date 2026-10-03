@@ -101,7 +101,7 @@ export default function Dashboard() {
       const deletion = deleteProject(project.id);
       toast.promise(deletion, {
         loading: "Удаляем проект...",
-        success: "Проект удален. Аккаунты вернулись в общий пул.",
+        success: "Проект удалён. Аккаунты можно добавить в другой проект.",
         error: (error) =>
           getApiErrorMessage(error, "Не удалось удалить проект."),
       });
@@ -163,10 +163,10 @@ export default function Dashboard() {
       {!isLoading && summary?.projects.length === 0 && hasSubscription === false && hasAccounts === false && <Link to="/app/studio" className="block rounded-2xl border border-[#d8e2da] bg-white p-5 text-sm"><strong>Попробуйте три текста бесплатно</strong><span className="mt-1 block text-[#67786e]">Посмотрите, как нейросеть пишет по вашей теме →</span></Link>}
 
       {!isLoading && summary && summary.projects.length > 0 ? (() => {
-        const attentionProject = summary.projects.find((project) => project.active_accounts_count === 0)
-          || summary.projects.find((project) => !project.next_post_time);
+        const attentionProject = summary.projects.find((project) => project.is_active && project.ready_accounts_count === 0)
+          || summary.projects.find((project) => project.is_active && !project.next_post_time);
         return attentionProject ? <div className="dashboard-next-step tg-reveal" key={attentionProject.id}><JourneyNextStep title={`Продолжите настройку «${attentionProject.name}»`}
-          description={attentionProject.active_accounts_count === 0 ? "Подключите аккаунт Threads, чтобы публиковать посты. Нейросеть будет писать их по настройкам проекта." : "Ближайший пост пока не запланирован. Выберите время и включите автоматические посты в настройках проекта."}
+          description={attentionProject.ready_accounts_count === 0 ? "Проверьте подключение аккаунта Threads, чтобы публиковать посты." : "Ближайший пост пока не запланирован. Откройте проект, чтобы проверить режим работы или подготовить текст."}
           action="Продолжить" to={`/app/projects/${attentionProject.id}`} /></div> : null;
       })() : null}
 
@@ -177,7 +177,7 @@ export default function Dashboard() {
             currentAction={getCurrentAction(summary, isLoading)}
             nextActionLabel={
               nextProject
-                ? `Следующий пост: «${nextProject.name}» → выйдет`
+                ? `Следующий пост: «${nextProject.name}»`
                 : "Следующий пост"
             }
             compact
@@ -205,7 +205,7 @@ export default function Dashboard() {
             onRetry={() => void loadSummary({ silent: true })}
           />
         ) : !summary || summary.projects.length === 0 ? (
-          <EmptyProjects onCreate={() => setIsCreateOpen(true)} />
+          <EmptyProjects canCreate={hasSubscription !== false} onCreate={() => hasSubscription === false ? navigate("/app/billing") : setIsCreateOpen(true)} />
         ) : (
           summary.projects.map((project) => (
             <ProjectCard
@@ -258,7 +258,7 @@ function getCurrentAction(
   isLoading: boolean,
 ) {
   if (isLoading) {
-    return "Проверяем систему";
+    return "Загружаем проекты";
   }
 
   if (!summary || summary.projects.length === 0) {
@@ -266,7 +266,7 @@ function getCurrentAction(
   }
 
   const activeAccounts = summary.projects.reduce(
-    (sum, project) => sum + project.active_accounts_count,
+    (sum, project) => sum + project.ready_accounts_count,
     0,
   );
   const pausedAccounts = summary.projects.reduce(
@@ -275,7 +275,7 @@ function getCurrentAction(
   );
 
   if (activeAccounts === 0) {
-    return "Ждем подключения профиля";
+    return pausedAccounts > 0 ? "Аккаунты на паузе" : "Нужно подключить аккаунт";
   }
 
   if (pausedAccounts > 0) {
@@ -387,8 +387,7 @@ export function CreateProjectModal({
               Новый проект
             </h2>
             <p className="mt-3 text-sm leading-6 text-[#667066]">
-              Опишите, о чём писать и для кого. Общий голос можно настроить с
-              помощью нейросети ниже.
+              Укажите название и тему. Остальные настройки можно добавить позже.
             </p>
           </div>
           <button
@@ -433,12 +432,17 @@ export function CreateProjectModal({
           <ProjectContextAssistant disabled={isSaving || contextBusy} onBusyChange={setContextBusy} onApply={context => {
             setDescription(context.description); setTargetAudience(context.target_audience); setProductContext(context.product_context);
           }} />
-          <label className="block text-sm text-[#3f463f]">Аудитория <span className="text-[#7a8179]">— необязательно</span>
+          <details className="rounded-2xl border border-[#dfe4dc] bg-white p-4" open={Boolean(targetAudience || productContext) || undefined}>
+            <summary className="cursor-pointer text-sm font-medium">Подробнее об аудитории и продукте — необязательно</summary>
+            <div className="mt-4 space-y-4">
+          <label className="block text-sm text-[#3f463f]">Аудитория
             <textarea value={targetAudience} onChange={event => setTargetAudience(event.target.value)} rows={2} maxLength={1200} disabled={isSaving || contextBusy} placeholder="Для кого пишем и что этим людям важно" className="mt-2 w-full rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6" />
           </label>
-          <label className="block text-sm text-[#3f463f]">Продукт или польза контента <span className="text-[#7a8179]">— необязательно</span>
+          <label className="block text-sm text-[#3f463f]">Продукт или польза постов
             <textarea value={productContext} onChange={event => setProductContext(event.target.value)} rows={2} maxLength={1600} disabled={isSaving || contextBusy} placeholder="Что предлагаете: услугу, продукт или полезные знания" className="mt-2 w-full rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6" />
           </label>
+            </div>
+          </details>
           <StyleAssistant disabled={isSaving || contextBusy} onApply={setGlobalStyle} />
           {globalStyle ? (
             <div className="space-y-3 rounded-2xl border border-[#dfe4dc] bg-white p-4">
@@ -541,8 +545,9 @@ function ProjectCard({
               {project.name}
             </h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
-              {project.active_accounts_count === 0 ? "Для публикации нужен подключённый аккаунт Threads."
-                : !project.next_post_time ? "Настройте время и включите автоматические посты."
+              {project.is_active === false ? "Проект на паузе. Откройте настройки, чтобы продолжить работу."
+                : project.ready_accounts_count === 0 ? "Для публикации нужен рабочий аккаунт Threads."
+                : !project.next_post_time ? "Постов в расписании пока нет. Откройте проект, чтобы выбрать следующий шаг."
                 : "Посты запланированы. В проекте можно посмотреть ближайший текст и время выхода."}
             </p>
           </Link>
@@ -647,8 +652,8 @@ function SkeletonProjects() {
   );
 }
 
-function EmptyProjects({ onCreate }: { onCreate: () => void }) {
-  return <DashboardWelcome onCreate={onCreate} />;
+function EmptyProjects({ onCreate, canCreate }: { onCreate: () => void; canCreate: boolean }) {
+  return <DashboardWelcome onCreate={onCreate} canCreate={canCreate} />;
 }
 
 function LoadError({

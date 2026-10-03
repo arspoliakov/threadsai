@@ -7,35 +7,26 @@ export const RESTART_ONBOARDING_EVENT = "threadsgo:onboarding:restart";
 const steps = [
   {
     title: "Создайте первый проект",
-    text: "Проект хранит описание задачи, стиль, запрещенные слова, расписание и подключенные профили.",
-    action: "Откройте «Мои проекты» и нажмите «Создать проект».",
+    text: "Расскажите, о чём хотите писать и для кого. Эти настройки помогут ИИ готовить посты по вашей теме.",
+    action: "Откройте «Проекты» и нажмите «Создать проект». Если не знаете, как описать стиль, поможет ИИ.",
     image: "/interface/project-library.webp",
     to: "/app",
-    button: "Создать проект",
+    button: "Открыть проекты",
   },
   {
-    title: "Подключите Threads-профиль",
-    text: "Подключите профиль, в котором уже выполнен вход в Threads. Система сама проверит доступ и подскажет, готова ли публикация.",
+    title: "Подключите аккаунт Threads",
+    text: "Аккаунт нужен для чтения ленты и публикаций. Подготовить текст можно и без него.",
     action:
-      "Откройте «Профили»: войдите через отдельное окно или импортируйте сессию. Затем выберите профиль в настройках своего проекта.",
+      "Откройте «Аккаунты», войдите в Threads через отдельное окно или перенесите данные входа. Затем добавьте аккаунт в настройки проекта.",
     image: "/interface/accounts-health.webp",
     to: "/app/infrastructure",
-    button: "Подключить профиль",
+    button: "Подключить аккаунт",
   },
   {
-    title: "Настройте голос",
-    text: "Общий стиль задает характер всех постов, а настройки проекта уточняют конкретную задачу.",
+    title: "Выберите, как публиковать",
+    text: "В автоматическом режиме ИИ пишет новые посты и публикует их по расписанию. Если хотите проверять каждый текст, выбирайте режим с согласованием.",
     action:
-      "Откройте «Стиль» и нажмите «Помочь со стилем»: несколько ответов заменят длинную инструкцию вручную.",
-    image: "/interface/prompt-lab.webp",
-    to: "/app/settings",
-    button: "Настроить стиль",
-  },
-  {
-    title: "Запустите систему",
-    text: "В обзоре проекта показан следующий шаг: собрать идеи, создать текст или проверить расписание. Запланированный пост выйдет в указанное время.",
-    action:
-      "Откройте проект и следуйте карточке «Следующий шаг». Перед публикацией проверьте текст и время в расписании.",
+      "В настройках проекта выберите режим и расписание. Для публикаций нужна действующая подписка. Свой текст можно отдельно сохранить черновиком и назначить время выхода.",
     image: "/interface/queue-timeline.webp",
     to: "/app",
     button: "Перейти к проектам",
@@ -60,7 +51,7 @@ export function OnboardingTour() {
   }, []);
 
   function completeTour() {
-    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
+    try { window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "true"); } catch { /* Closing remains available when storage is blocked. */ }
     setIsOpen(false);
   }
 
@@ -130,7 +121,7 @@ export function OnboardingTour() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#6d746d]">
-                  Что нажимать сначала
+                  Первые шаги
                 </p>
                 <h2 className="mt-4 font-display text-2xl leading-tight tracking-[-0.04em] text-[#07100e] sm:text-3xl">
                   {step.title}
@@ -142,7 +133,7 @@ export function OnboardingTour() {
                 autoFocus
                 className="rounded-full border border-[#d6ddd2] px-4 py-2 text-xs text-[#687168] transition hover:border-[#07100e] hover:text-[#07100e]"
               >
-                Пропустить
+                Закрыть
               </button>
             </div>
 
@@ -188,7 +179,7 @@ export function OnboardingTour() {
                   onClick={nextStep}
                   className="inline-flex h-12 items-center justify-center rounded-full bg-[#07100e] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
                 >
-                  {isLastStep ? "Начать работу" : "Дальше"}
+                  {isLastStep ? "Понятно" : "Дальше"}
                 </button>
               </div>
             </div>

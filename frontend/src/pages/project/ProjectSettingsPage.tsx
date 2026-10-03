@@ -41,6 +41,10 @@ const timezoneOptions = [
 
 const timezoneOptionValues = new Set(timezoneOptions.map((option) => option.value));
 
+function notifyProjectUpdated() {
+  window.dispatchEvent(new Event("threadsgo:project-updated"));
+}
+
 export default function ProjectSettingsPage() {
   const location = useLocation();
   const { id } = useParams();
@@ -78,7 +82,7 @@ export default function ProjectSettingsPage() {
     }
   }, [isLoading, location.hash]);
 
-  async function loadSettings({ silent = false }: { silent?: boolean } = {}) {
+  async function loadSettings({ silent = false, preserveDrafts = false }: { silent?: boolean; preserveDrafts?: boolean } = {}) {
     setIsLoading(true);
     setLoadError(null);
 
@@ -90,18 +94,20 @@ export default function ProjectSettingsPage() {
       ]);
       setAccounts(accountsResult);
       setProject(dashboardResult.project);
-      setGlobalContext(dashboardResult.project.global_context || dashboardResult.project.description || "");
-      setTargetActions(normalizeTargetActions(dashboardResult.project.target_actions ?? []));
-      setConversionMode(dashboardResult.project.conversion_mode ?? "bio_link");
-      setConversionTarget(dashboardResult.project.conversion_target ?? "");
-      setConversionIntensity(dashboardResult.project.conversion_intensity ?? 25);
-      setStopWords(dashboardResult.project.stop_words ?? []);
-      setScheduleDraft({
-        posts_per_day: dashboardResult.project.posts_per_day ?? 3,
-        active_hours_start: dashboardResult.project.active_hours_start ?? "09:00",
-        active_hours_end: dashboardResult.project.active_hours_end ?? "21:00",
-        timezone: normalizeTimezone(dashboardResult.project.timezone),
-      });
+      if (!preserveDrafts) {
+        setGlobalContext(dashboardResult.project.global_context || dashboardResult.project.description || "");
+        setTargetActions(normalizeTargetActions(dashboardResult.project.target_actions ?? []));
+        setConversionMode(dashboardResult.project.conversion_mode ?? "bio_link");
+        setConversionTarget(dashboardResult.project.conversion_target ?? "");
+        setConversionIntensity(dashboardResult.project.conversion_intensity ?? 25);
+        setStopWords(dashboardResult.project.stop_words ?? []);
+        setScheduleDraft({
+          posts_per_day: dashboardResult.project.posts_per_day ?? 3,
+          active_hours_start: dashboardResult.project.active_hours_start ?? "09:00",
+          active_hours_end: dashboardResult.project.active_hours_end ?? "21:00",
+          timezone: normalizeTimezone(dashboardResult.project.timezone),
+        });
+      }
       setTariffPostsPerDayLimit(Math.max(1, currentUser.tariff_posts_per_day || 1));
       if (!silent) {
         toast.success("Настройки обновлены");
@@ -132,7 +138,7 @@ export default function ProjectSettingsPage() {
 
   async function bindAccount() {
     if (!selectedAccountId) {
-      toast.error("Выберите свободный профиль");
+      toast.error("Выберите свободный аккаунт");
       return;
     }
 
@@ -141,18 +147,19 @@ export default function ProjectSettingsPage() {
     try {
       const action = updateAccount(Number(selectedAccountId), { project_id: projectId });
       toast.promise(action, {
-        loading: "Добавляем профиль...",
-        success: "Профиль добавлен в проект",
-        error: (error) => getApiErrorMessage(error, "Не удалось добавить профиль."),
+        loading: "Добавляем аккаунт...",
+        success: "Аккаунт добавлен в проект",
+        error: (error) => getApiErrorMessage(error, "Не удалось добавить аккаунт."),
       });
       await action;
+      notifyProjectUpdated();
       trackSeoEvent("threads_account_connected", {
         method: "existing_profile",
         project_id: projectId,
         account_id: Number(selectedAccountId),
       });
       setSelectedAccountId("");
-      await loadSettings({ silent: true });
+      await loadSettings({ silent: true, preserveDrafts: true });
     } catch {
       // The promise toast displays the error; leave the current state available for retry.
     } finally {
@@ -179,7 +186,7 @@ export default function ProjectSettingsPage() {
       });
       toast.promise(savePromise, {
         loading: "Сохраняем настройки проекта...",
-        success: "Контекст проекта сохранен",
+        success: "Описание проекта сохранено",
         error: (error) => getApiErrorMessage(error, "Не удалось сохранить описание проекта."),
       });
       const savedProject = await savePromise;
@@ -189,6 +196,9 @@ export default function ProjectSettingsPage() {
       setConversionMode(savedProject.conversion_mode ?? "bio_link");
       setConversionTarget(savedProject.conversion_target ?? "");
       setConversionIntensity(savedProject.conversion_intensity ?? 25);
+      notifyProjectUpdated();
+    } catch {
+      // The promise toast already explains the failure; preserve the entered text.
     } finally {
       setIsSavingContext(false);
     }
@@ -212,6 +222,9 @@ export default function ProjectSettingsPage() {
       const savedProject = await savePromise;
       setProject(savedProject);
       setStopWords(savedProject.stop_words ?? []);
+      notifyProjectUpdated();
+    } catch {
+      // The promise toast already explains the failure.
     } finally {
       setIsSavingStopWords(false);
     }
@@ -245,6 +258,9 @@ export default function ProjectSettingsPage() {
         active_hours_end: savedProject.active_hours_end,
         timezone: normalizeTimezone(savedProject.timezone),
       });
+      notifyProjectUpdated();
+    } catch {
+      // The promise toast already explains the failure.
     } finally {
       setIsSavingSchedule(false);
     }
@@ -269,12 +285,15 @@ export default function ProjectSettingsPage() {
         error: (error) => getApiErrorMessage(error, "Не удалось обновить данные входа."),
       });
       await savePromise;
+      notifyProjectUpdated();
       trackSeoEvent("threads_account_connected", {
         method: "cookies_refresh",
         project_id: projectId,
         account_id: accountId,
       });
-      await loadSettings({ silent: true });
+      await loadSettings({ silent: true, preserveDrafts: true });
+    } catch {
+      // The promise toast already explains the failure.
     } finally {
       setSavingCookiesId(null);
     }
@@ -291,7 +310,10 @@ export default function ProjectSettingsPage() {
         error: (error) => getApiErrorMessage(error, "Не удалось проверить доступ. Попробуйте ещё раз или обновите данные входа."),
       });
       await checkPromise;
-      await loadSettings({ silent: true });
+      notifyProjectUpdated();
+      await loadSettings({ silent: true, preserveDrafts: true });
+    } catch {
+      // The promise toast already explains the failure.
     } finally {
       setCheckingAccountId(null);
     }
@@ -303,12 +325,13 @@ export default function ProjectSettingsPage() {
     try {
       const action = unlinkAccount(accountId);
       toast.promise(action, {
-        loading: "Отключаем профиль...",
-        success: "Профиль отключен от проекта",
-        error: (error) => getApiErrorMessage(error, "Не удалось отключить профиль."),
+        loading: "Отключаем аккаунт...",
+        success: "Аккаунт отключён от проекта",
+        error: (error) => getApiErrorMessage(error, "Не удалось отключить аккаунт."),
       });
       await action;
-      await loadSettings({ silent: true });
+      notifyProjectUpdated();
+      await loadSettings({ silent: true, preserveDrafts: true });
     } catch {
       // The promise toast displays the error; leave the current state available for retry.
     } finally {
@@ -321,31 +344,37 @@ export default function ProjectSettingsPage() {
       <header>
         <h1 className="font-display text-4xl leading-none">Настройки проекта</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-          Расскажите ИИ, о чём и как писать. Выберите профиль Threads, время выхода постов и режим публикации.
+          Расскажите ИИ, о чём писать. Выберите аккаунт Threads, расписание и способ публикации.
         </p>
       </header>
 
       {project && <section id="publication-mode" className="rounded-2xl border border-[#d8e2da] bg-white p-5">
         <h2 className="font-semibold">Режим публикации</h2>
-        <p className="mt-2 text-sm leading-6 text-[#67786e]">ИИ пишет сам в обоих режимах. Вы выбираете, проверять каждый пост или доверить ему публикацию. У нового проекта проверка включена.</p>
-        <fieldset className="mt-4 grid gap-3" disabled={isSavingMode}>
+        <p className="mt-2 text-sm leading-6 text-[#67786e]">Можно доверить ИИ всю работу или готовить посты по кнопке и самим выбирать время выхода.</p>
+        <fieldset className="mt-4 grid gap-3" disabled={isLoading || isSavingMode}>
           <legend className="sr-only">Выберите режим публикации проекта</legend>
-          {[{ enabled: false, title: "С согласованием", description: "Готовьте посты с ИИ, меняйте текст при необходимости и сами выбирайте время выхода. Без вашего подтверждения пост не отправится." },
-            { enabled: true, title: "ИИ пишет и публикует сам", description: "ИИ сам пишет новые посты и отправляет их по расписанию проекта. Вам не нужно создавать или согласовывать каждый черновик. Нужны действующая подписка и рабочий профиль Threads." }].map(mode =>
+          {[{ enabled: false, title: "Проверяю и планирую сам", description: "Запросите пост у ИИ по кнопке или напишите свой. Проверьте текст и назначьте время. ИИ не готовит новые посты в фоне." },
+            { enabled: true, title: "ИИ пишет и публикует сам", description: "ИИ сам создаёт новые посты и отправляет их по расписанию. Каждый текст подтверждать не нужно. Для работы нужны действующая подписка и подключённый аккаунт Threads." }].map(mode =>
             <label key={String(mode.enabled)} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d8e2da] p-4">
               <input type="radio" name="publication-mode" className="mt-1" checked={project.auto_generate === mode.enabled} onChange={async () => {
                 if (isSavingMode || project.auto_generate === mode.enabled) return;
                 setIsSavingMode(true);
-                try { await updateProject(project.id, { auto_generate: mode.enabled }); await loadSettings({ silent: true });
-                  toast.success(mode.enabled ? "Автоматическая публикация включена" : "Включён режим согласования"); }
+                try { await updateProject(project.id, { auto_generate: mode.enabled }); notifyProjectUpdated(); await loadSettings({ silent: true, preserveDrafts: true });
+                  toast.success(mode.enabled ? "ИИ будет писать и публиковать сам" : "Новые посты готовятся по вашему запросу"); }
                 catch (error) { toast.error(getApiErrorMessage(error, "Не удалось изменить режим")); }
                 finally { setIsSavingMode(false); }
               }} />
               <span><strong className="block">{mode.title}</strong><span className="mt-1 block text-sm leading-6 text-[#67786e]">{mode.description}</span></span>
             </label>)}
         </fieldset>
-        <p className="mt-3 text-xs leading-5 text-[#67786e]">Хотите отдельный пост или свой текст? Создайте черновик, отредактируйте и назначьте время. Такие черновики, план недели и тексты из студии ждут вашего подтверждения даже в автоматическом режиме. Включение режима не публикует старые черновики.</p>
-        <p className="mt-2 text-xs leading-5 text-[#67786e]">При переходе к согласованию новые автоматические посты снимаются с расписания. Посты, которые вы уже согласовали вручную, и публикации, начавшие отправляться, сохраняют своё состояние. Посты из прежнего автоматического режима могут оставаться в очереди: проверьте календарь и снимите ненужные.</p>
+        <p className="mt-3 text-xs leading-5 text-[#67786e]">Собственный текст можно добавить в разделе «Публикации». Для такого черновика вы сами выбираете время, даже если ИИ публикует остальные посты автоматически.</p>
+        <details className="mt-3 text-xs leading-5 text-[#67786e]">
+          <summary className="cursor-pointer">Что будет с уже подготовленными постами при смене режима</summary>
+          <div className="mt-2 space-y-2">
+            <p>Включение автоматической публикации не отправляет старые черновики. Посты из плана недели и пробные тексты тоже нужно запланировать самостоятельно.</p>
+            <p>При выключении новые автоматические посты снимаются с расписания. Посты, которые вы уже запланировали сами, и начавшиеся публикации остаются. Некоторые посты из прежнего автоматического режима могут остаться в очереди — проверьте раздел «Публикации» и отмените ненужные.</p>
+          </div>
+        </details>
       </section>}
 
       {loadError ? (
@@ -381,7 +410,7 @@ export default function ProjectSettingsPage() {
                   onChange={(event) => setGlobalContext(event.target.value)}
                   disabled={isLoading || isSavingContext}
                   rows={8}
-                  placeholder="Опишите бренд, аудиторию, tone of voice, продукт, ограничения и факты, которые нейросеть должна учитывать."
+                  placeholder="Кто вы, для кого пишете, какие темы хотите обсуждать и какие факты ИИ должен учитывать. Общий стиль всех проектов можно задать в разделе «Стиль постов»."
                   className="resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-sm leading-6 text-[#24231f] outline-none transition focus:border-[#151515] disabled:opacity-50"
                 />
               </label>
@@ -437,7 +466,7 @@ export default function ProjectSettingsPage() {
 
               <div className="grid gap-4 rounded-2xl border border-[#e1e1dc] bg-white p-4">
                 <div>
-                  <span className="field-label">Куда вести интерес</span>
+                  <span className="field-label">Куда пригласить читателя</span>
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     <ConversionModeButton
                       label="Ссылка в описании профиля"
@@ -546,19 +575,20 @@ export default function ProjectSettingsPage() {
             <div>
               <h2 className="font-display text-3xl">Настройка публикаций</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-                Здесь задаем правила автопубликации: сколько постов в день выпускать на каждом профиле
-                и в какое время суток система может их публиковать.
+                Выберите, сколько постов в день выпускать на каждом аккаунте и в какие часы.
+                В ручном режиме вы назначаете время сами.
               </p>
             </div>
 
             <div className="grid gap-4 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
               <label className="grid gap-2">
-                <span className="field-label">Постов в день на каждый профиль</span>
+                <span className="field-label">Постов в день на каждый аккаунт</span>
                 <input
                   type="number"
                   min={1}
                   max={tariffPostsPerDayLimit}
                   value={scheduleDraft.posts_per_day}
+                  disabled={isLoading || isSavingSchedule}
                   onChange={(event) =>
                     setScheduleDraft((current) => ({
                       ...current,
@@ -568,7 +598,7 @@ export default function ProjectSettingsPage() {
                   className="field-control"
                 />
                 <span className="text-xs leading-5 text-[#77766f]">
-                  На текущем тарифе доступно до {tariffPostsPerDayLimit} публикаций в день на каждый профиль.
+                  Ваш тариф: до {tariffPostsPerDayLimit} публикаций в день на каждый аккаунт.
                 </span>
               </label>
 
@@ -578,6 +608,7 @@ export default function ProjectSettingsPage() {
                   <input
                     type="time"
                     value={scheduleDraft.active_hours_start}
+                    disabled={isLoading || isSavingSchedule}
                     onChange={(event) =>
                       setScheduleDraft((current) => ({
                         ...current,
@@ -593,6 +624,7 @@ export default function ProjectSettingsPage() {
                   <input
                     type="time"
                     value={scheduleDraft.active_hours_end}
+                    disabled={isLoading || isSavingSchedule}
                     onChange={(event) =>
                       setScheduleDraft((current) => ({
                         ...current,
@@ -608,6 +640,7 @@ export default function ProjectSettingsPage() {
                 <span className="field-label">Часовой пояс</span>
                 <select
                   value={scheduleDraft.timezone}
+                  disabled={isLoading || isSavingSchedule}
                   onChange={(event) =>
                     setScheduleDraft((current) => ({
                       ...current,
@@ -640,7 +673,7 @@ export default function ProjectSettingsPage() {
         <section id="profiles" className="scroll-mt-28 rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-4">
             <div>
-              <h2 className="font-display text-3xl">Подключенные профили</h2>
+              <h2 className="font-display text-3xl">Аккаунты проекта</h2>
             </div>
           </div>
 
@@ -649,8 +682,8 @@ export default function ProjectSettingsPage() {
               <AccountSkeleton />
             ) : projectAccounts.length === 0 ? (
               <EmptyState
-                title="Профили еще не подключены"
-                description="Выберите свободный профиль в блоке «Добавить профиль в проект» ниже или рядом. Если профиля ещё нет, сначала войдите в Threads в разделе «Профили»."
+                title="Аккаунт ещё не выбран"
+                description="Выберите свободный аккаунт в блоке «Добавить аккаунт в проект». Если его ещё нет в ThreadsGo, сначала подключите его в разделе «Аккаунты»."
               />
             ) : (
               <div className="grid gap-3">
@@ -661,6 +694,7 @@ export default function ProjectSettingsPage() {
                     isSavingCookies={savingCookiesId === account.id}
                     isChecking={checkingAccountId === account.id}
                     isUnlinking={unlinkingAccountId === account.id}
+                    isBusy={savingCookiesId !== null || checkingAccountId !== null || unlinkingAccountId !== null}
                     onSaveCookies={(cookies) => void saveAccountCookies(account.id, cookies)}
                     onCheckSession={() => void checkSession(account.id)}
                     onUnlink={() => void unlinkFromProject(account.id)}
@@ -672,23 +706,24 @@ export default function ProjectSettingsPage() {
         </section>
 
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
-          <h2 className="font-display text-3xl">Добавить профиль в проект</h2>
+          <h2 className="font-display text-3xl">Добавить аккаунт в проект</h2>
           <div className="mt-3"><AccountRiskNotice /></div>
           <p className="mt-3 text-sm leading-6 text-[#66645d]">
-            В списке только свободные профили. Сначала добавьте профиль, затем выберите его здесь и нажмите «Добавить профиль».
+            {freeAccounts.length > 0 ? "Здесь аккаунты, которые ещё не используются в других проектах. Выберите нужный и добавьте его." : "Свободных аккаунтов пока нет. Подключите новый или отключите существующий от другого проекта."}
           </p>
           <Link to="/app/infrastructure" className="mt-4 inline-flex min-h-11 items-center rounded-full border border-[#151515] px-4 text-sm text-[#151515] transition hover:bg-[#151515] hover:text-white">
-            {freeAccounts.length === 0 ? "Подключить профиль Threads" : "Открыть все профили"}
+            {freeAccounts.length === 0 ? "Подключить аккаунт Threads" : "Все аккаунты"}
           </Link>
 
           <label className="mt-6 grid gap-2">
-            <span className="field-label">Свободный профиль</span>
+            <span className="field-label">Свободный аккаунт</span>
             <select
               value={selectedAccountId}
+              disabled={isLoading || isBinding || freeAccounts.length === 0}
               onChange={(event) => setSelectedAccountId(event.target.value)}
               className="field-control"
             >
-              <option value="">Выберите профиль</option>
+              <option value="">Выберите аккаунт</option>
               {freeAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {formatUsername(account.username)} / {statusLabels[account.status]}
@@ -700,24 +735,18 @@ export default function ProjectSettingsPage() {
           <button
             type="button"
             onClick={bindAccount}
-            disabled={!selectedAccountId || isBinding}
+            disabled={isLoading || !selectedAccountId || isBinding}
             className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#151515] bg-[#151515] px-5 py-3 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isBinding ? <Spinner /> : null}
-            {isBinding ? "Добавляем..." : "Добавить профиль"}
+            {isBinding ? "Добавляем..." : "Добавить аккаунт"}
           </button>
 
-          <div className="mt-6 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
-            <p className="field-label">Пул профилей</p>
-            <p className="mt-2 text-sm text-[#333]">
-              Свободно: {freeAccounts.length} / Всего: {accounts.length}
-            </p>
-          </div>
         </section>
       </div>
       {!isLoading && project ? (
         <Link to={`/app/projects/${projectId}`} className="inline-flex min-h-11 items-center rounded-full bg-[#151515] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">
-          Вернуться к следующему шагу
+          Открыть проект
         </Link>
       ) : null}
     </section>
@@ -729,6 +758,7 @@ function AccountCard({
   isSavingCookies,
   isChecking,
   isUnlinking,
+  isBusy,
   onSaveCookies,
   onCheckSession,
   onUnlink,
@@ -737,6 +767,7 @@ function AccountCard({
   isSavingCookies: boolean;
   isChecking: boolean;
   isUnlinking: boolean;
+  isBusy: boolean;
   onSaveCookies: (cookies: string) => void;
   onCheckSession: () => void;
   onUnlink: () => void;
@@ -744,7 +775,7 @@ function AccountCard({
   const [cookiesDraft, setCookiesDraft] = useState("");
   const proxyPaused = account.status === "proxy_error";
   const sessionNeedsUpdate = account.status === "cookies_expired" || account.status === "blocked" || account.status === "error";
-  const isPaused = proxyPaused || sessionNeedsUpdate;
+  const isPaused = account.status !== "active";
 
   return (
     <article
@@ -756,22 +787,26 @@ function AccountCard({
     >
       <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-center">
         <div>
-          <p className="field-label">Профиль Threads</p>
+          <p className="field-label">Аккаунт Threads</p>
           <p className="mt-1 text-sm text-[#24231f]">{formatUsername(account.username)}</p>
         </div>
         <div>
           <p className="field-label">Состояние</p>
-          <StatusBadge status={account.status} />
+          {account.username === "pending_from_session" && account.status === "active" ? (
+            <span className="mt-1 inline-flex rounded-full bg-[#fff4df] px-3 py-1 text-xs text-[#8a4b00]">Нужно проверить вход</span>
+          ) : <StatusBadge status={account.status} />}
         </div>
         <div className="flex flex-wrap gap-2">
-          <ActionButton onClick={onCheckSession} disabled={isChecking || isUnlinking}>
-            {isChecking ? "проверяем..." : sessionNeedsUpdate ? "Проверить и возобновить" : "Проверить доступ"}
+          <ActionButton onClick={onCheckSession} disabled={isBusy}>
+            {isChecking ? "Проверяем..." : isPaused ? "Проверить и возобновить" : "Проверить вход"}
           </ActionButton>
-          <ActionButton danger onClick={onUnlink} disabled={isChecking || isUnlinking}>
-            {isUnlinking ? "отключаем..." : "Отвязать от проекта"}
+          <ActionButton danger onClick={onUnlink} disabled={isBusy}>
+            {isUnlinking ? "Отключаем..." : "Отключить от проекта"}
           </ActionButton>
         </div>
       </div>
+
+      {isPaused ? <p className="mt-3 text-xs leading-5 text-[#66645d]">Успешная проверка входа снимет паузу и возобновит запланированные публикации.</p> : null}
 
       {account.last_error ? (
         <details className="mt-4 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-xs leading-5 text-[#7a625f]">
@@ -782,53 +817,49 @@ function AccountCard({
 
       {proxyPaused ? (
         <div className="mt-4 rounded-2xl border border-[#f1d19a] bg-[#fff8e8] px-4 py-3 text-sm leading-6 text-[#6f4300]">
-          Профиль временно на технической паузе из-за прокси или сетевого сбоя. Cookies менять не нужно:
-          система сама попробует вернуть профиль в работу, когда соединение стабилизируется.
+          Соединение временно недоступно. Данные входа менять не нужно:
+          ThreadsGo попробует восстановить подключение автоматически.
         </div>
       ) : null}
 
       {sessionNeedsUpdate ? (
         <div className="mt-4 space-y-4 border-t border-[#d88a35]/30 pt-4">
           <div className="rounded-2xl border border-[#d88a35]/40 bg-white/70 p-4 text-sm leading-6 text-[#4a2b08]">
-            <p className="font-semibold text-[#24231f]">Публикации по этому профилю поставлены на паузу.</p>
+            <p className="font-semibold text-[#24231f]">Публикации с этого аккаунта приостановлены.</p>
             <p className="mt-2">
-              Это защитный режим: Threads мог показать экран проверки, окно публикации могло не открыться
-              или данные входа могли устареть. Мы не повторяем попытки бесконечно, чтобы не ухудшать состояние аккаунта.
+              Threads мог попросить повторный вход или проверку безопасности. Иногда это ошибка открытия
+              страницы. Попытки остановлены, пока вы не проверите аккаунт.
             </p>
             <ol className="mt-3 list-decimal space-y-1 pl-5">
-              <li>Откройте Threads вручную в этом профиле и убедитесь, что аккаунт живой.</li>
-              <li>Если Meta просит проверку или вход, пройдите её руками.</li>
-              <li>Если проверка прошла, нажмите «Проверить и возобновить».</li>
-              <li>Если не помогло, экспортируйте свежие cookies и обновите данные входа ниже.</li>
+              <li>Откройте свой аккаунт в Threads и проверьте, что вход работает.</li>
+              <li>Если Meta просит код или проверку, пройдите её самостоятельно.</li>
+              <li>Здесь нажмите «Проверить и возобновить».</li>
+              <li>Если вход устарел, обновите данные через блок ниже и повторите проверку.</li>
             </ol>
           </div>
-          <textarea
+          <details className="rounded-2xl border border-[#d88a35]/40 bg-white/70 p-4">
+            <summary className="cursor-pointer text-sm text-[#4a2b08]">Обновить данные входа</summary>
+            <p className="mt-3 text-xs leading-5 text-[#66645d]">В браузере, где вы уже вошли в Threads, экспортируйте cookies в формате JSON через Cookie-Editor. После сохранения нажмите «Проверить и возобновить» выше.</p>
+            <textarea
             value={cookiesDraft}
             onChange={(event) => setCookiesDraft(event.target.value)}
+            disabled={isBusy}
             rows={5}
-            placeholder="Вставьте свежий JSON cookies из Cookie-Editor, если сессия действительно слетела"
+            placeholder="Вставьте свежие данные входа в формате JSON"
             className="mt-3 w-full resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-xs leading-5 text-[#24231f] outline-none transition focus:border-[#151515]"
           />
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => onSaveCookies(cookiesDraft)}
-              disabled={isSavingCookies}
+              disabled={isBusy || !cookiesDraft.trim()}
               className="flex items-center gap-2 rounded-2xl border border-[#4a2b08] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#4a2b08] transition hover:bg-[#4a2b08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSavingCookies ? <Spinner /> : null}
-              Обновить данные входа
-            </button>
-            <button
-              type="button"
-              onClick={onCheckSession}
-              disabled={isChecking}
-              className="flex items-center gap-2 rounded-2xl border border-[#151515] bg-[#151515] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isChecking ? <Spinner /> : null}
-              Проверить и возобновить
+              {isSavingCookies ? "Сохраняем..." : "Сохранить данные входа"}
             </button>
           </div>
+          </details>
         </div>
       ) : null}
     </article>
@@ -994,17 +1025,17 @@ function TagInput({
 }
 
 const statusLabels: Record<AccountStatus, string> = {
-  active: "Готов к работе",
-  disabled: "Приостановлен",
+  active: "Подключён",
+  disabled: "На паузе",
   error: "Нужна проверка",
   warming_up: "Подготавливается",
   cookies_expired: "Нужен повторный вход",
-  blocked: "Недоступен в Threads",
-  proxy_error: "Автопауза: проверяем прокси",
+  blocked: "Ограничение Threads",
+  proxy_error: "Ошибка подключения",
 };
 
 function formatUsername(username: string) {
-  return username === "pending_from_session" ? "Из сессии" : `@${username.replace(/^@/, "")}`;
+  return username === "pending_from_session" ? "Имя определится после проверки" : `@${username.replace(/^@/, "")}`;
 }
 
 function normalizeStopWords(words: string[]) {

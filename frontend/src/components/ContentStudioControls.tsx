@@ -52,7 +52,7 @@ export function WeekPlanBuilder({ projectId, onCreated }: { projectId: number; o
 export function TaskPlanningControls({ task, accounts, onUpdated, disabled = false, onBusyChange }: { task: PostingTask; accounts: ProjectAccountState[]; onUpdated: (task: PostingTask) => void; disabled?: boolean; onBusyChange?: (busy: boolean) => void }) {
   const [open, setOpen] = useState(false);
   const [time, setTime] = useState(task.scheduled_at ? localInput(task.scheduled_at) : "");
-  const available = accounts.filter(a => a.status === "active");
+  const available = accounts.filter(a => a.ready_for_ideas === true);
   const [accountId, setAccountId] = useState(task.account_id || available[0]?.id || 0);
   const [busy, setBusy] = useState(false);
   async function save() {
@@ -63,7 +63,7 @@ export function TaskPlanningControls({ task, accounts, onUpdated, disabled = fal
     setBusy(true); onBusyChange?.(true);
     try {
       const updated = await scheduleTask(task.id, when.toISOString(), accountId, task.posts_chain.length ? task.posts_chain : [task.content_text]);
-      onUpdated(updated); setOpen(false); toast.success("Пост согласован и добавлен в расписание");
+      onUpdated(updated); setOpen(false); toast.success("Пост добавлен в расписание");
       trackSeoEvent("draft_scheduled", { task_id: task.id, project_id: task.project_id });
     } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить время")); }
     finally { setBusy(false); onBusyChange?.(false); }
@@ -77,11 +77,11 @@ export function TaskPlanningControls({ task, accounts, onUpdated, disabled = fal
   }
   return <div className="mt-4 border-t border-[#e0e8e2] pt-4">
     <div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={busy || disabled} aria-expanded={open} onClick={() => { setAccountId(available.some(a => a.id === task.account_id) ? task.account_id! : available[0]?.id || 0); setTime(task.scheduled_at ? localInput(task.scheduled_at) : ""); setOpen(!open); }}>
-      {task.status === "draft" ? "Согласовать и запланировать" : "Изменить время"}</button>
+      {task.status === "draft" ? "Запланировать публикацию" : "Изменить время"}</button>
       {task.status === "queued" && <button type="button" className={button} disabled={busy || disabled} onClick={() => void pause()}>Вернуть в черновики</button>}</div>
     {open && <form className="mt-4 grid gap-3" onSubmit={e => { e.preventDefault(); void save(); }}>
-      {!available.length ? <p className="text-sm">Сначала <Link className="underline" to={`/app/projects/${task.project_id}/settings`}>подключите профиль Threads</Link>. Текст останется в черновиках.</p> : <>
-        <label className="grid gap-2 text-sm">Профиль<select className={field} value={accountId} onChange={e => setAccountId(Number(e.target.value))} disabled={busy || disabled} required>
+      {!available.length ? <p className="text-sm">Сначала <Link className="underline" to={`/app/projects/${task.project_id}/settings#profiles`}>подключите рабочий аккаунт Threads</Link>. Текст останется в черновиках.</p> : <>
+        <label className="grid gap-2 text-sm">Аккаунт<select className={field} value={accountId} onChange={e => setAccountId(Number(e.target.value))} disabled={busy || disabled} required>
           {available.map(a => <option key={a.id} value={a.id}>@{a.username}</option>)}</select></label>
         <label className="grid gap-2 text-sm">Дата и время<input type="datetime-local" className={field} value={time} min={localInput(new Date(Date.now() + 180000).toISOString())} max={localInput(new Date(Date.now() + 90 * 86400000).toISOString())} onChange={e => setTime(e.target.value)} required disabled={busy || disabled} /></label>
         <p className="text-xs text-[#67786e]">Часовой пояс вашего браузера: {Intl.DateTimeFormat().resolvedOptions().timeZone}. Проверьте факты: после подтверждения пост будет отправлен автоматически в активные часы проекта.</p>

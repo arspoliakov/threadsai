@@ -1,13 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
   applyGlobalStyle,
   getActiveGlobalPrompts,
+  getApiErrorMessage,
 } from "../../api/client";
 import { StyleAssistant } from "../../components/StyleAssistant";
-import { DismissibleTip } from "../../components/DismissibleTip";
 import { readStyleDraft, saveStyleDraft, clearStyleDraft } from "../../styleDraft";
 
 const DEFAULT_GLOBAL_PROMPT = `Ты — редактор ThreadsGo. Пиши как живой человек, а не как рекламный отдел.
@@ -33,6 +32,7 @@ Brand safety:
 export default function GlobalSettingsPage() {
   const [body, setBody] = useState(DEFAULT_GLOBAL_PROMPT);
   const [savedBody, setSavedBody] = useState(DEFAULT_GLOBAL_PROMPT);
+  const [hasSavedStyle, setHasSavedStyle] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,11 +49,12 @@ export default function GlobalSettingsPage() {
         const loadedBody = activePrompt?.body || DEFAULT_GLOBAL_PROMPT;
         setBody(loadedBody);
         setSavedBody(loadedBody);
+        setHasSavedStyle(activePrompt !== null);
         const draft = readStyleDraft();
         if (draft && draft !== loadedBody) setRecoverableDraft(draft);
         else clearStyleDraft();
       } catch {
-        const message = "Не удалось загрузить текущий стиль. Мы не будем перезаписывать его, пока данные не появятся.";
+        const message = "Не удалось загрузить стиль. Попробуйте ещё раз — ваши сохранённые настройки не изменились.";
         setLoadError(message);
         toast.error(message);
       } finally {
@@ -65,6 +66,7 @@ export default function GlobalSettingsPage() {
   }, []);
 
   const isDirty = body !== savedBody;
+  const needsSave = isDirty || !hasSavedStyle;
   useEffect(() => {
     if (isLoading || loadError) return;
     if (isDirty) saveStyleDraft(body);
@@ -73,7 +75,7 @@ export default function GlobalSettingsPage() {
 
   useEffect(() => {
     function warnAboutUnsavedChanges(event: BeforeUnloadEvent) {
-      if (!isDirty) {
+      if (body === savedBody) {
         return;
       }
       event.preventDefault();
@@ -82,7 +84,7 @@ export default function GlobalSettingsPage() {
 
     window.addEventListener("beforeunload", warnAboutUnsavedChanges);
     return () => window.removeEventListener("beforeunload", warnAboutUnsavedChanges);
-  }, [isDirty]);
+  }, [body, savedBody]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,11 +94,12 @@ export default function GlobalSettingsPage() {
       const savedPrompt = await applyGlobalStyle(body);
       setBody(savedPrompt.body);
       setSavedBody(savedPrompt.body);
+      setHasSavedStyle(true);
       clearStyleDraft();
       setRecoverableDraft(null);
-      toast.success("Настройки стиля сохранены");
-    } catch {
-      toast.error("Не удалось сохранить настройки стиля");
+      toast.success("Стиль сохранён");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Не удалось сохранить стиль. Ваш текст остался в редакторе."));
     } finally {
       setIsSaving(false);
     }
@@ -104,7 +107,8 @@ export default function GlobalSettingsPage() {
 
   function resetToDefault() {
     setBody(DEFAULT_GLOBAL_PROMPT);
-    toast.info("Стандартный стиль загружен. Нажмите «Сохранить», чтобы применить его.");
+    setRecoverableDraft(null);
+    toast.info("Стандартный стиль добавлен в редактор. Нажмите «Сохранить стиль», чтобы применить его.");
   }
 
   return (
@@ -128,30 +132,14 @@ export default function GlobalSettingsPage() {
             <img src="/threadsgo-logo.png" alt="" className="h-8 w-8 object-contain" />
           </div>
           <h1 className="mt-5 font-display text-4xl leading-[0.95] tracking-[-0.04em] sm:text-5xl">
-            Ваш фирменный голос
+            Стиль постов
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-white/62">
-            Это настройка, которая задает характер ваших постов. Она работает для всех проектов сразу и определяет,
-            как будет звучать текст: дружелюбно или строго, экспертно или по-простому, бодро или спокойно.
+            Объясните ИИ, как писать от вашего имени: коротко или подробно, с юмором или серьёзно.
+            Эти правила действуют во всех ваших проектах. Темы и аудитория задаются в каждом проекте отдельно.
           </p>
         </div>
       </header>
-
-      <DismissibleTip
-        storageKey="threadsgo.global-style-tip"
-        title="Здесь мы задаем настроение, а не содержание"
-        action={
-          <Link
-            to="/app/how-it-works"
-            className="inline-flex h-10 items-center justify-center rounded-full border border-[#141815] px-4 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white"
-          >
-            Посмотреть примеры постов
-          </Link>
-        }
-      >
-        Пишите о том, как говорить: дружелюбно, с юмором, строго, коротко или экспертно. Детали для конкретных
-        проектов лучше прописать внутри самих проектов.
-      </DismissibleTip>
 
       {loadError ? (
         <div className="rounded-[24px] border border-[#e8c7c2] bg-[#fff7f5] p-6 shadow-sm">
@@ -166,7 +154,7 @@ export default function GlobalSettingsPage() {
       {!loadError ? <StyleAssistant disabled={isLoading || isSaving} onApply={generated => {
         setBody(generated);
         setRecoverableDraft(null);
-        toast.info("Стиль добавлен в редактор. Сохраните его, чтобы применить ко всем проектам.");
+        toast.info("Стиль добавлен в редактор. Нажмите «Сохранить стиль», чтобы применить его.");
       }} /> : null}
       {recoverableDraft !== null && !isDirty ? <div role="status" className="rounded-2xl border border-[#c8dfbd] bg-[#f3faef] p-5 text-[#18251c]">
         <p className="font-medium">Остался несохранённый вариант стиля</p>
@@ -178,11 +166,11 @@ export default function GlobalSettingsPage() {
         <header className="flex flex-col gap-4 border-b border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
             <h2 className="font-display text-3xl leading-none tracking-[-0.04em] text-[#111]">
-              Правила для нейросети
+              Как ИИ будет писать
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[#667066]">
-              Говорите с нейросетью, как с помощником. Объясните, чего не делать и какой стиль общения выбрать:
-              дружелюбный, экспертный, лаконичный или любой другой.
+              Например: «Пиши просто, от моего лица, без пафоса и эмодзи.
+              Одна мысль на пост, с конкретным примером».
             </p>
           </div>
           <button
@@ -191,13 +179,13 @@ export default function GlobalSettingsPage() {
             disabled={isLoading || isSaving}
             className="inline-flex h-11 items-center justify-center rounded-full border border-[#cfd5cc] px-5 text-sm text-[#323832] transition hover:border-[#141815] hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Сбросить к стандартному
+            Взять стандартный стиль
           </button>
         </header>
 
-        <div className="grid gap-6 p-5 lg:grid-cols-[1fr_18rem] sm:p-6">
+        <div className="p-5 sm:p-6">
           <textarea
-            aria-label="Глобальный стиль постов"
+            aria-label="Общий стиль постов"
             maxLength={30000}
             value={body}
             onChange={(event) => { setBody(event.target.value); setRecoverableDraft(null); }}
@@ -205,49 +193,25 @@ export default function GlobalSettingsPage() {
             rows={18}
             className="min-h-[26rem] w-full resize-y rounded-[20px] border border-[#dfe4dc] bg-[#fbfcf7] p-4 text-sm leading-6 text-[#1d231d] outline-none transition focus:border-[#141815] disabled:opacity-50"
           />
-
-          <aside className="space-y-4">
-            <InfoCard
-              title="Для чего это"
-              text="Это ваша общая настройка характера. Она работает для всех проектов сразу, но не заменяет детальные настройки каждого отдельного проекта."
-            />
-            <InfoCard
-              title="Что писать"
-              text="Тон, запреты, слова-паразиты, формат подачи, уровень экспертности и правила, которые важно соблюдать в каждом посте."
-            />
-            <InfoCard
-              title="Что не писать"
-              text="Не вводите здесь специфические запреты для одного аккаунта. Такие настройки лучше делать внутри самого проекта."
-            />
-          </aside>
         </div>
 
         <footer className="flex flex-col gap-3 border-t border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <p className="text-sm leading-6 text-[#667066]">
-            {isDirty
-              ? "Есть несохранённые изменения. Они не повлияют на новые посты, пока вы не сохраните их."
-              : "Все изменения сохранены и применяются к новым публикациям."}
+            {isLoading ? "Загружаем ваш стиль…" : needsSave
+              ? "Сохраните стиль, чтобы ИИ использовал его в следующих текстах. Готовые черновики не изменятся."
+              : "Стиль сохранён. ИИ использует его при создании новых текстов."}
           </p>
           <button
             type="submit"
-            disabled={isLoading || isSaving || !isDirty || !body.trim()}
+            disabled={isLoading || isSaving || !needsSave || !body.trim()}
             className="inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? <Spinner /> : null}
-            {isSaving ? "Сохраняем" : isDirty ? "Сохранить стиль" : "Стиль сохранён"}
+            {isLoading ? "Загружаем…" : isSaving ? "Сохраняем…" : needsSave ? "Сохранить стиль" : "Стиль сохранён"}
           </button>
         </footer>
       </form>
     </section>
-  );
-}
-
-function InfoCard({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-[20px] border border-[#dfe4dc] bg-[#fbfcf7] p-4">
-      <p className="text-base text-[#141815]">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-[#667066]">{text}</p>
-    </div>
   );
 }
 

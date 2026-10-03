@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Outlet, useParams } from "react-router-dom";
+import { Link, Outlet, useParams, useLocation } from "react-router-dom";
 
 import { getProjectDashboard, type ProjectDashboard } from "../api/client";
 import { AppShell } from "../components/AppShell";
@@ -7,6 +7,7 @@ import { type FloatingDockItem } from "../components/FloatingDock";
 
 export default function ProjectLayout() {
   const { id } = useParams();
+  const { pathname } = useLocation();
   const projectBasePath = `/app/projects/${id}`;
   const [dashboard, setDashboard] = useState<ProjectDashboard | null>(null);
 
@@ -16,10 +17,17 @@ export default function ProjectLayout() {
       return;
     }
 
-    void getProjectDashboard(projectId)
-      .then(setDashboard)
-      .catch(() => setDashboard(null));
-  }, [id]);
+    let active = true;
+    function refresh() {
+      void getProjectDashboard(projectId)
+        .then(result => { if (active) setDashboard(result); })
+        .catch(() => { if (active) setDashboard(null); });
+    }
+    refresh();
+    window.addEventListener("threadsgo:project-updated", refresh);
+    window.addEventListener("focus", refresh);
+    return () => { active = false; window.removeEventListener("threadsgo:project-updated", refresh); window.removeEventListener("focus", refresh); };
+  }, [id, pathname]);
 
   const projectTitle = dashboard?.project.name || "Загружаем проект";
   const hasSessionProblem =
@@ -89,19 +97,19 @@ function SessionWarningBanner({
           <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-[#ffb020]" />
           <div>
             <p className="text-base font-medium text-[#3b2a08]">
-              Профилю нужен повторный вход
+              Аккаунту нужна проверка
             </p>
             <p className="mt-1 text-sm leading-6 text-[#7a5b22]">
-              Тексты и расписание сохранены. Публикации продолжатся после
-              проверки доступа.
+              Тексты сохранены. Откройте настройки и посмотрите причину паузы:
+              может потребоваться повторный вход или проверка Threads.
             </p>
           </div>
         </div>
         <Link
-          to={`${projectBasePath}/settings`}
+          to={`${projectBasePath}/settings#profiles`}
           className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
         >
-          Обновить доступ
+          Проверить аккаунты
         </Link>
       </div>
     </div>
@@ -116,11 +124,11 @@ function ProxyWarningBanner({ projectBasePath }: { projectBasePath: string }) {
           <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-[#ffb020]" />
           <div>
             <p className="text-base font-medium text-[#3b2a08]">
-              Прокси временно не отвечает
+              Соединение временно недоступно
             </p>
             <p className="mt-1 text-sm leading-6 text-[#7a5b22]">
-              Данные входа в порядке. Система сама проверяет соединение и вернёт
-              профиль в работу, когда оно стабилизируется.
+              Публикации приостановлены из-за соединения. Сервис попробует восстановить его.
+              Данные входа менять только из-за этой ошибки не нужно.
             </p>
           </div>
         </div>

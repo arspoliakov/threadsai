@@ -19,7 +19,6 @@ const navigation: FloatingDockItem[] = [
     to: "/app/settings",
     icon: "style",
   },
-  { label: "Пробные тексты", to: "/app/studio", icon: "spark" },
 ];
 
 export default function GlobalLayout() {

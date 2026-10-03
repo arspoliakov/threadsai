@@ -11,7 +11,7 @@ import { OnboardingTour } from "./OnboardingTour";
 
 export function AppShell({
   navigation,
-  title = "Рабочее пространство",
+  title = "Ваш кабинет",
   children,
 }: {
   navigation: FloatingDockItem[];
@@ -51,7 +51,7 @@ export function AppShell({
           ThreadsGo
         </Link>
         <p className="mb-3 mt-10 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#67786e]">
-          Рабочее пространство
+          Кабинет
         </p>
         <nav aria-label="Навигация кабинета" className="workspace-navigation space-y-1">
           {navigation.map((item) => (

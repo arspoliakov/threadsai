@@ -79,8 +79,8 @@ export default function BillingPage() {
       setBilling(refreshed);
       if (paymentConfirmed(refreshed)) {
         try { sessionStorage.removeItem(PENDING_TRIBUTE); } catch { /* Optional return marker. */ }
-        setActivationMessage("Доступ включён. Можно переходить к первому проекту.");
-        toast.success("Тариф подтверждён, доступ открыт");
+        setActivationMessage("Доступ открыт. Можно продолжать работу в проектах.");
+        toast.success("Доступ открыт");
       } else {
         const message = "Подтверждение выбранного тарифа пока не получено. Если оплата завершена, подождите немного — повторно платить не нужно. При задержке напишите в поддержку.";
         setActivationMessage(message);
@@ -128,8 +128,8 @@ export default function BillingPage() {
         setBilling(status);
         if (paymentConfirmed(status)) {
           try { sessionStorage.removeItem(PENDING_TRIBUTE); } catch { /* Optional marker. */ }
-          setActivationMessage("Доступ включён. Можно переходить к первому проекту.");
-          toast.success("Тариф подтверждён, доступ открыт");
+          setActivationMessage("Доступ открыт. Можно продолжать работу в проектах.");
+          toast.success("Доступ открыт");
         } else if (pollChecks.current === 12) {
           setActivationMessage("Подтверждение задерживается. Повторно платить не нужно: нажмите «Проверить доступ» или напишите в поддержку @cuartenlol.");
         }
@@ -165,19 +165,22 @@ export default function BillingPage() {
     <div className="space-y-6">
       <section className="workspace-intro rounded-[22px] border border-[#dfe4dc] bg-white/88 p-5 shadow-sm sm:p-7">
         <div className="max-w-3xl">
-          <h1 className="font-display text-4xl leading-tight text-[#111] sm:text-5xl">Выберите свой формат работы</h1>
+          <h1 className="font-display text-4xl leading-tight text-[#111] sm:text-5xl">{billing?.subscription_status ? "Ваша подписка" : "Выберите тариф"}</h1>
           <p className="mt-4 text-base leading-7 text-[#5f675f]">
-            Подключение через Tribute занимает три шага. После возвращения на сайт мы автоматически проверим доступ.
+            {billing?.subscription_status
+              ? billing.subscription_phase === "gift"
+                ? "Подарочный доступ открыт. Если у вас также есть подписка в Tribute, подарочные дни не меняют дату её списания."
+                : "Доступ уже открыт. Дату списания и автопродление можно проверить в Tribute."
+              : "Оформите подписку в Tribute и вернитесь сюда. Доступ проверится автоматически."}
           </p>
         </div>
 
-        {!billing?.subscription_status && <Link to="/app/studio" className="mt-4 block rounded-2xl border border-[#d8e2da] p-4 text-sm"><strong>Сначала попробуйте три бесплатных черновика →</strong><span className="mt-1 block">Карта и подключение Threads не нужны.</span></Link>}
         {billing?.subscription_status ? (
           <Link to="/app" className="mt-5 inline-flex rounded-full bg-[#111] px-6 py-3 text-sm font-semibold text-white">Перейти к проектам →</Link>
         ) : (
           <ol className="mt-5 grid gap-3 rounded-2xl bg-[#f7faf4] p-5 text-sm leading-6 text-[#4f5a50] md:grid-cols-3">
-            <li><strong className="block text-[#111]">1. Выберите тариф</strong>Откроется Tribute. Завершите привязку карты и активацию.</li>
-            <li><strong className="block text-[#111]">2. Завершите оформление</strong>Оформляйте подписку с того же Telegram-аккаунта, через который вошли в ThreadsGo.</li>
+            <li><strong className="block text-[#111]">1. Выберите тариф</strong>Откроется Tribute с условиями подписки.</li>
+            <li><strong className="block text-[#111]">2. Оформите подписку</strong>Используйте тот же Telegram-аккаунт, через который вошли в ThreadsGo.</li>
             <li><strong className="block text-[#111]">3. Вернитесь сюда</strong>Мы проверим доступ автоматически. Если он не появился, нажмите «Проверить доступ».</li>
           </ol>
         )}
@@ -231,12 +234,21 @@ export default function BillingPage() {
                   <dd>{plan.posts}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt>Очередь вперед</dt>
+                  <dt>Планирование вперёд</dt>
                   <dd>{plan.queue_days} дн.</dd>
                 </div>
               </dl>
 
-              {plan.tribute_url ? (
+              {billing?.subscription_status && !isCurrentPlan ? (
+                <a
+                  href="https://t.me/cuartenlol"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-6 flex h-12 items-center justify-center rounded-full border border-[#cfd6cc] bg-white px-5 text-sm font-semibold text-[#111] transition hover:border-[#111]"
+                >
+                  Сменить на {copy.title}
+                </a>
+              ) : plan.tribute_url ? (
                 <a
                   href={plan.tribute_url}
                   target="_blank"
@@ -252,7 +264,7 @@ export default function BillingPage() {
                   }}
                   className="mt-6 flex h-12 items-center justify-center rounded-full bg-[#111] px-5 text-sm font-semibold text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
                 >
-                  {isCurrentPlan ? "Управлять подпиской" : `Выбрать ${copy.title}`}
+                  {isCurrentPlan ? billing?.subscription_phase === "gift" ? "Открыть Tribute" : "Управлять подпиской" : `Выбрать ${copy.title}`}
                 </a>
               ) : (
                 <button
@@ -267,6 +279,10 @@ export default function BillingPage() {
           );
         })}
       </section>
+
+      {billing?.subscription_status ? (
+        <p className="text-sm leading-6 text-[#5f675f]">Хотите другой тариф? Кнопка смены откроет поддержку: поможем с переходом без второй подписки.</p>
+      ) : null}
 
       <section className="rounded-[22px] border border-[#dfe4dc] bg-white/88 p-5 shadow-sm sm:p-7">
         <h2 className="font-display text-3xl text-[#111]">Частые вопросы</h2>
@@ -287,13 +303,13 @@ export default function BillingPage() {
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
             <h3 className="text-base font-semibold text-[#111]">Когда включится доступ после оплаты?</h3>
             <p className="mt-2 text-sm leading-6 text-[#5f675f]">
-              Завершите оформление в Tribute и вернитесь в ThreadsGo: мы проверим доступ автоматически. При необходимости нажмите «Проверить доступ». Если подтверждение задерживается, переход в канал тарифа из Tribute позволяет проверить доступ резервным способом.
+              После оформления вернитесь в ThreadsGo. Доступ включается по подтверждению Tribute; отдельно вступать в канал для этого не нужно. Если статус не обновился, нажмите «Проверить доступ». Повторно платить не нужно.
             </p>
           </div>
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
             <h3 className="text-base font-semibold text-[#111]">Куда писать, если доступ не появился?</h3>
             <p className="mt-2 text-sm leading-6 text-[#5f675f]">
-              Напишите в <a href="https://t.me/cuartenlol" target="_blank" rel="noreferrer" className="underline underline-offset-4">поддержку Telegram</a>. Проекты и тексты при этом остаются в безопасности.
+              Напишите в <a href="https://t.me/cuartenlol" target="_blank" rel="noreferrer" className="underline underline-offset-4">поддержку в Telegram</a>. Укажите тариф и Telegram-аккаунт, с которого оформили подписку.
             </p>
           </div>
         </div>
@@ -315,5 +331,6 @@ function formatSubscriptionLabel(billing: BillingStatus) {
     ? ` до ${new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(new Date(billing.subscription_expires_at))}`
     : "";
 
-  return `тариф ${billing.tariff_plan}, ${phaseLabel}${expiresLabel}`;
+  const planTitle = planCopy[billing.tariff_plan as keyof typeof planCopy]?.title || billing.tariff_plan;
+  return `тариф ${planTitle}, ${phaseLabel}${expiresLabel}`;
 }

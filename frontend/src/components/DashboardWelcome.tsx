@@ -25,7 +25,7 @@ export function DashboardIllustration() {
   );
 }
 
-export function DashboardWelcome({ onCreate }: { onCreate: () => void }) {
+export function DashboardWelcome({ onCreate, canCreate = true }: { onCreate: () => void; canCreate?: boolean }) {
   return (
     <div className="dashboard-welcome tg-reveal overflow-hidden rounded-[24px] border border-[#dbe6dd] bg-white shadow-sm lg:col-span-2 2xl:col-span-3">
       <div className="grid items-center gap-8 p-6 sm:p-10 lg:grid-cols-[1fr_20rem]">
@@ -35,19 +35,19 @@ export function DashboardWelcome({ onCreate }: { onCreate: () => void }) {
               <path d="M4 7.8A2.8 2.8 0 0 1 6.8 5h3l2 2h5.4A2.8 2.8 0 0 1 20 9.8v6.4a2.8 2.8 0 0 1-2.8 2.8H6.8A2.8 2.8 0 0 1 4 16.2V7.8Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
             </svg>
           </div>
-          <h2 className="mt-5 font-display text-3xl text-[#111]">Давайте создадим ваш первый проект</h2>
+          <h2 className="mt-5 font-display text-3xl text-[#111]">{canCreate ? "Давайте создадим ваш первый проект" : "Готовы к регулярным публикациям?"}</h2>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#667066] lg:mx-0">
-            Начните с названия и темы. Настроить голос поможет нейросеть, а подключить профиль можно следующим шагом.
+            {canCreate ? "Начните с названия и темы. Затем подключите аккаунт Threads и выберите режим публикации." : "Подписка открывает проекты, подключение Threads и публикацию постов. Посмотрите тарифы и условия пробного периода."}
           </p>
           <button type="button" onClick={onCreate} className="tg-action mt-6 inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-            Создать проект
+            {canCreate ? "Создать проект" : "Выбрать подписку"}
           </button>
         </div>
         <div className="min-w-0">
           <DashboardIllustration />
           <ol className="space-y-3 rounded-2xl bg-[#f1f6f2] p-5 text-left">
-            {["Название и тема проекта", "Ваш стиль — вручную или с ИИ", "Профиль Threads и расписание"].map((step, i) => (
+            {["Тема проекта", "Аккаунт Threads", "Режим и расписание"].map((step, i) => (
               <li key={step} className="flex items-center gap-3 text-sm text-[#49705a]">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-xs font-semibold" aria-hidden="true">{i + 1}</span>
                 {step}

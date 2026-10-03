@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import CookieNotice from "./components/CookieNotice";
 import SeoAnalytics from "./components/SeoAnalytics";
 import ProtectedRoute from "./ProtectedRoute";
+import AdminLayout from "./components/AdminLayout";
 import LandingPage from "./pages/LandingPage";
 import TermsPage from "./pages/TermsPage";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -26,6 +27,8 @@ const StudioPage = lazy(() => import("./pages/StudioPage"));
 const ProxyAdminPage = lazy(() => import("./pages/global/ProxyAdminPage"));
 const RetentionAdminPage = lazy(() => import("./pages/global/RetentionAdminPage"));
 const NotificationSettingsPage = lazy(() => import("./pages/global/NotificationSettingsPage"));
+const AdminDashboardPage = lazy(() => import("./pages/global/AdminDashboardPage"));
+const AdminUsersPage = lazy(() => import("./pages/global/AdminUsersPage"));
 const BillingPage = lazy(() => import("./pages/BillingPage"));
 const InfrastructurePage = lazy(() => import("./pages/global/InfrastructurePage"));
 const GlobalSettingsPage = lazy(() => import("./pages/global/GlobalSettingsPage"));
@@ -76,8 +79,12 @@ export default function App() {
             <Route path="how-it-works" element={<HowItWorksPage />} />
             <Route path="infrastructure" element={<InfrastructurePage />} />
             <Route path="settings" element={<GlobalSettingsPage />} />
-            <Route path="admin/proxies" element={<ProxyAdminPage />} />
-            <Route path="admin/retention" element={<RetentionAdminPage />} />
+            <Route path="admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboardPage />} />
+              <Route path="users" element={<AdminUsersPage />} />
+              <Route path="proxies" element={<ProxyAdminPage />} />
+              <Route path="retention" element={<RetentionAdminPage />} />
+            </Route>
             <Route path="notifications" element={<NotificationSettingsPage />} />
           </Route>
 

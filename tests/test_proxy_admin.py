@@ -16,7 +16,7 @@ from app.api.routes.proxy_admin import router
 from app.core.config import settings
 from app.core.secrets import _get_fernet
 from app.db.base import Base
-from app.db.models import Account, Platform, PostingTask, PostingTaskStatus, Project, ProxyProviderConfig, ProxyUsageEvent
+from app.db.models import Account, Platform, PostingTask, PostingTaskStatus, Project, ProxyProviderConfig, ProxyUsageEvent, User
 
 
 class ProxyAdminTest(unittest.IsolatedAsyncioTestCase):
@@ -25,10 +25,16 @@ class ProxyAdminTest(unittest.IsolatedAsyncioTestCase):
         self.sessions = async_sessionmaker(self.engine, expire_on_commit=False)
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        self.original = (settings.web_admin_token, settings.jwt_secret_key, settings.data_encryption_key, settings.chrome_profiles_dir)
+        self.original = (settings.web_admin_token, settings.jwt_secret_key, settings.data_encryption_key, settings.chrome_profiles_dir, settings.admin_tg_id)
         self.temp = tempfile.TemporaryDirectory()
         settings.web_admin_token = "synthetic-operator"
         settings.jwt_secret_key = "synthetic-test-signing-key-at-least-thirty-two"
+        settings.admin_tg_id = 777
+        async with self.sessions() as db:
+            db.add(User(id=1, telegram_id=777, first_name="Operator"))
+            await db.commit()
+        self.operator_sessions = patch("app.api.deps.AsyncSessionLocal", self.sessions)
+        self.operator_sessions.start()
         settings.data_encryption_key = Fernet.generate_key().decode()
         settings.chrome_profiles_dir = self.temp.name
         _get_fernet.cache_clear()
@@ -39,12 +45,13 @@ class ProxyAdminTest(unittest.IsolatedAsyncioTestCase):
                 yield db
         app.dependency_overrides[get_db] = override_db
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://fixture")
-        self.headers = {"Authorization": "Bearer synthetic-operator"}
+        self.headers = {"Authorization": "Bearer " + create_access_token({"sub": "1", "telegram_id": 777})}
 
     async def asyncTearDown(self):
         await self.client.aclose()
         await self.engine.dispose()
-        settings.web_admin_token, settings.jwt_secret_key, settings.data_encryption_key, settings.chrome_profiles_dir = self.original
+        self.operator_sessions.stop()
+        settings.web_admin_token, settings.jwt_secret_key, settings.data_encryption_key, settings.chrome_profiles_dir, settings.admin_tg_id = self.original
         _get_fernet.cache_clear()
         self.temp.cleanup()
 

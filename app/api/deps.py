@@ -21,8 +21,6 @@ async def require_operator(
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=401, detail="Missing bearer token")
     token = credentials.credentials
-    if settings.web_admin_token and hmac.compare_digest(token.encode(), settings.web_admin_token.encode()):
-        return "operator-token"
     from app.api.auth import verify_access_token
     try:
         payload = verify_access_token(token)

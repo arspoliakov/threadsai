@@ -17,6 +17,7 @@ from app.api.middleware.error_reporting import ErrorReportingMiddleware
 from app.api.routes import accounts, billing, dashboard, health, projects, prompts, tasks, trends
 from app.api.routes import threads_login, studio, project_context, proxy_admin
 from app.api.routes import retention
+from app.api.routes import admin
 from app.services.threads_login_window import login_window
 from app.posting.proxy_manager import ProxyManager
 from app.posting.scheduler import scheduler, setup_posting_scheduler
@@ -93,3 +94,4 @@ app.include_router(project_context.router, prefix=API_V1_PREFIX)
 app.include_router(proxy_admin.router, prefix=API_V1_PREFIX)
 app.include_router(retention.router, prefix=API_V1_PREFIX)
 app.include_router(retention.admin_router, prefix=API_V1_PREFIX)
+app.include_router(admin.router, prefix=API_V1_PREFIX)

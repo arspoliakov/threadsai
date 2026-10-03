@@ -4,6 +4,7 @@ import { Link, NavLink } from "react-router-dom";
 import { AppIcon } from "./AppIcons";
 import { FloatingDock, type FloatingDockItem } from "./FloatingDock";
 import { ProfileMenu } from "./ProfileMenu";
+import { AdminEntry } from "./AdminLayout";
 import { ThemeToggle } from "./ThemeToggle";
 import { OnboardingTour } from "./OnboardingTour";
 
@@ -99,7 +100,7 @@ export function AppShell({
                 <p className="truncate text-sm font-semibold">{title}</p>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2"><ThemeToggle /><ProfileMenu /></div>
+            <div className="flex shrink-0 items-center gap-2"><AdminEntry /><ThemeToggle /><ProfileMenu /></div>
           </div>
         </header>
         <main

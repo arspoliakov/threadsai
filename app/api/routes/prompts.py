@@ -2,6 +2,8 @@ from datetime import datetime
 import asyncio
 import logging
 
+from app.ai_engine.safety import ContentSafetyError
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
@@ -45,6 +47,8 @@ async def assist_global_style(request: Request, response: Response, payload: Sty
         return StylePreviewRead(body=body)
     except TimeoutError:
         raise HTTPException(504, "Нейросеть не успела ответить. Ответы сохранены в форме — попробуйте ещё раз.") from None
+    except ContentSafetyError as exc:
+        raise HTTPException(503 if exc.unavailable else 422, str(exc)) from None
     except Exception as exc:
         logger.warning("Style assistant failed: %s", type(exc).__name__)
         raise HTTPException(502, "Не удалось подготовить стиль. Попробуйте ещё раз или заполните его вручную.") from None

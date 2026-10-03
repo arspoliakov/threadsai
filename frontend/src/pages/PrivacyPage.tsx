@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { OperatorDetails } from "../components/OperatorDetails";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { PublicLegalLinks } from "../components/PublicLegalLinks";
 
 export default function PrivacyPage() {
   return (
@@ -61,8 +62,12 @@ export default function PrivacyPage() {
             ваши действия, включая ввод данных входа, передаются через сервер
             ThreadsGo в браузер сайта Threads. Эти изображения и ввод не сохраняются
             в журнале сервиса. Временный браузер закрывается после подключения,
-            отмены или истечения 15 минут. Сессия подключённого профиля сохраняется
-            зашифрованной для дальнейшей работы; удалить её можно вместе с профилем.
+            отмены или истечения 15 минут. Экспорт данных входа (cookies) хранится
+            в зашифрованном виде. Для дальнейшей работы сохраняется отдельный
+            браузерный профиль на сервере; доступ к его файлам ограничен правами
+            доступа, но весь профиль целиком не зашифрован. Кэш и временные файлы
+            очищаются после закрытия браузера, данные входа и настройки сохраняются.
+            Удалить данные подключения можно вместе с профилем.
           </p>
           <p>
             Данные используются для авторизации, генерации контента, ведения
@@ -133,6 +138,7 @@ export default function PrivacyPage() {
             трансграничной передаче данных.
           </p>
         </div>
+        <footer className="mt-8 border-t border-[#d9ddd4] py-8"><PublicLegalLinks /></footer>
       </article>
     </main>
   );

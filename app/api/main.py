@@ -3,6 +3,8 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from app.ai_engine.safety import ContentSafetyError
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -53,6 +55,12 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+@app.exception_handler(ContentSafetyError)
+async def content_safety_error_handler(request, exc: ContentSafetyError):
+    return JSONResponse(status_code=503 if exc.unavailable else 422,
+                        content={"detail": str(exc)}, headers={"Cache-Control": "no-store"})
+
 
 app.add_middleware(ErrorReportingMiddleware)
 app.add_middleware(

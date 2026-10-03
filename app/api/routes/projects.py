@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_db, require_active_subscription
 from app.ai_engine.generators import generate_post
+from app.ai_engine.safety import ContentSafetyError
 from app.db.models import (
     Account,
     AccountStatus,
@@ -534,6 +535,8 @@ async def trigger_project_generation(
                  result_json={"error_type": type(exc).__name__}, finished_at=datetime.now(UTC)))
         await db.commit()
         logger.warning("Manual draft generation failed for project %s (%s)", project_id, type(exc).__name__)
+        if isinstance(exc, ContentSafetyError):
+            raise HTTPException(503 if exc.unavailable else 422, str(exc)) from None
         raise HTTPException(502, "Не удалось подготовить черновик. Попробуйте ещё раз позже") from exc
 
     return TriggerGenerationRead(

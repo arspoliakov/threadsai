@@ -10,6 +10,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai_engine.client import DEEPINFRA_MODEL, get_deepinfra_client
+from app.ai_engine.safety import safe_completion
 from app.db.models import GlobalPrompt, PromptType
 
 
@@ -50,7 +51,7 @@ _generation_slots = asyncio.Semaphore(2)
 async def generate_style_preview(answers: StyleAnswers) -> str:
     async with _generation_slots:
         async with get_deepinfra_client().with_options(timeout=35, max_retries=0) as client:
-            result = await client.chat.completions.create(
+            result = await safe_completion(client,
                 model=DEEPINFRA_MODEL,
                 messages=[
                     {"role": "system", "content": STYLE_EDITOR_SYSTEM},

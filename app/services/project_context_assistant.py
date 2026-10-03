@@ -5,6 +5,7 @@ import json
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai_engine.client import DEEPINFRA_MODEL, get_deepinfra_client
+from app.ai_engine.safety import safe_completion
 
 
 class ContextAnswers(BaseModel):
@@ -38,7 +39,7 @@ product_context — что именно автор предлагает и за�
 async def generate_context_preview(answers: ContextAnswers) -> ContextPreview:
     async with _slots:
         async with get_deepinfra_client().with_options(timeout=35, max_retries=0) as client:
-            response = await client.chat.completions.create(
+            response = await safe_completion(client,
                 model=DEEPINFRA_MODEL,
                 messages=[{"role": "system", "content": CONTEXT_SYSTEM},
                           {"role": "user", "content": json.dumps(answers.model_dump(), ensure_ascii=False)}],

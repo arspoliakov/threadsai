@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { planCopy } from "../billingPlans";
+import { PublicLegalLinks } from "../components/PublicLegalLinks";
 
 export default function PricingPage() {
   return (
@@ -25,6 +26,12 @@ export default function PricingPage() {
           <p className="mt-6 text-lg leading-8 text-[#60716a]">
             Начните с Basic: 3 дня пробного периода, затем 1 490 ₽ в месяц.
             Создайте проект, настройте свой стиль и подключите профиль Threads.
+          </p>
+          <p className="mt-4 text-sm leading-7 text-[#60716a]">
+            Подписка оплачивает доступ к генерации и редактированию текстов,
+            проектам, очереди публикаций и подключению собственных аккаунтов
+            Threads в пределах выбранного тарифа. Стоимость указана в рублях
+            за месяц, квартал или год; лимиты доступны в кабинете перед оплатой.
           </p>
         </header>
         <section
@@ -106,13 +113,10 @@ export default function PricingPage() {
           </div>
         </section>
         <footer className="flex flex-wrap gap-6 border-t border-[#dbe6dd] py-8 text-sm text-[#60716a]">
+          <PublicLegalLinks />
           <Link to="/updates/">Что нового</Link>
           <Link to="/resources/">Бесплатные инструменты</Link>
           <Link to="/blog/">Материалы о Threads</Link>
-          <Link to="/terms/">Условия</Link>
-          <a href="https://t.me/cuartenlol" target="_blank" rel="noreferrer">
-            Поддержка
-          </a>
         </footer>
       </div>
     </main>

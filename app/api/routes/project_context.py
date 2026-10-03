@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from app.ai_engine.safety import ContentSafetyError
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from app.api.auth import limiter
@@ -34,6 +36,8 @@ async def preview(request: Request, response: Response, payload: ContextAnswers,
         return await asyncio.wait_for(generate_context_preview(payload), timeout=40)
     except TimeoutError:
         raise HTTPException(504, "Нейросеть не успела ответить. Ответы остались в форме — попробуйте ещё раз.") from None
+    except ContentSafetyError as exc:
+        raise HTTPException(503 if exc.unavailable else 422, str(exc)) from None
     except Exception as exc:
         logger.warning("Project context preview failed: %s", type(exc).__name__)
         raise HTTPException(502, "Не удалось составить описание. Попробуйте ещё раз или заполните поля вручную.") from None

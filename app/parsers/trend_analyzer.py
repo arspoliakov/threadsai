@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai_engine.client import DEEPINFRA_MODEL, get_deepinfra_client
+from app.ai_engine.safety import safe_completion
 from app.db.models import Platform, SavedTrend
 from app.schemas.trend import TrendAIAnalysis
 
@@ -168,7 +169,7 @@ async def _get_existing_trend(
 
 async def _reverse_engineer_post(post_text: str) -> TrendAIAnalysis:
     client = get_deepinfra_client()
-    response = await client.chat.completions.create(
+    response = await safe_completion(client,
         model=DEEPINFRA_MODEL,
         messages=[
             {"role": "system", "content": TREND_REVERSE_ENGINEERING_PROMPT},

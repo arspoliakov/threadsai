@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai_engine.client import DEEPINFRA_MODEL, get_deepinfra_client
+from app.ai_engine.safety import safe_completion
 from app.ai_engine.prompt_builder import build_system_prompt
 from app.db.models import Platform, PostingTask, PostingTaskStatus, Project, SavedTrend
 
@@ -858,7 +859,7 @@ async def _generate_validated_response(
     last_quality_issues: list[str] = []
 
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
-        response = await client.chat.completions.create(
+        response = await safe_completion(client,
             model=DEEPINFRA_MODEL,
             response_format={"type": "json_object"},
             messages=messages,

@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { OperatorDetails } from "../components/OperatorDetails";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { PublicLegalLinks } from "../components/PublicLegalLinks";
 
-const updatedAt = "2 октября 2026";
+const updatedAt = "3 октября 2026";
 
 export default function TermsPage() {
   return (
@@ -36,12 +37,11 @@ export default function TermsPage() {
               Последнее обновление: {updatedAt}
             </p>
             <h1 className="mt-5 max-w-3xl font-display text-5xl leading-[0.9] tracking-[-0.055em] sm:text-7xl">
-              Условия использования
+              Пользовательское соглашение
             </h1>
             <p className="mt-6 max-w-2xl text-sm leading-7 text-white/62">
-              Это рабочая редакция для beta-доступа ThreadsGo. Перед
-              полномасштабным коммерческим релизом документ должен пройти
-              финальную юридическую проверку.
+              Правила доступа к ThreadsGo, использования генерации текстов,
+              подключения аккаунтов и платных функций.
             </p>
           </div>
 
@@ -63,6 +63,7 @@ export default function TermsPage() {
             <BetaNotice />
           </div>
         </article>
+        <footer className="mt-8 border-t border-[#d9ddd4] py-8"><PublicLegalLinks /></footer>
       </section>
     </main>
   );
@@ -132,6 +133,13 @@ function TermsSection() {
         тестирования оператор вправе временно ограничить регистрацию
         дополнительным списком допуска.
       </p>
+      <p>
+        Актуальные цены, периоды оплаты и описание тарифов постоянно доступны
+        на странице <Link to="/pricing/" className="underline">«Цены и тарифы»</Link>.
+        Перед подтверждением оплаты проверьте выбранный период, сумму и условия
+        продления на странице платежного сервиса. Управление текущей подпиской
+        выполняется через тот платежный сервис, в котором она оформлена.
+      </p>
 
       <h3>4. Что запрещено</h3>
       <p>
@@ -141,6 +149,13 @@ function TermsSection() {
         и любых действий, которые прямо противоречат применимому
         законодательству или правилам платформ, с которыми работает
         пользователь.
+      </p>
+      <p>
+        Также запрещены создание и публикация сексуального контента 18+,
+        материалов сексуальной эксплуатации несовершеннолетних, инструкций
+        по изготовлению оружия, взрывчатых веществ и совершению насилия.
+        Эти ограничения распространяются на запросы к ИИ, настройки проекта,
+        черновики и материалы, добавленные пользователем.
       </p>
 
       <h3>5. Контент и ответственность пользователя</h3>

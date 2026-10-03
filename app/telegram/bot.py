@@ -44,6 +44,10 @@ async def start_handler(message: Message, command: CommandObject) -> None:
                     url=f"{app_url}/login",
                 )
             ],
+            [InlineKeyboardButton(text="Политика конфиденциальности", url=f"{app_url}/privacy/")],
+            [InlineKeyboardButton(text="Пользовательское соглашение", url=f"{app_url}/terms/")],
+            [InlineKeyboardButton(text="Тарифы", url=f"{app_url}/pricing/"),
+             InlineKeyboardButton(text="Поддержка", url="https://t.me/cuartenlol")],
         ]
     )
     await message.answer(

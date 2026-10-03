@@ -1,5 +1,7 @@
 import asyncio
 import logging
+
+from app.ai_engine.safety import ContentSafetyError
 import hashlib
 import json
 import re
@@ -55,6 +57,8 @@ class TrialRead(BaseModel):
 async def preview_or_error(context: dict, count: int) -> list[dict[str, str]]:
     try:
         return await asyncio.wait_for(content_preview(context, count), timeout=50)
+    except ContentSafetyError as exc:
+        raise HTTPException(503 if exc.unavailable else 422, str(exc)) from None
     except Exception as exc:
         logger.warning("Content preview failed: %s", type(exc).__name__)
         raise HTTPException(502, "Не удалось подготовить тексты. Попробуйте ещё раз; ваши сохранённые посты не изменены.") from None

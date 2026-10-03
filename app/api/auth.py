@@ -595,6 +595,8 @@ def _clean_string_dict(values: dict[str, str] | None) -> dict[str, str]:
 
 
 async def _sync_subscription_after_login(*, user: User, db: AsyncSession) -> None:
+    from app.services.subscriptions import replay_pending_tribute_events
+    await replay_pending_tribute_events(user=user, session=db)
     if user.subscription_status:
         return
 

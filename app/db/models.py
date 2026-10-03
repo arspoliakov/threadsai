@@ -126,6 +126,15 @@ class Project(Base, TimestampMixin):
     owner: Mapped[User | None] = relationship(back_populates="projects")
 
 
+class TributeWebhookEvent(Base, TimestampMixin):
+    __tablename__ = "tribute_webhook_events"
+
+    event_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+
+
 class User(Base, TimestampMixin):
     __tablename__ = "users"
 

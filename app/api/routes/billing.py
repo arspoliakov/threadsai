@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.db.models import User
-from app.services.subscriptions import apply_tribute_webhook_payload, get_tariff_chats, refresh_user_subscription
+from app.services.subscriptions import (apply_tribute_webhook_payload, get_tariff_chats, refresh_user_subscription,
+    replay_pending_tribute_events, _preserve_confirmed_tribute_access, has_current_subscription_access)
 from app.telegram.bot import get_bot
 
 
@@ -48,6 +49,10 @@ async def refresh_billing_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BillingStatusRead:
+    await replay_pending_tribute_events(user=current_user, session=db)
+    if _preserve_confirmed_tribute_access(current_user):
+        await db.commit()
+        return _build_billing_status(current_user)
     bot = get_bot()
     if bot is None:
         raise HTTPException(
@@ -64,7 +69,12 @@ async def tribute_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    raw_body = await request.body()
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 128 * 1024:
+            raise HTTPException(413, "Webhook payload too large")
+    raw_body = bytes(body)
     _validate_tribute_webhook_signature(request, raw_body)
 
     try:
@@ -75,7 +85,10 @@ async def tribute_webhook(
     if not isinstance(payload, dict):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Webhook payload must be an object")
 
-    applied = await apply_tribute_webhook_payload(payload=payload, session=db)
+    try:
+        applied = await apply_tribute_webhook_payload(payload=payload, session=db)
+    except ValueError:
+        raise HTTPException(400, "Invalid subscription event") from None
     return {"ok": True, "applied": applied}
 
 
@@ -85,7 +98,7 @@ def _build_billing_status(current_user: User) -> BillingStatusRead:
         current_user.complimentary_access_expires_at,
     )
     return BillingStatusRead(
-        subscription_status=current_user.subscription_status,
+        subscription_status=has_current_subscription_access(current_user),
         subscription_phase=current_user.subscription_phase,
         subscription_expires_at=expires_at.isoformat() if expires_at else None,
         tariff_plan=current_user.tariff_plan,
@@ -141,15 +154,4 @@ def _validate_tribute_webhook_signature(request: Request, raw_body: bytes) -> No
     if signature and hmac.compare_digest(signature.lower(), expected_signature):
         return
 
-    provided_secret = (
-        request.headers.get("x-tribute-webhook-secret")
-        or request.headers.get("x-webhook-secret")
-        or request.query_params.get("token")
-        or ""
-    ).strip()
-    auth_header = request.headers.get("authorization", "").strip()
-    if auth_header.lower().startswith("bearer "):
-        provided_secret = auth_header[7:].strip()
-
-    if not hmac.compare_digest(provided_secret, expected_secret):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")

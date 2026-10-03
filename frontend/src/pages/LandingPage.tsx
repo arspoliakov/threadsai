@@ -372,9 +372,7 @@ export default function LandingPage() {
               </a>
             </nav>
           </div>
-          <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#e0e8e2] px-3 py-1.5 text-xs text-[#60716a]">
-            Проверка платежного подключения · <span className="font-mono font-semibold">OPLAT</span>
-          </p>
+
           <p className="mt-6 max-w-4xl text-xs leading-6 text-[#738078]">
             Мы активно совершенствуем наши системы защиты от блокировок. Однако
             это не исключает ограничений или блокировки аккаунта: Meta постоянно

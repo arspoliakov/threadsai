@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -8,6 +10,7 @@ from typing import Any
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from sqlalchemy import select, update
+from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -18,6 +21,7 @@ from app.db.models import (
     PostingTask,
     PostingTaskStatus,
     User,
+    TributeWebhookEvent,
 )
 
 
@@ -91,6 +95,10 @@ async def activate_user_subscription(
         logger.info("Tribute join ignored because telegram_id=%s is not registered yet.", telegram_id)
         return False
 
+    if _preserve_confirmed_tribute_access(user):
+        return True
+    if _confirmed_tribute_record(user):
+        return False
     _apply_tariff(user, tariff)
     await session.commit()
     logger.info("Subscription activated for user_id=%s telegram_id=%s plan=%s.", user.id, telegram_id, tariff.name)
@@ -112,6 +120,16 @@ async def handle_user_left_tariff_chat(
     if user is None:
         logger.info("Tribute leave ignored because telegram_id=%s is not registered yet.", telegram_id)
         return False
+
+    if _preserve_confirmed_tribute_access(user):
+        await session.commit()
+        return False
+    if _confirmed_tribute_record(user):
+        if _apply_active_complimentary_access(user):
+            await session.commit()
+        else:
+            await disable_user_subscription(user=user, session=session)
+        return True
 
     membership_check = await check_tariff_membership_for_user(bot=bot, telegram_id=telegram_id)
     active_tariff = membership_check.active_tariff
@@ -159,6 +177,10 @@ async def sync_user_subscription_after_login(
     session: AsyncSession,
 ) -> bool:
     """Immediately recover a Tribute subscription whose join event arrived before registration."""
+    await replay_pending_tribute_events(user=user, session=session)
+    if _preserve_confirmed_tribute_access(user):
+        await session.commit()
+        return True
     if user.telegram_id is None or user.subscription_status:
         return user.subscription_status
 
@@ -193,6 +215,16 @@ async def refresh_user_subscription(
     session: AsyncSession,
 ) -> bool:
     if user.telegram_id is None:
+        return False
+    await replay_pending_tribute_events(user=user, session=session)
+    if _preserve_confirmed_tribute_access(user):
+        await session.commit()
+        return True
+    if _confirmed_tribute_record(user):
+        if _apply_active_complimentary_access(user):
+            await session.commit()
+            return True
+        await disable_user_subscription(user=user, session=session)
         return False
 
     membership_check = await check_tariff_membership_for_user(
@@ -268,6 +300,17 @@ async def reconcile_known_user_subscriptions(*, bot: Bot, session: AsyncSession)
         if user.telegram_id is None:
             continue
 
+        await replay_pending_tribute_events(user=user, session=session)
+        if _preserve_confirmed_tribute_access(user):
+            continue
+        if _confirmed_tribute_record(user):
+            if _apply_active_complimentary_access(user):
+                continue
+            if user.subscription_status:
+                await disable_user_subscription(user=user, session=session)
+                changed_count += 1
+            continue
+
         membership_check = await check_tariff_membership_for_user(bot=bot, telegram_id=user.telegram_id)
         active_tariff = membership_check.active_tariff
         if active_tariff is not None:
@@ -302,111 +345,100 @@ async def reconcile_known_user_subscriptions(*, bot: Bot, session: AsyncSession)
     return changed_count
 
 
-async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: AsyncSession) -> bool:
-    event_type = _normalize_event_type(
-        _first_string(payload, ["name"], ["type"], ["event"], ["event_type"], ["data", "type"])
-    )
-    telegram_id = _first_int(
-        payload,
-        ["telegram_id"],
-        ["telegram_user_id"],
-        ["user_id"],
-        ["user", "telegram_id"],
-        ["user", "id"],
-        ["subscriber", "telegram_id"],
-        ["subscriber", "id"],
-        ["data", "telegram_id"],
-        ["data", "user", "id"],
-        ["payload", "user", "id"],
-        ["payload", "telegram_user_id"],
-    )
-    chat_id = _first_int(
-        payload,
-        ["chat_id"],
-        ["channel_id"],
-        ["tariff_chat_id"],
-        ["chat", "id"],
-        ["channel", "id"],
-        ["subscription", "chat_id"],
-        ["data", "chat_id"],
-        ["data", "channel", "id"],
-        ["payload", "channel_id"],
-    )
-    plan_name = _first_string(
-        payload,
-        ["plan"],
-        ["tariff"],
-        ["tariff_plan"],
-        ["subscription", "plan"],
-        ["subscription", "name"],
-        ["product", "name"],
-        ["data", "plan"],
-        ["data", "tariff"],
-        ["data", "subscription", "name"],
-        ["payload", "subscription_name"],
-    )
+TRIBUTE_SUBSCRIPTION_EVENTS = {"new_subscription", "renewed_subscription", "cancelled_subscription"}
 
-    if telegram_id is None:
-        logger.warning("Tribute webhook skipped: telegram_id was not found in payload type=%s.", event_type)
+
+def _confirmed_tribute_record(user: User) -> bool:
+    return bool(user.tribute_last_event_type in TRIBUTE_SUBSCRIPTION_EVENTS
+                and user.subscription_expires_at is not None)
+
+
+def _preserve_confirmed_tribute_access(user: User) -> bool:
+    if not _confirmed_tribute_record(user) or not _is_future(user.subscription_expires_at):
         return False
-
-    user = await session.scalar(select(User).where(User.telegram_id == telegram_id).limit(1))
-    if user is None:
-        logger.info("Tribute webhook skipped: telegram_id=%s is not registered yet.", telegram_id)
+    tariff = get_tariff_by_name(user.tariff_plan)
+    if tariff is None:
+        tariff = _resolve_tribute_tariff(user.tribute_last_event_json or {})
+    if tariff is None:
         return False
+    _apply_tariff(user, tariff)
+    return True
 
-    user.tribute_last_event_type = event_type
-    user.tribute_last_event_json = payload
-    user.subscription_expires_at = _first_datetime(
-        payload,
-        ["expires_at"],
-        ["expired_at"],
-        ["ends_at"],
-        ["period_ends_at"],
-        ["subscription", "expires_at"],
-        ["subscription", "period_ends_at"],
-        ["data", "expires_at"],
-        ["data", "subscription", "expires_at"],
-        ["payload", "expires_at"],
-    )
 
+def _resolve_tribute_tariff(payload: dict[str, Any]) -> TariffLimits | None:
+    chat_id = _first_int(payload, ["payload", "channel_id"], ["chat_id"])
     tariff = get_tariff_for_chat(chat_id) if chat_id is not None else None
-    if tariff is None:
-        tariff = get_tariff_by_name(plan_name)
+    return tariff or get_tariff_by_name(_first_string(payload,
+        ["payload", "subscription_name"], ["plan"], ["tariff_plan"]))
 
-    if tariff is None:
-        logger.warning(
-            "Tribute webhook skipped: tariff was not resolved for user_id=%s event=%s chat_id=%s plan=%s.",
-            user.id,
-            event_type,
-            chat_id,
-            plan_name,
-        )
+
+async def replay_pending_tribute_events(*, user: User, session: AsyncSession) -> None:
+    if user.telegram_id is None:
+        return
+    events = list((await session.scalars(select(TributeWebhookEvent).where(
+        TributeWebhookEvent.telegram_id == user.telegram_id,
+        TributeWebhookEvent.status.in_(["pending", "unknown_tariff"]),
+    ))).all())
+    events.sort(key=lambda event: _as_utc(_first_datetime(event.payload, ["created_at"])) or datetime.min.replace(tzinfo=UTC))
+    for event in events:
+        await apply_tribute_webhook_payload(payload=event.payload, session=session)
+    await session.refresh(user)
+
+
+async def apply_tribute_webhook_payload(*, payload: dict[str, Any], session: AsyncSession) -> bool:
+    event_type = _normalize_event_type(_first_string(payload, ["name"]))
+    if event_type not in TRIBUTE_SUBSCRIPTION_EVENTS:
+        return False  # Donations/products must never activate a recurring subscription.
+    telegram_id = _first_int(payload, ["payload", "telegram_user_id"], ["telegram_user_id"])
+    event_at = _as_utc(_first_datetime(payload, ["created_at"]))
+    expires_at = _as_utc(_first_datetime(payload, ["payload", "expires_at"], ["expires_at"]))
+    if telegram_id is None or telegram_id <= 0 or event_at is None or expires_at is None:
+        raise ValueError("Invalid Tribute subscription event")
+    # sent_at changes on delivery retries; it is not the identity of a payment.
+    canonical = {key: value for key, value in payload.items() if key != "sent_at"}
+    event_key = hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+    await session.execute(insert(TributeWebhookEvent).values(
+        event_key=event_key, telegram_id=telegram_id, payload=payload, status="pending",
+    ).on_conflict_do_nothing(index_elements=["event_key"]))
+    event = await session.get(TributeWebhookEvent, event_key, populate_existing=True)
+    if event.status in {"applied", "obsolete"}:
         await session.commit()
         return False
-
-    if _is_cancel_event(event_type) and not _is_future(user.subscription_expires_at):
-        if _apply_active_complimentary_access(user):
-            await session.commit()
-        else:
-            await disable_user_subscription(user=user, session=session)
-        logger.info("Tribute webhook ended subscription for user_id=%s event=%s.", user.id, event_type)
-        return True
-
-    phase = _subscription_phase_from_event(
-        event_type,
-        _first_string(payload, ["payload", "type"], ["data", "type"]),
-    )
+    user = await session.scalar(select(User).where(User.telegram_id == telegram_id).execution_options(populate_existing=True))
+    if user is None:
+        await session.commit()  # Retain payment until the customer signs in.
+        return False
+    previous = _as_utc(_first_datetime(user.tribute_last_event_json or {}, ["created_at"]))
+    if previous and (event_at < previous or (event_at == previous
+            and user.tribute_last_event_type == "cancelled_subscription"
+            and event_type != "cancelled_subscription")):
+        event.status = "obsolete"
+        await session.commit()
+        return False
+    tariff = _resolve_tribute_tariff(payload)
+    if tariff is None:
+        event.status = "unknown_tariff"
+        await session.commit()
+        logger.warning("Tribute event has an unmapped tariff; access not changed.")
+        return False
+    user.tribute_last_event_type = event_type
+    user.tribute_last_event_json = payload
+    user.subscription_expires_at = expires_at
+    phase = _subscription_phase_from_event(event_type, _first_string(payload, ["payload", "type"]))
     _apply_tariff(user, tariff)
-    user.subscription_phase = "cancelled" if _is_cancel_event(event_type) else phase
-    now = datetime.now(UTC)
+    user.subscription_phase = "cancelled" if event_type == "cancelled_subscription" else phase
     if phase == "trial" and user.subscription_trial_started_at is None:
-        user.subscription_trial_started_at = _first_datetime(payload, ["created_at"], ["started_at"], ["data", "created_at"]) or now
-    if phase == "regular":
-        user.subscription_paid_at = _first_datetime(payload, ["paid_at"], ["created_at"], ["data", "paid_at"], ["data", "created_at"]) or now
-
-    await session.commit()
-    logger.info("Tribute webhook applied for user_id=%s plan=%s phase=%s event=%s.", user.id, tariff.name, phase, event_type)
+        user.subscription_trial_started_at = event_at
+    if phase == "regular" and event_type != "cancelled_subscription":
+        user.subscription_paid_at = event_at
+    event.status = "applied"
+    if not _is_future(expires_at):
+        if not _apply_active_complimentary_access(user):
+            await disable_user_subscription(user=user, session=session)
+        else:
+            await session.commit()
+    else:
+        await session.commit()
     return True
 
 

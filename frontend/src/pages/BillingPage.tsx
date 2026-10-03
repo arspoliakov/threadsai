@@ -7,6 +7,22 @@ import { getApiErrorMessage, getBillingStatus, refreshBillingStatus, type Billin
 import { trackSeoEvent, trackSeoEventOnce } from "../components/SeoAnalytics";
 
 const PENDING_TRIBUTE = "threadsgo.pending_tribute";
+function pendingPayment(): { started: number; plan?: string } | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_TRIBUTE);
+    if (!raw) return null;
+    const value = JSON.parse(raw);
+    const pending = typeof value === "number" ? { started: value } : value;
+    if (!pending || typeof pending.started !== "number" || Date.now() - pending.started > 30 * 60_000) {
+      sessionStorage.removeItem(PENDING_TRIBUTE); return null;
+    }
+    return pending;
+  } catch { return null; }
+}
+function paymentConfirmed(status: BillingStatus): boolean {
+  const pending = pendingPayment();
+  return status.subscription_status && (!pending?.plan || pending.plan === status.tariff_plan);
+}
 
 
 export default function BillingPage() {
@@ -17,6 +33,7 @@ export default function BillingPage() {
 
   const refreshLock = useRef(false);
   const automaticChecks = useRef(0);
+  const pollChecks = useRef(0);
   const mounted = useRef(true);
   const [activationMessage, setActivationMessage] = useState("");
 
@@ -60,12 +77,12 @@ export default function BillingPage() {
       const refreshed = await refreshBillingStatus();
       if (!mounted.current) return;
       setBilling(refreshed);
-      if (refreshed.subscription_status) {
+      if (paymentConfirmed(refreshed)) {
         try { sessionStorage.removeItem(PENDING_TRIBUTE); } catch { /* Optional return marker. */ }
         setActivationMessage("Доступ включён. Можно переходить к первому проекту.");
         toast.success("Тариф подтверждён, доступ открыт");
       } else {
-        const message = "Доступ пока не найден. Завершите активацию в Tribute и вступите в канал тарифа, затем повторите проверку.";
+        const message = "Подтверждение выбранного тарифа пока не получено. Если оплата завершена, подождите немного — повторно платить не нужно. При задержке напишите в поддержку.";
         setActivationMessage(message);
         if (!automatic) toast.message(message);
       }
@@ -84,9 +101,7 @@ export default function BillingPage() {
     const onReturn = () => {
       if (document.visibilityState !== "visible" || refreshLock.current || automaticChecks.current >= 3) return;
       try {
-        const started = Number(sessionStorage.getItem(PENDING_TRIBUTE));
-        if (!started) return;
-        if (Date.now() - started > 30 * 60_000) { sessionStorage.removeItem(PENDING_TRIBUTE); return; }
+        if (!pendingPayment()) return;
       } catch { return; }
       automaticChecks.current += 1;
       void checkSubscription(true);
@@ -101,6 +116,28 @@ export default function BillingPage() {
       document.removeEventListener("visibilitychange", onReturn);
     };
   }, [checkSubscription, isLoading]);
+
+  useEffect(() => {
+    let stopped = false;
+    const poll = async () => {
+      if (stopped || pollChecks.current >= 12 || document.visibilityState !== "visible" || refreshLock.current || !pendingPayment()) return;
+      pollChecks.current += 1;
+      try {
+        const status = await getBillingStatus();
+        if (stopped) return;
+        setBilling(status);
+        if (paymentConfirmed(status)) {
+          try { sessionStorage.removeItem(PENDING_TRIBUTE); } catch { /* Optional marker. */ }
+          setActivationMessage("Доступ включён. Можно переходить к первому проекту.");
+          toast.success("Тариф подтверждён, доступ открыт");
+        } else if (pollChecks.current === 12) {
+          setActivationMessage("Подтверждение задерживается. Повторно платить не нужно: нажмите «Проверить доступ» или напишите в поддержку @cuartenlol.");
+        }
+      } catch { /* Keep manual retry and existing access available. */ }
+    };
+    const timer = window.setInterval(() => void poll(), 5000);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, []);
 
   if (isLoading) {
     return <div className="rounded-[18px] border border-[#dfe4dc] bg-white p-6">Загружаем тарифы...</div>;
@@ -140,7 +177,7 @@ export default function BillingPage() {
         ) : (
           <ol className="mt-5 grid gap-3 rounded-2xl bg-[#f7faf4] p-5 text-sm leading-6 text-[#4f5a50] md:grid-cols-3">
             <li><strong className="block text-[#111]">1. Выберите тариф</strong>Откроется Tribute. Завершите привязку карты и активацию.</li>
-            <li><strong className="block text-[#111]">2. Вступите в канал</strong>Нажмите кнопку доступа к каналу тарифа в Tribute. Одной привязки карты недостаточно для резервной проверки.</li>
+            <li><strong className="block text-[#111]">2. Завершите оформление</strong>Оформляйте подписку с того же Telegram-аккаунта, через который вошли в ThreadsGo.</li>
             <li><strong className="block text-[#111]">3. Вернитесь сюда</strong>Мы проверим доступ автоматически. Если он не появился, нажмите «Проверить доступ».</li>
           </ol>
         )}
@@ -208,8 +245,9 @@ export default function BillingPage() {
                     trackSeoEvent(isCurrentPlan ? "subscription_manage_click" : "tribute_click", { plan: plan.name, source: "billing_page" });
                     if (!isCurrentPlan) {
                       automaticChecks.current = 0;
-                      try { sessionStorage.setItem(PENDING_TRIBUTE, String(Date.now())); } catch { /* Manual check remains available. */ }
-                      setActivationMessage("Завершите активацию и вступите в канал тарифа в Tribute, затем вернитесь сюда.");
+                      pollChecks.current = 0;
+                      try { sessionStorage.setItem(PENDING_TRIBUTE, JSON.stringify({ started: Date.now(), plan: plan.name })); } catch { /* Manual check remains available. */ }
+                      setActivationMessage("Завершите оформление в Tribute и вернитесь сюда. Мы дождёмся подтверждения выбранного тарифа.");
                     }
                   }}
                   className="mt-6 flex h-12 items-center justify-center rounded-full bg-[#111] px-5 text-sm font-semibold text-white transition hover:bg-[#70ff35] hover:text-[#07100e]"
@@ -242,15 +280,14 @@ export default function BillingPage() {
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
             <h3 className="text-base font-semibold text-[#111]">Что будет после отмены?</h3>
             <p className="mt-2 text-sm leading-6 text-[#5f675f]">
-              Проекты, стиль и тексты останутся. Мы просто остановим генерацию, парсинг и автопубликацию до новой
-              подписки.
+              Отмена автопродления не сокращает уже подтверждённый оплаченный период.
+              После его окончания генерация и автопубликация остановятся. Проекты, стиль и тексты сохранятся.
             </p>
           </div>
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">
             <h3 className="text-base font-semibold text-[#111]">Когда включится доступ после оплаты?</h3>
             <p className="mt-2 text-sm leading-6 text-[#5f675f]">
-              После привязки карты завершите активацию в Tribute и нажмите кнопку доступа к закрытому каналу. Затем
-              вернитесь в ThreadsGo: мы проверим доступ автоматически. При необходимости нажмите «Проверить доступ».
+              Завершите оформление в Tribute и вернитесь в ThreadsGo: мы проверим доступ автоматически. При необходимости нажмите «Проверить доступ». Если подтверждение задерживается, переход в канал тарифа из Tribute позволяет проверить доступ резервным способом.
             </p>
           </div>
           <div className="rounded-[16px] border border-[#e1e7dd] bg-[#fbfcf7] p-4">

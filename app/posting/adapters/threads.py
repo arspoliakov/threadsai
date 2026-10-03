@@ -435,6 +435,7 @@ class ThreadsAdapter(BasePostingAdapter):
         options.add_argument("--disable-notifications")
         options.add_argument("--disable-popup-blocking")
         options.add_argument("--disable-background-networking")
+        options.add_argument("--disable-component-update")
         options.add_argument("--disable-sync")
         options.add_argument("--disable-default-apps")
         options.add_argument("--no-default-browser-check")

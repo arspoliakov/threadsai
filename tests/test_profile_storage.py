@@ -30,6 +30,8 @@ class CompactProfilesTest(unittest.TestCase):
                 self.make_file(profile, name)
             self.make_file(profile, "Default/Cache/Cache_Data/heavy", b"x"*100)
             self.make_file(profile, "Default/Media Cache/video", b"x"*100)
+            self.make_file(profile, "component_crx_cache/downloaded-archive", b"x"*100)
+            self.make_file(profile, "BrowserMetrics-spare.pma", b"x"*32)
             outside = Path(temporary)/"outside"
             self.make_file(outside, "protected", b"preserve")
             try:
@@ -38,7 +40,7 @@ class CompactProfilesTest(unittest.TestCase):
                 pass  # Windows may prohibit unprivileged symlinks.
             with patch.object(storage, "settings", self.config(root)):
                 result = storage.cleanup_inactive_profiles()
-            self.assertEqual(result["reclaimed_bytes"], 200)
+            self.assertEqual(result["reclaimed_bytes"], 332)
             for name in retained:
                 self.assertEqual((profile/name).read_bytes(), b"fixture")
             self.assertEqual((outside/"protected").read_bytes(), b"preserve")

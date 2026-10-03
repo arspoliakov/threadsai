@@ -15,7 +15,9 @@ CACHE_DIRECTORIES = (
     "Default/Service Worker/CacheStorage", "Default/Service Worker/ScriptCache",
     "ShaderCache", "GrShaderCache", "GraphiteDawnCache", "DawnCache",
     "Crashpad/reports", "Crash Reports", "BrowserMetrics",
+    "component_crx_cache",
 )
+CACHE_FILES = ("BrowserMetrics-spare.pma",)
 _PROFILE_NAME = re.compile(r"(?:account_[1-9][0-9]*|ephemeral_[0-9]+_[0-9]+)\Z")
 
 
@@ -83,6 +85,14 @@ def _remove_allowlisted_cache(profile: Path) -> int:
             cache.resolve().relative_to(resolved)
             if cache.is_dir():
                 shutil.rmtree(cache)
+        except (OSError, ValueError):
+            continue
+    for relative in CACHE_FILES:
+        cache = profile / relative
+        try:
+            if not cache.is_symlink() and cache.is_file():
+                cache.resolve().relative_to(resolved)
+                cache.unlink()
         except (OSError, ValueError):
             continue
     return max(0, before - _size(profile))

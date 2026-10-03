@@ -6,14 +6,15 @@ import re
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.sqlite import insert
 
-from app.db.models import (User, Project, PostingTask, PostingTaskStatus, RetentionBotContact,
+from app.db.models import (User, Project, Account, Platform, PostingTask, PostingTaskStatus, RetentionBotContact,
                            RetentionSettings, RetentionCampaign, RetentionDelivery, RetentionConsentEvent)
 from app.services.subscriptions import has_current_subscription_access
 
 CONSENT_VERSION = "2026-10-03"
 RULES = [
-    {"key": "no_project_3d", "days": 3, "message": "Вы зарегистрировались в ThreadsGo, но ещё не создали проект. Нужна помощь с первым шагом? Напишите поддержке: https://t.me/cuartenlol\n\nКабинет: https://threadsgo.ru/app/"},
-    {"key": "no_first_post_7d", "days": 7, "message": "Ваш проект в ThreadsGo пока без первой публикации. Поможем настроить аккаунт и подготовить пост: https://t.me/cuartenlol\n\nКабинет: https://threadsgo.ru/app/"},
+    {"key": "no_project_3d", "segment": "no_project", "days": 3, "message": "Привет! Хотите начать с ThreadsGo, но пока не знаете, что указать в проекте?\n\nСоздайте проект и коротко опишите, о чём хотите писать и для кого. Помощник в кабинете поможет сформулировать глобальный промпт — готовить его самостоятельно необязательно.\n\nНачать: https://threadsgo.ru/app/\nЕсли нужна помощь: https://t.me/cuartenlol"},
+    {"key": "no_account_2d", "segment": "no_account", "days": 2, "message": "Проект в ThreadsGo уже создан — следующий шаг: подключить свой аккаунт Threads.\n\nОткройте проект → «Аккаунты» и выберите подключение. Если появляется проверка входа, пройдите её в окне подключения. Пароль или код подтверждения в переписку присылать не нужно.\n\nКабинет: https://threadsgo.ru/app/\nЕсли подключение не получается, поможем: https://t.me/cuartenlol"},
+    {"key": "no_first_post_7d", "segment": "connected_no_first_post", "days": 7, "message": "Готовы попробовать первый пост в ThreadsGo? У вас уже есть проект и подключённый аккаунт, но первой публикации пока нет.\n\nОткройте проект, проверьте статус аккаунта и подготовьте один черновик. Прочитайте текст, при необходимости поправьте его и выберите время публикации. Начать можно с одного поста.\n\nКабинет: https://threadsgo.ru/app/\nЕсли что-то мешает старту: https://t.me/cuartenlol"},
 ]
 
 
@@ -76,7 +77,17 @@ async def in_segment(db, user, segment, now):
         return has_current_subscription_access(user)
     if segment == "no_project":
         return not projects
-    if segment == "no_first_post":
+    if segment in {"no_account", "connected_no_first_post"}:
+        if not projects:
+            return False
+        connected = await db.scalar(select(Account.id).where(Account.project_id.in_([p.id for p in projects]), Account.platform == Platform.THREADS).limit(1))
+        if segment == "no_account":
+            published = await db.scalar(select(PostingTask.id).where(PostingTask.project_id.in_([p.id for p in projects]),
+                PostingTask.status.in_([PostingTaskStatus.SUCCESS, PostingTaskStatus.PARTIAL_SUCCESS])).limit(1))
+            return connected is None and published is None
+        if connected is None:
+            return False
+    if segment in {"no_first_post", "connected_no_first_post"}:
         if not projects:
             return False
         posted = await db.scalar(select(PostingTask.id).where(PostingTask.project_id.in_([p.id for p in projects]),
@@ -136,11 +147,11 @@ async def plan_automatic(db, now=None):
     users = list((await db.scalars(select(User).where(User.onboarding_consent.is_(True)))).all())
     for user in users:
         for rule in RULES:
-            segment = "no_project" if rule["key"] == "no_project_3d" else "no_first_post"
+            segment = rule["segment"]
             if not await eligible(db, user, "onboarding", segment, now):
                 continue
             origin = utc(user.created_at)
-            if segment == "no_first_post":
+            if segment != "no_project":
                 origin = utc(await db.scalar(select(func.min(Project.created_at)).where(Project.owner_id == user.id)))
             # Do not mass-message a years-old dormant database on first activation.
             if not (timedelta(days=rule["days"]) <= now - origin <= timedelta(days=30)):
@@ -176,7 +187,8 @@ async def process_deliveries(db, bot, now=None):
             break
         user = await db.get(User, delivery.user_id, populate_existing=True)
         campaign = await db.get(RetentionCampaign, delivery.campaign_id, populate_existing=True) if delivery.campaign_id else None
-        segment = campaign.segment if campaign else ("no_project" if delivery.rule_key == "no_project_3d" else "no_first_post")
+        rule = next((r for r in RULES if r["key"] == delivery.rule_key), None)
+        segment = campaign.segment if campaign else (rule["segment"] if rule else "unknown_rule")
         if (campaign and campaign.status == "cancelled") or now - utc(delivery.created_at) > timedelta(days=7) or (delivery.rule_key and not config.automated_enabled) or not user or not await eligible(db, user, delivery.kind, segment, now, check_caps=False):
             delivery.status, delivery.error_code = "cancelled", "no_longer_eligible"
             await db.commit()

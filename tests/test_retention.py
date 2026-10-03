@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models import User, Project, RetentionDelivery, RetentionSettings
+from app.db.models import User, Project, Account, Platform, RetentionDelivery, RetentionSettings
 from app.services import retention as service
 
 
@@ -128,7 +128,10 @@ class RetentionTest(unittest.IsolatedAsyncioTestCase):
     async def test_second_rule_and_weekly_cap(self):
         async with self.sessions() as db:
             user = await self.customer(db)
-            db.add(Project(name="Dormant", slug="dormant", owner_id=user.id, created_at=self.now - timedelta(days=8)))
+            project = Project(name="Dormant", slug="dormant", owner_id=user.id, created_at=self.now - timedelta(days=8))
+            db.add(project)
+            await db.flush()
+            db.add(Account(project_id=project.id, owner_id=user.id, platform=Platform.THREADS, username="fixture"))
             await db.commit()
             await self.enable(db)
             self.assertEqual(await service.plan_automatic(db, self.now), 1)
@@ -138,6 +141,22 @@ class RetentionTest(unittest.IsolatedAsyncioTestCase):
                     due_at=self.now - timedelta(days=days), attempted_at=self.now - timedelta(days=days), sent_at=self.now - timedelta(days=days)))
             await db.commit()
             self.assertFalse(await service.eligible(db, user, "onboarding", now=self.now))
+
+    async def test_account_step_does_not_overlap_and_stops_after_connection(self):
+        async with self.sessions() as db:
+            user = await self.customer(db)
+            project = Project(name="Start", slug="start", owner_id=user.id, created_at=self.now - timedelta(days=8))
+            db.add(project)
+            await db.commit()
+            await self.enable(db)
+            self.assertEqual(await service.plan_automatic(db, self.now), 1)
+            self.assertEqual(await db.scalar(select(RetentionDelivery.rule_key)), "no_account_2d")
+            db.add(Account(project_id=project.id, owner_id=user.id, platform=Platform.THREADS, username="fixture"))
+            await db.commit()
+            bot = FakeBot()
+            await service.process_deliveries(db, bot, self.now)
+            self.assertEqual(bot.sent, [])
+            self.assertEqual(await db.scalar(select(RetentionDelivery.status)), "cancelled")
 
 
 if __name__ == "__main__":

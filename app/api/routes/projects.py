@@ -1,6 +1,7 @@
+import asyncio
 import logging
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unicodedata import normalize
 
@@ -433,6 +434,24 @@ async def trigger_project_generation(
     _subscription: User = Depends(require_active_subscription),
 ) -> TriggerGenerationRead:
     project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
+    # Serialize the short reservation only; do not hold a database write lock while AI runs.
+    await db.execute(update(Project).where(Project.id == project.id).values(is_active=Project.is_active))
+    now = datetime.now(UTC)
+    stale_before = now - timedelta(minutes=3)
+    await db.execute(update(ProjectOperation).where(
+        ProjectOperation.project_id == project.id,
+        ProjectOperation.action_type == ProjectOperationType.GENERATION,
+        ProjectOperation.status == ProjectOperationStatus.RUNNING,
+        ProjectOperation.started_at < stale_before,
+    ).values(status=ProjectOperationStatus.FAILED, finished_at=now,
+             message="Генерация была прервана. Можно повторить запрос."))
+    running = await db.scalar(select(ProjectOperation.id).where(
+        ProjectOperation.project_id == project.id,
+        ProjectOperation.action_type == ProjectOperationType.GENERATION,
+        ProjectOperation.status == ProjectOperationStatus.RUNNING,
+    ).limit(1))
+    if running is not None:
+        raise HTTPException(409, "Черновик уже генерируется. Дождитесь результата и обновите список")
     operation = ProjectOperation(
         project_id=project.id,
         owner_id=current_user_id,
@@ -441,10 +460,11 @@ async def trigger_project_generation(
         message="Генерация поста запущена.",
     )
     db.add(operation)
-    await db.flush()
+    await db.commit()
+    operation_id = operation.id
 
     try:
-        posting_task = await generate_post(
+        posting_task = await asyncio.wait_for(generate_post(
             project_id=project.id,
             topic_or_context=_build_generation_topic(project),
             session=db,
@@ -453,29 +473,50 @@ async def trigger_project_generation(
             scheduled_at=None,
             use_trends=True,
             persist=False,
-        )
+        ), timeout=120)
+        # End the read transaction used by the generator before checking the current
+        # owner and reserving completion. Deletion can occur while the provider runs.
+        await db.rollback()
+        owned = await db.execute(update(Project).where(
+            Project.id == project_id, Project.owner_id == current_user_id,
+        ).values(is_active=Project.is_active))
+        if owned.rowcount != 1:
+            raise HTTPException(404, "Проект удалён или больше недоступен. Черновик не сохранён")
+        completed = await db.execute(update(ProjectOperation).where(
+            ProjectOperation.id == operation_id, ProjectOperation.project_id == project_id,
+            ProjectOperation.owner_id == current_user_id,
+            ProjectOperation.status == ProjectOperationStatus.RUNNING,
+        ).values(status=ProjectOperationStatus.SUCCESS, finished_at=datetime.now(UTC),
+                 message="Черновик подготовлен."))
+        if completed.rowcount != 1:
+            raise HTTPException(409, "Операция уже завершена или прервана. Обновите список черновиков")
         posting_task.status = PostingTaskStatus.DRAFT
         db.add(posting_task)
         await db.flush()
-        operation.status = ProjectOperationStatus.SUCCESS
-        operation.message = f"Черновик подготовлен: задача #{posting_task.id}."
-        operation.result_json = {
-            "task_id": posting_task.id,
-            "scheduled_at": posting_task.scheduled_at.isoformat() if posting_task.scheduled_at else None,
-        }
-        operation.finished_at = datetime.now(UTC)
+        await db.execute(update(ProjectOperation).where(ProjectOperation.id == operation_id).values(
+            message=f"Черновик подготовлен: задача #{posting_task.id}.",
+            result_json={"task_id": posting_task.id, "scheduled_at": None},
+        ))
         await db.commit()
-        await db.refresh(posting_task)
-    except Exception as exc:
-        operation.status = ProjectOperationStatus.FAILED
-        operation.message = "Не удалось подготовить пост. Ошибка уже отправлена команде."
-        operation.result_json = {"error": str(exc)}
-        operation.finished_at = datetime.now(UTC)
-        await db.commit()
+    except HTTPException:
+        await db.rollback()
         raise
+    except Exception as exc:
+        await db.rollback()
+        # The project (and operation) may have been removed during the AI request.
+        # An absent or already completed operation must never be resurrected.
+        await db.execute(update(ProjectOperation).where(
+            ProjectOperation.id == operation_id, ProjectOperation.owner_id == current_user_id,
+            ProjectOperation.status == ProjectOperationStatus.RUNNING,
+        ).values(status=ProjectOperationStatus.FAILED,
+                 message="Не удалось подготовить пост. Попробуйте ещё раз позже.",
+                 result_json={"error_type": type(exc).__name__}, finished_at=datetime.now(UTC)))
+        await db.commit()
+        logger.warning("Manual draft generation failed for project %s (%s)", project_id, type(exc).__name__)
+        raise HTTPException(502, "Не удалось подготовить черновик. Попробуйте ещё раз позже") from exc
 
     return TriggerGenerationRead(
-        project_id=project.id,
+        project_id=project_id,
         task_id=posting_task.id,
         status=posting_task.status,
         scheduled_at=posting_task.scheduled_at,

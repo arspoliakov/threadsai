@@ -204,3 +204,9 @@
 :root[data-theme="dark"] [class~="border-[#ffd48a]"] { border-color: #796034; }
 :root[data-theme="dark"] [class~="text-[#8a9890]"] { color: #a7b8ae; }
 :root[data-theme="dark"] :is(a,button)[class*="hover:bg-[#eef4ec]"]:hover { background-color: #1d3026; color: #e5efe8; }
+
+/* Content studio and project assistant use the same readable dark palette. */
+:root[data-theme="dark"] :is([class~="text-[#67786e]"], [class~="text-[#49705a]"], [class~="text-[#315b46]"]) { color: #a9d7b8; }
+:root[data-theme="dark"] [class~="text-[#162b25]"] { color: #e5efe8; }
+:root[data-theme="dark"] :is([class~="border-[#d8e2da]"], [class~="border-[#e0e8e2]"], [class~="border-[#315b46]"]) { border-color: #427656; }
+:root[data-theme="dark"] [class~="bg-[#f5f8f6]"] { background-color: #183025; }

@@ -3,7 +3,7 @@ from typing import Literal
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import JSON, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -14,6 +14,7 @@ from app.db.models import Account, AccountStatus, Platform, PostingTask, Posting
 from app.posting.scheduler import schedule_account_queue_refill, _project_day_bounds, _is_project_in_active_window, _project_posts_per_day
 from app.ai_engine.prompt_builder import build_system_prompt
 from app.api.auth import limiter
+from app.core.config import settings
 from app.api.routes.studio import studio_user, studio_limit_key, preview_or_error
 
 
@@ -42,6 +43,15 @@ class PostingTaskRead(BaseModel):
     generation_metadata: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("scheduled_at", "started_at", "finished_at", "created_at", "updated_at", mode="after")
+    @classmethod
+    def utc_timestamp(cls, value: datetime | None) -> datetime | None:
+        # SQLite drops timezone information; task timestamps are stored as UTC.
+        # Restore the offset so browsers cannot interpret UTC as their local time.
+        if value is None:
+            return None
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 class PublishNowRead(BaseModel):
@@ -132,7 +142,7 @@ async def update_task(
         )
     _require_confirmed_publication_state(task)
 
-    if payload.expected_posts_chain is not None and payload.expected_posts_chain != task.posts_chain:
+    if payload.expected_posts_chain is not None and payload.expected_posts_chain != (task.posts_chain or [task.content_text]):
         raise HTTPException(409, "Текст изменился после предпросмотра. Обновите список и повторите правку.")
 
     posts_chain = payload.resolved_posts_chain
@@ -152,11 +162,17 @@ async def update_task(
             },
         )
 
+    changes = {"posts_chain": posts_chain, "content_text": posts_chain[0]}
+    if task.status == PostingTaskStatus.QUEUED:
+        changes.update(status=PostingTaskStatus.DRAFT, scheduled_at=None,
+                       generation_metadata=_unapproved_metadata(task.generation_metadata))
     changed = await db.execute(update(PostingTask).where(
         PostingTask.id == task.id, PostingTask.status == task.status,
         PostingTask.content_text == task.content_text,
         PostingTask.posts_chain == task.posts_chain,
-    ).values(posts_chain=posts_chain, content_text=posts_chain[0]))
+        PostingTask.scheduled_at == task.scheduled_at, PostingTask.account_id == task.account_id,
+        _metadata_matches(task.generation_metadata),
+    ).values(**changes))
     if changed.rowcount != 1:
         raise HTTPException(409, "Пост уже изменился или начал публиковаться. Обновите список.")
     await db.commit()
@@ -196,6 +212,7 @@ async def regenerate_task(
 
     source_status, source_content, source_chain = task.status, task.content_text, task.posts_chain
     source_metadata = _metadata_matches(task.generation_metadata)
+    source_schedule, source_account = task.scheduled_at, task.account_id
     regenerated_task = await generate_post(
         project_id=task.project_id,
         topic_or_context=task.content_text,
@@ -208,14 +225,18 @@ async def regenerate_task(
         persist=False,
     )
 
+    regenerated_values = dict(content_text=regenerated_task.content_text, posts_chain=regenerated_task.posts_chain,
+                              generation_metadata=regenerated_task.generation_metadata,
+                              source_trend_id=regenerated_task.source_trend_id)
+    if source_status == PostingTaskStatus.QUEUED:
+        regenerated_values.update(status=PostingTaskStatus.DRAFT, scheduled_at=None,
+                                  generation_metadata=_unapproved_metadata(regenerated_task.generation_metadata))
     changed = await db.execute(update(PostingTask).where(
         PostingTask.id == task.id, PostingTask.status == source_status,
         PostingTask.content_text == source_content, PostingTask.posts_chain == source_chain,
+        PostingTask.scheduled_at == source_schedule, PostingTask.account_id == source_account,
         source_metadata,
-    ).values(content_text=regenerated_task.content_text,
-             posts_chain=regenerated_task.posts_chain,
-             generation_metadata=regenerated_task.generation_metadata,
-             source_trend_id=regenerated_task.source_trend_id))
+    ).values(**regenerated_values))
     if changed.rowcount != 1:
         raise HTTPException(409, "Пост изменился во время генерации. Обновите список и проверьте его состояние.")
     await db.commit()
@@ -365,6 +386,7 @@ async def rewrite_preview(task_id: int, request: Request, response: Response, pa
 class ScheduleInput(BaseModel):
     scheduled_at: datetime
     account_id: int | None = None
+    expected_posts_chain: list[str] | None = None
 
 
 @router.post("/{task_id}/schedule", response_model=PostingTaskRead)
@@ -377,6 +399,8 @@ async def schedule_task(task_id: int, payload: ScheduleInput, db: AsyncSession =
         raise HTTPException(409, "Можно планировать только черновики и ожидающие посты")
     _require_confirmed_publication_state(task)
     chain = task.posts_chain or [task.content_text]
+    if payload.expected_posts_chain is not None and payload.expected_posts_chain != chain:
+        raise HTTPException(409, "Текст изменился после просмотра. Обновите список и согласуйте текущую версию")
     if not chain or any(not p.strip() or len(p) > 500 for p in chain):
         raise HTTPException(422, "Проверьте текст: каждый пост должен содержать от 1 до 500 символов")
     when = payload.scheduled_at
@@ -409,9 +433,13 @@ async def schedule_task(task_id: int, payload: ScheduleInput, db: AsyncSession =
         Account.id == account.id, Account.owner_id == user.id, Account.project_id == project.id,
         Account.status == AccountStatus.ACTIVE, Account.cookies_encrypted.is_not(None),
         Account.assigned_port.is_not(None),
+        or_(Account.cooldown_until.is_(None), Account.cooldown_until <= when),
     ).values(last_error=Account.last_error))
     if locked.rowcount != 1:
         raise HTTPException(409, "Профиль изменил состояние. Обновите список перед планированием")
+    daily_limit = _project_posts_per_day(project, user.tariff_posts_per_day)
+    if len(chain) > daily_limit:
+        raise HTTPException(409, "Цепочка превышает дневной лимит действий профиля. Сократите число частей")
     start, end = _project_day_bounds(project, when)
     # A delayed publication consumes the day it actually finished, not its old planned day.
     publication_time = case(
@@ -423,20 +451,40 @@ async def schedule_task(task_id: int, payload: ScheduleInput, db: AsyncSession =
         PostingTask.id != task.id, PostingTask.status.in_([PostingTaskStatus.QUEUED, PostingTaskStatus.RUNNING,
         PostingTaskStatus.SUCCESS, PostingTaskStatus.PARTIAL_SUCCESS]),
         publication_time >= start, publication_time < end))).all())
-    if len(others) >= _project_posts_per_day(project, user.tariff_posts_per_day):
+    if sum(_publication_actions(other) for other in others) + len(chain) > daily_limit:
         raise HTTPException(409, "Лимит публикаций профиля на этот день уже заполнен. Выберите другой день")
+    # The worker applies a rolling 24-hour action budget. Check both the inserted
+    # time and later approvals which would include this new post in their window.
+    rolling = list((await db.scalars(select(PostingTask).where(
+        PostingTask.account_id == account.id, PostingTask.id != task.id,
+        PostingTask.status.in_([PostingTaskStatus.QUEUED, PostingTaskStatus.RUNNING,
+                               PostingTaskStatus.SUCCESS, PostingTaskStatus.PARTIAL_SUCCESS]),
+        publication_time > when - timedelta(days=1), publication_time < when + timedelta(days=1),
+    ))).all())
+    actions_at = []
+    for other in rolling:
+        moment = other.finished_at if other.status in {PostingTaskStatus.SUCCESS, PostingTaskStatus.PARTIAL_SUCCESS} else None
+        moment = moment or other.scheduled_at
+        if moment is not None:
+            actions_at.append((_as_utc(moment), _publication_actions(other)))
+    actions_at.append((when, len(chain)))
+    for boundary in {moment for moment, _ in actions_at if moment >= when}:
+        if sum(count for moment, count in actions_at if boundary - timedelta(days=1) < moment <= boundary) > daily_limit:
+            raise HTTPException(409, "Лимит действий профиля за 24 часа уже заполнен. Выберите другое время")
+    minimum_interval = max(20, settings.posting_min_interval_minutes)
     nearby = await db.scalar(select(PostingTask.id).where(PostingTask.account_id == account.id,
         PostingTask.id != task.id, PostingTask.status.in_([PostingTaskStatus.QUEUED, PostingTaskStatus.RUNNING,
         PostingTaskStatus.SUCCESS, PostingTaskStatus.PARTIAL_SUCCESS]),
-        publication_time > when - timedelta(minutes=20), publication_time < when + timedelta(minutes=20)))
+        publication_time > when - timedelta(minutes=minimum_interval), publication_time < when + timedelta(minutes=minimum_interval)))
     if nearby:
-        raise HTTPException(409, "Между публикациями нужно оставить хотя бы 20 минут")
+        raise HTTPException(409, f"Между публикациями нужно оставить хотя бы {minimum_interval} минут")
     changed = await db.execute(update(PostingTask).where(PostingTask.id == task.id, PostingTask.status == task.status,
         PostingTask.posts_chain == task.posts_chain, PostingTask.content_text == task.content_text,
         PostingTask.scheduled_at == task.scheduled_at, PostingTask.account_id == task.account_id,
         _metadata_matches(task.generation_metadata),
     ).values(status=PostingTaskStatus.QUEUED, account_id=account.id, scheduled_at=when,
-             generation_metadata={**(task.generation_metadata or {}), "approved_by_owner": True}))
+             generation_metadata={**{key: value for key, value in (task.generation_metadata or {}).items()
+                                    if key != "publish_now_requested"}, "approved_by_owner": True}))
     if changed.rowcount != 1:
         raise HTTPException(409, "Пост уже изменился или начал публиковаться. Обновите список")
     await db.commit()
@@ -454,7 +502,10 @@ async def return_to_draft(task_id: int, db: AsyncSession = Depends(get_db),
         raise HTTPException(404, "Пост не найден")
     _require_confirmed_publication_state(task)
     changed = await db.execute(update(PostingTask).where(PostingTask.id == task.id,
-        PostingTask.status == PostingTaskStatus.QUEUED).values(status=PostingTaskStatus.DRAFT, scheduled_at=None))
+        PostingTask.status == PostingTaskStatus.QUEUED,
+        _metadata_matches(task.generation_metadata)).values(status=PostingTaskStatus.DRAFT, scheduled_at=None,
+            generation_metadata={key: value for key, value in (task.generation_metadata or {}).items()
+                                 if key not in {"publish_now_requested", "approved_by_owner"}}))
     if changed.rowcount != 1:
         raise HTTPException(409, "Пост уже начал публиковаться или не находится в очереди")
     await db.commit()
@@ -479,3 +530,15 @@ def _require_confirmed_publication_state(task: PostingTask) -> None:
             status_code=409,
             detail="Сначала проверьте результат публикации в Threads. Изменение текста не должно создавать повторный пост.",
         )
+
+
+def _unapproved_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    return {key: value for key, value in (metadata or {}).items()
+            if key not in {"publish_now_requested", "approved_by_owner"}}
+
+
+def _publication_actions(task: PostingTask) -> int:
+    count = len(task.posts_chain or []) or 1
+    if task.status == PostingTaskStatus.PARTIAL_SUCCESS:
+        count = int((task.generation_metadata or {}).get("published_chain_items") or count)
+    return max(1, count)

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { generateStudioTrial, getStudioTrial, getApiErrorMessage, getProjects, importStudioDraft, type StudioTrial, type Project } from "../api/client";
+import { requestAttempt } from "../api/requestAttempt";
 import { trackSeoEvent } from "../components/SeoAnalytics";
 
 export default function StudioPage() {
@@ -15,6 +16,7 @@ export default function StudioPage() {
   const [busyAction, setBusyAction] = useState<"generate" | "transfer" | null>(null);
   const [loadError, setLoadError] = useState("");
   const loadSequence = useRef(0);
+  const actionLock = useRef(false);
   const navigate = useNavigate();
   const field = "w-full rounded-xl border border-[#d8e2da] bg-white p-3 text-sm";
   async function load() {
@@ -31,21 +33,25 @@ export default function StudioPage() {
   }
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, []);
   async function generate() {
-    if (busy) return;
+    if (actionLock.current) return;
     if (topic.trim().length < 5 || context.trim().length < 20) { toast.error("Укажите тему от 5 символов и реальные факты от 20 символов"); return; }
-    setBusy(true); setBusyAction("generate");
-    try { const draft = await generateStudioTrial({ topic: topic.trim(), context: context.trim(), tone });
-      setTrial(current => current ? { remaining: Math.max(0, current.remaining - 1), drafts: [draft, ...current.drafts] } : current);
+    actionLock.current = true; setBusy(true); setBusyAction("generate");
+    try { const payload = { topic: topic.trim(), context: context.trim(), tone };
+      const attempt = await requestAttempt("trial", payload);
+      const draft = await generateStudioTrial(payload, attempt.key);
+      attempt.complete();
+      setTrial(current => current ? { remaining: Math.max(0, current.remaining - (current.drafts.some(d => d.id === draft.id) ? 0 : 1)), drafts: [draft, ...current.drafts.filter(d => d.id !== draft.id)] } : current);
+      void load();
       trackSeoEvent("trial_draft_created", { source: "studio" }); toast.success("Черновик готов. Проверьте факты и поправьте текст под себя."); }
-    catch (e) { toast.error(getApiErrorMessage(e, "Не удалось подготовить черновик")); }
-    finally { setBusy(false); setBusyAction(null); }
+    catch (e) { toast.error(getApiErrorMessage(e, "Не удалось подготовить черновик")); void load(); }
+    finally { actionLock.current = false; setBusy(false); setBusyAction(null); }
   }
   async function transfer(draftId: number) {
-    if (busy || !projectId) return;
-    setBusy(true); setBusyAction("transfer");
+    if (actionLock.current || !projectId) return;
+    actionLock.current = true; setBusy(true); setBusyAction("transfer");
     try { const result = await importStudioDraft(draftId, projectId); navigate(`/app/projects/${result.project_id}/queue`); }
-    catch (e) { toast.error(getApiErrorMessage(e, "Не удалось перенести черновик")); }
-    finally { setBusy(false); setBusyAction(null); }
+    catch (e) { toast.error(getApiErrorMessage(e, "Не удалось перенести черновик")); void load(); }
+    finally { actionLock.current = false; setBusy(false); setBusyAction(null); }
   }
   async function copyText(text: string) {
     try { await navigator.clipboard.writeText(text); toast.success("Текст скопирован"); }

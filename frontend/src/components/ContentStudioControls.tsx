@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { createWeekPlan, getApiErrorMessage, previewTaskRewrite, returnTaskToDraft, scheduleTask, updateTask,
   type PostingTask, type ProjectAccountState, type RewriteMode } from "../api/client";
+import { requestAttempt } from "../api/requestAttempt";
 import { trackSeoEvent } from "./SeoAnalytics";
 
 const field = "w-full rounded-xl border border-[#d8e2da] bg-white p-3 text-sm text-[#162b25]";
@@ -13,19 +14,26 @@ export function WeekPlanBuilder({ projectId, onCreated }: { projectId: number; o
   const [rubrics, setRubrics] = useState("Практический совет, Разбор ошибки, Личное наблюдение");
   const [goal, setGoal] = useState("");
   const [busy, setBusy] = useState(false);
+  const actionLock = useRef(false);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   async function generate() {
+    if (actionLock.current) return;
     const list = rubrics.split(",").map(x => x.trim()).filter(Boolean);
     if (!list.length || list.length > 5 || goal.trim().length < 10) {
       toast.error("Укажите 1–5 рубрик через запятую и цель недели — минимум 10 символов"); return;
     }
-    setBusy(true);
+    actionLock.current = true; setBusy(true);
     try {
-      const result = await createWeekPlan(projectId, list, goal.trim());
+      const attempt = await requestAttempt(`week-plan.${projectId}`, { rubrics: list, goal: goal.trim() });
+      const result = await createWeekPlan(projectId, list, goal.trim(), attempt.key);
+      attempt.complete();
+      if (!alive.current) return;
       toast.success(`${result.count} черновиков готовы. Проверьте факты и назначьте время каждому.`);
       trackSeoEvent("week_plan_created", { project_id: projectId });
       setOpen(false); onCreated();
-    } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось создать план")); }
-    finally { setBusy(false); }
+    } catch (error) { if (alive.current) toast.error(getApiErrorMessage(error, "Не удалось создать план")); }
+    finally { actionLock.current = false; if (alive.current) setBusy(false); }
   }
   return <section className="rounded-2xl border border-[#d8e2da] bg-white p-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Контент на неделю</h2>
@@ -54,7 +62,7 @@ export function TaskPlanningControls({ task, accounts, onUpdated, disabled = fal
     if (!Number.isFinite(when.getTime()) || when.getTime() < Date.now() + 120000) { toast.error("Выберите время хотя бы на две минуты вперёд"); return; }
     setBusy(true); onBusyChange?.(true);
     try {
-      const updated = await scheduleTask(task.id, when.toISOString(), accountId);
+      const updated = await scheduleTask(task.id, when.toISOString(), accountId, task.posts_chain.length ? task.posts_chain : [task.content_text]);
       onUpdated(updated); setOpen(false); toast.success("Пост согласован и добавлен в расписание");
       trackSeoEvent("draft_scheduled", { task_id: task.id, project_id: task.project_id });
     } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить время")); }

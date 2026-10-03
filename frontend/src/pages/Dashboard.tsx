@@ -11,6 +11,7 @@ import {
   type DashboardProjectSummary,
   type DashboardSummary,
 } from "../api/client";
+import { ProjectContextAssistant } from "../components/ProjectContextAssistant";
 import { StyleAssistant } from "../components/StyleAssistant";
 import { BotStatusCard } from "../components/BotStatusCard";
 import { DismissibleTip } from "../components/DismissibleTip";
@@ -22,6 +23,8 @@ import "./dashboard-polish.css";
 type NewProjectDraft = {
   name: string;
   description: string;
+  target_audience: string;
+  product_context: string;
   global_style_body?: string;
 };
 
@@ -67,6 +70,8 @@ export default function Dashboard() {
       name: payload.name,
       slug: createSafeSlug(payload.name),
       description: payload.description || null,
+      target_audience: payload.target_audience || null,
+      product_context: payload.product_context || null,
       global_style_body: payload.global_style_body,
       is_active: true,
     });
@@ -153,7 +158,7 @@ export default function Dashboard() {
         const attentionProject = summary.projects.find((project) => project.active_accounts_count === 0)
           || summary.projects.find((project) => !project.next_post_time);
         return attentionProject ? <div className="dashboard-next-step tg-reveal" key={attentionProject.id}><JourneyNextStep title={`Продолжите настройку «${attentionProject.name}»`}
-          description={attentionProject.active_accounts_count === 0 ? "У проекта пока нет рабочего профиля Threads. Откройте проект — подскажем, как подключить профиль и подготовить первый пост." : "Ближайший пост пока не запланирован. Откройте проект и пройдите следующий шаг до первого текста."}
+          description={attentionProject.active_accounts_count === 0 ? "Сначала создайте и проверьте черновик. Профиль Threads можно подключить позже, когда будете готовы к публикации." : "Ближайший пост пока не запланирован. Откройте проект и пройдите следующий шаг до первого текста."}
           action="Продолжить" to={`/app/projects/${attentionProject.id}`} /></div> : null;
       })() : null}
 
@@ -198,10 +203,9 @@ export default function Dashboard() {
             </Link>
           }
         >
-          Начните за 3 шага: создайте проект → опишите, что будете публиковать →
-          подключите аккаунт Threads. Созданные тексты попадают в очередь
-          публикаций. Проверяйте их до назначенного времени: можно изменить или
-          отменить пост.
+          Создайте проект и опишите его → подготовьте и проверьте черновик →
+          подключите профиль Threads и согласуйте время. Новый проект ничего не
+          публикует сам: автоматическую подготовку можно отдельно включить в настройках.
         </DismissibleTip>
       ) : null}
 
@@ -307,6 +311,9 @@ export function CreateProjectModal({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [targetAudience, setTargetAudience] = useState("");
+  const [productContext, setProductContext] = useState("");
+  const [contextBusy, setContextBusy] = useState(false);
   const [globalStyle, setGlobalStyle] = useState("");
   const [saveError, setSaveError] = useState("");
   const [previousFocus] = useState(() => typeof document === "undefined" ? null : document.activeElement);
@@ -324,6 +331,7 @@ export function CreateProjectModal({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSaving || contextBusy) return;
 
     if (!name.trim()) {
       toast.error("Введите название проекта");
@@ -336,6 +344,8 @@ export function CreateProjectModal({
       await onSubmit({
         name: name.trim(),
         description: description.trim(),
+        target_audience: targetAudience.trim(),
+        product_context: productContext.trim(),
         global_style_body: globalStyle.trim() || undefined,
       });
     } catch (error) {
@@ -358,7 +368,7 @@ export function CreateProjectModal({
         aria-modal="true"
         aria-labelledby="new-project-title"
         onKeyDown={(event) => {
-          if (event.key === "Escape" && !isSaving) {
+          if (event.key === "Escape" && !isSaving && !contextBusy) {
             event.preventDefault();
             onClose();
           }
@@ -398,7 +408,7 @@ export function CreateProjectModal({
             type="button"
             onClick={onClose}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[#dfe4dc] bg-white text-[#141815] transition hover:bg-[#141815] hover:text-white"
-            disabled={isSaving}
+            disabled={isSaving || contextBusy}
             aria-label="Закрыть"
           >
             <CloseIcon />
@@ -414,7 +424,7 @@ export function CreateProjectModal({
               onChange={(event) => setName(event.target.value)}
               placeholder="Например: проект для эксперта"
               className="mt-2 h-12 w-full rounded-2xl border border-[#dfe4dc] bg-white px-4 text-base outline-none transition focus:border-[#141815]"
-              disabled={isSaving}
+              disabled={isSaving || contextBusy}
             />
           </label>
 
@@ -426,14 +436,23 @@ export function CreateProjectModal({
               placeholder="Например: помогаю начинающим предпринимателям вести учёт. Пишем о деньгах, налогах и типичных ошибках."
               rows={3}
               className="mt-2 w-full resize-y rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6 outline-none transition focus:border-[#141815]"
-              disabled={isSaving}
+              disabled={isSaving || contextBusy}
             />
             <span className="mt-2 block text-xs leading-5 text-[#7a8179]">
               Чем понятнее описание, тем меньше абстрактных постов получится на
               выходе.
             </span>
           </label>
-          <StyleAssistant disabled={isSaving} onApply={setGlobalStyle} />
+          <ProjectContextAssistant disabled={isSaving || contextBusy} onBusyChange={setContextBusy} onApply={context => {
+            setDescription(context.description); setTargetAudience(context.target_audience); setProductContext(context.product_context);
+          }} />
+          <label className="block text-sm text-[#3f463f]">Аудитория <span className="text-[#7a8179]">— необязательно</span>
+            <textarea value={targetAudience} onChange={event => setTargetAudience(event.target.value)} rows={2} maxLength={1200} disabled={isSaving || contextBusy} placeholder="Для кого пишем и что этим людям важно" className="mt-2 w-full rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6" />
+          </label>
+          <label className="block text-sm text-[#3f463f]">Продукт или польза контента <span className="text-[#7a8179]">— необязательно</span>
+            <textarea value={productContext} onChange={event => setProductContext(event.target.value)} rows={2} maxLength={1600} disabled={isSaving || contextBusy} placeholder="Что предлагаете: услугу, продукт или полезные знания" className="mt-2 w-full rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6" />
+          </label>
+          <StyleAssistant disabled={isSaving || contextBusy} onApply={setGlobalStyle} />
           {globalStyle ? (
             <div className="space-y-3 rounded-2xl border border-[#dfe4dc] bg-white p-4">
               <label className="block text-sm text-[#3f463f]">
@@ -441,7 +460,7 @@ export function CreateProjectModal({
                 <textarea
                   value={globalStyle}
                   onChange={(event) => setGlobalStyle(event.target.value)}
-                  disabled={isSaving}
+                  disabled={isSaving || contextBusy}
                   rows={6}
                   maxLength={6000}
                   className="mt-2 w-full rounded-2xl border border-[#dfe4dc] p-3 text-sm leading-6"
@@ -453,7 +472,7 @@ export function CreateProjectModal({
               </p>
               <button
                 type="button"
-                disabled={isSaving}
+                disabled={isSaving || contextBusy}
                 onClick={() => setGlobalStyle("")}
                 className="text-sm underline"
               >
@@ -475,14 +494,14 @@ export function CreateProjectModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={isSaving}
+            disabled={isSaving || contextBusy}
             className="h-12 rounded-full border border-[#cfd5cc] px-5 text-sm text-[#323832] transition hover:border-[#141815] hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             Отмена
           </button>
           <button
             type="submit"
-            disabled={isSaving}
+            disabled={isSaving || contextBusy}
             className="inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? <Spinner /> : <PlusIcon />}
@@ -535,7 +554,7 @@ function ProjectCard({
               {project.name}
             </h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
-              {project.active_accounts_count === 0 ? "Подключите рабочий профиль — это следующий шаг к первому посту."
+              {project.active_accounts_count === 0 ? "Создайте и проверьте черновик. Профиль нужен только для публикации."
                 : !project.next_post_time ? "Откройте проект, чтобы подготовить текст и проверить расписание."
                 : "Посты запланированы. Проверьте ближайший текст и время выхода."}
             </p>

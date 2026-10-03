@@ -364,3 +364,18 @@ class ProjectOperation(Base, TimestampMixin):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     project: Mapped[Project] = relationship(back_populates="operations")
+
+
+class StudioRequest(Base):
+    """Durable AI request ownership, reservation and replay ledger."""
+    __tablename__ = "studio_requests"
+    __table_args__ = (Index("ix_studio_requests_owner_kind_key", "owner_id", "kind", "request_key", unique=True),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    request_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)

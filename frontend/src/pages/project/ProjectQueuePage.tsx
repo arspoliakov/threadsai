@@ -35,10 +35,13 @@ export default function ProjectQueuePage() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const loadSequence = useRef(0);
+  const activeProjectId = useRef(projectId);
+  activeProjectId.current = projectId;
 
   async function loadTasks({ silent = false }: { silent?: boolean } = {}) {
+    if (activeProjectId.current !== projectId) return;
     const sequence = ++loadSequence.current;
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
     setLoadError(null);
 
     try {
@@ -55,7 +58,7 @@ export default function ProjectQueuePage() {
     } catch (error) {
       if (sequence !== loadSequence.current) return;
       const message = getApiErrorMessage(error, "Не удалось загрузить расписание постов.");
-      setLoadError(message);
+      if (!silent || !tasks.length) setLoadError(message);
       toast.error(message);
     } finally {
       if (sequence === loadSequence.current) setIsLoading(false);
@@ -63,6 +66,7 @@ export default function ProjectQueuePage() {
   }
 
   useEffect(() => {
+    setIsLoading(true);
     setSelectedDay(null);
     setExpandedTaskIds(new Set());
     if (Number.isInteger(projectId) && projectId > 0) {
@@ -130,20 +134,19 @@ export default function ProjectQueuePage() {
     }
   }
 
-  async function handleSaveTask(taskId: number, contentText: string[]) {
+  async function handleSaveTask(taskId: number, contentText: string[], expectedPostsChain: string[]) {
     setSavingId(taskId);
 
     try {
-      const task = tasks.find(item => item.id === taskId);
-      const updatePromise = updateTask(taskId, contentText, task?.posts_chain.length ? task.posts_chain : task ? [task.content_text] : undefined);
+      const updatePromise = updateTask(taskId, contentText, expectedPostsChain);
       toast.promise(updatePromise, {
         loading: "Сохраняем текст...",
-        success: "Текст публикации сохранен",
+        success: "Текст сохранён. Для публикации согласуйте время.",
         error: (error) => getApiErrorMessage(error, "Не удалось сохранить текст."),
       });
       const updatedTask = await updatePromise;
       trackSeoEvent("draft_edited", { project_id: projectId, task_id: taskId });
-      setTasks((current) => sortTasks(current.map((task) => (task.id === taskId ? updatedTask : task))));
+      onTaskUpdated(updatedTask);
       return true;
     } catch {
       // Keep the editor and its text open when saving fails.
@@ -154,11 +157,12 @@ export default function ProjectQueuePage() {
   }
 
   function onTaskUpdated(updated: PostingTask) {
+    if (updated.project_id !== activeProjectId.current) return;
     setTasks(current => sortTasks(current.map(task => task.id === updated.id ? updated : task)));
     if (selectedDay && selectedDay !== "drafts" && updated.status === "draft") setSelectedDay("drafts");
     if (selectedDay === "drafts" && updated.status === "queued" && updated.scheduled_at) setSelectedDay(localDay(new Date(updated.scheduled_at)));
   }
-  const visibleTasks = tasks.filter(task => !selectedDay || (selectedDay === "drafts" ? task.status === "draft" : task.scheduled_at && localDay(new Date(task.scheduled_at)) === selectedDay));
+  const visibleTasks = tasks.filter(task => !selectedDay || (selectedDay === "drafts" ? task.status === "draft" : task.status !== "draft" && task.status !== "cancelled" && task.scheduled_at && localDay(new Date(task.scheduled_at)) === selectedDay));
 
   return (
     <section className="space-y-5">
@@ -166,7 +170,7 @@ export default function ProjectQueuePage() {
         <h1 className="font-display text-4xl leading-none">Черновики и календарь</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
           Здесь собраны посты, которые выйдут в ближайшее время. Можно посмотреть текст, профиль и время выхода,
-          быстро отредактировать публикацию или попросить систему переписать её заново.
+          отредактировать текст или улучшить его с ИИ. После изменения запланированного текста нужно снова согласовать время.
         </p>
       </header>
 
@@ -175,7 +179,7 @@ export default function ProjectQueuePage() {
         проверять то, что еще должно выйти.
       </DismissibleTip>
 
-      <WeekPlanBuilder projectId={projectId} onCreated={() => { setSelectedDay("drafts"); void loadTasks({ silent: true }); }} />
+      <WeekPlanBuilder key={projectId} projectId={projectId} onCreated={() => { void loadTasks({ silent: true }); }} />
       {!isLoading && !loadError && <WeekCalendar tasks={tasks} selected={selectedDay} onSelect={setSelectedDay} />}
       {!isLoading && !loadError && tasks.length > 0 && visibleTasks.length === 0 && <p className="rounded-2xl border p-5 text-sm">На выбранный день постов нет. Выберите черновик и назначьте время.</p>}
       {isLoading ? (
@@ -190,7 +194,7 @@ export default function ProjectQueuePage() {
       ) : tasks.length === 0 ? (
         <EmptyState
           title="Публикаций пока нет"
-          description="Когда проект будет готов, система подготовит посты на ближайшие дни. Первый пост можно создать кнопкой на обзоре проекта."
+          description="Создайте первый черновик на обзоре проекта или составьте план недели здесь. После проверки текста выберите профиль и время публикации."
           actionLabel="К следующему шагу"
           onAction={() => navigate(`/app/projects/${projectId}`)}
         />
@@ -211,7 +215,7 @@ export default function ProjectQueuePage() {
               onToggle={() => toggleExpanded(task.id)}
               onCancel={() => void handleCancel(task.id)}
               onPublishNow={() => void handlePublishNow(task.id)}
-              onSave={(contentText) => handleSaveTask(task.id, contentText)}
+              onSave={(contentText, expected) => handleSaveTask(task.id, contentText, expected)}
             />
           ))}
         </div>
@@ -247,10 +251,11 @@ function TaskCard({
   onToggle: () => void;
   onCancel: () => void;
   onPublishNow: () => void;
-  onSave: (contentText: string[]) => Promise<boolean>;
+  onSave: (contentText: string[], expectedPostsChain: string[]) => Promise<boolean>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draftParts, setDraftParts] = useState(task.posts_chain.length > 0 ? task.posts_chain : [task.content_text]);
+  const editSource = useRef(task.posts_chain.length ? [...task.posts_chain] : [task.content_text]);
   const [controlBusy, setControlBusy] = useState<"rewrite" | "planning" | null>(null);
   const externalBusy = isCancelling || isPublishing || isSaving;
   const isBusy = externalBusy || controlBusy !== null;
@@ -278,7 +283,7 @@ function TaskCard({
       return;
     }
 
-    if (await onSave(normalizedText)) setIsEditing(false);
+    if (await onSave(normalizedText, editSource.current)) setIsEditing(false);
   }
 
   return (
@@ -369,7 +374,7 @@ function TaskCard({
             >
               Опубликовать сейчас
             </ActionButton>
-            <ActionButton onClick={() => setIsEditing(true)} disabled={isBusy || isEditing || !canEdit} isLoading={false}>
+            <ActionButton onClick={() => { editSource.current = task.posts_chain.length ? [...task.posts_chain] : [task.content_text]; setIsEditing(true); }} disabled={isBusy || isEditing || !canEdit} isLoading={false}>
               Редактировать
             </ActionButton>
             <ActionButton onClick={onCancel} disabled={isBusy || isEditing} isLoading={isCancelling}>
@@ -378,7 +383,7 @@ function TaskCard({
           </>
         ) : task.status === "draft" ? (
           <>
-            <ActionButton onClick={() => setIsEditing(true)} disabled={isBusy || isEditing || !canEdit} isLoading={false}>
+            <ActionButton onClick={() => { editSource.current = task.posts_chain.length ? [...task.posts_chain] : [task.content_text]; setIsEditing(true); }} disabled={isBusy || isEditing || !canEdit} isLoading={false}>
               Редактировать черновик
             </ActionButton>
 

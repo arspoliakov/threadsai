@@ -6,8 +6,8 @@ import { AnimatedWorkflow } from "../components/AnimatedWorkflow";
 
 const steps = [
   [
-    "Создайте проект",
-    "Расскажите, о чём пишете и кто ваша аудитория. Один проект — одна тема или бренд.",
+    "Попробуйте черновики",
+    "Зарегистрируйтесь и расскажите о теме и аудитории. Первые три текста — без карты и входа в Threads.",
   ],
   [
     "Найдите свой голос",
@@ -15,7 +15,7 @@ const steps = [
   ],
   [
     "Подключите Threads",
-    "Настройте профиль и расписание. Проверяйте и редактируйте тексты в очереди до их выхода.",
+    "Когда тексты понравятся, выберите подписку и подключите профиль. Вы сами проверяете посты и назначаете время в календаре.",
   ],
 ];
 const examples = [
@@ -98,7 +98,7 @@ export default function LandingPage() {
           <Link to="/updates/" className="rounded-xl px-4 py-3 hover:bg-[#edf3ef]">Что нового</Link>
           <Link to="/blog/" className="rounded-xl px-4 py-3 hover:bg-[#edf3ef]">Материалы о Threads</Link>
           <Link to="/login" className="rounded-xl px-4 py-3 hover:bg-[#edf3ef]">Войти в кабинет</Link>
-          <Link to="/register?intent=start" className="home-primary mt-1">Попробовать 3 дня</Link>
+          <Link to="/register?intent=studio" className="home-primary mt-1">Попробовать бесплатно</Link>
         </nav> : null}
       </header>
       <section className="home-hero mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-12 sm:px-8 sm:pt-20 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:pb-24">
@@ -119,17 +119,17 @@ export default function LandingPage() {
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
-              to="/register?intent=start"
-              data-analytics-cta="start_trial"
+              to="/register?intent=studio"
+              data-analytics-cta="try_drafts"
               className="home-primary"
             >
-              Попробовать 3 дня <span aria-hidden="true">↗</span>
+              Попробовать бесплатно <span aria-hidden="true">↗</span>
             </Link>
             <a href="#how-it-works" className="home-secondary">Как это работает</a>
           </div>
           <p className="mt-4 max-w-lg text-xs leading-5 text-[#738078]">
-            Basic: 3 дня бесплатно, затем 1 490 ₽/мес. Для пробного периода
-            нужны карта в Tribute и вступление в канал.{" "}
+            Три пробных черновика после регистрации — без карты и подключения Threads.
+            Подписка нужна для работы с проектами и публикации.{" "}
             <Link to="/pricing/" className="underline underline-offset-2">
               Все условия
             </Link>
@@ -200,10 +200,10 @@ export default function LandingPage() {
             решите, что сохранить.
           </p>
           <Link
-            to="/register?intent=start"
+            to="/register?intent=studio"
             className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#315b46]"
           >
-            Настроить свой стиль →
+            Попробовать свой стиль в черновике →
           </Link>
         </div>
         <div className="rounded-3xl border border-[#dbe6dd] bg-[#edf3ef] p-5 sm:p-8">
@@ -334,14 +334,14 @@ export default function LandingPage() {
         <p className="mt-5 text-base leading-7 text-[#60716a]">
           Посмотрите, как ThreadsGo подходит вашей задаче.
           <br />
-          На Basic есть пробный период — 3 дня.
+          Начните с трёх бесплатных черновиков без привязки карты.
         </p>
         <Link
-          to="/register?intent=start"
-          data-analytics-cta="start_trial"
+          to="/register?intent=studio"
+          data-analytics-cta="try_drafts"
           className="home-primary mx-auto mt-7 w-fit"
         >
-          Создать первый проект ↗
+          Попробовать три черновика ↗
         </Link>
         <Link
           to="/pricing/"

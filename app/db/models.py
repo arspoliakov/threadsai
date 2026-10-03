@@ -101,6 +101,7 @@ class Project(Base, TimestampMixin):
     active_hours_end: Mapped[str] = mapped_column(String(5), default="21:00", nullable=False)
     timezone: Mapped[str] = mapped_column(String(64), default="Europe/Moscow", nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    auto_generate: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False)
 
     accounts: Mapped[list[Account]] = relationship(
         back_populates="project",
@@ -153,9 +154,20 @@ class User(Base, TimestampMixin):
     tariff_posts_per_day: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     tariff_projects_limit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     tariff_queue_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    studio_trial_used: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
     projects: Mapped[list[Project]] = relationship(back_populates="owner")
     accounts: Mapped[list[Account]] = relationship(back_populates="owner")
+
+
+class StudioDraft(Base, TimestampMixin):
+    __tablename__ = "studio_drafts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    topic: Mapped[str] = mapped_column(String(600), nullable=False)
+    content_text: Mapped[str] = mapped_column(Text, nullable=False)
+    imported_task_id: Mapped[int | None] = mapped_column(ForeignKey("posting_tasks.id", ondelete="SET NULL"), nullable=True)
 
 
 class TelegramLoginChallenge(Base):

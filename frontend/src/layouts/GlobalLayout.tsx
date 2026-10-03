@@ -3,6 +3,7 @@ import { AppShell } from "../components/AppShell";
 import type { FloatingDockItem } from "../components/FloatingDock";
 
 const navigation: FloatingDockItem[] = [
+  { label: "Черновики", to: "/app/studio", icon: "spark" },
   {
     label: "Проекты",
     to: "/app",

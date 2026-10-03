@@ -253,6 +253,7 @@ async def analyze_daily_trends() -> None:
                     .join(User, Project.owner_id == User.id)
                     .where(
                         Project.is_active.is_(True),
+                        Project.auto_generate.is_(True),
                         User.subscription_status.is_(True),
                     )
                     .order_by(Project.id.asc())
@@ -345,6 +346,7 @@ async def ensure_account_based_queue() -> None:
                     .join(User, Project.owner_id == User.id)
                     .where(
                         Project.is_active.is_(True),
+                        Project.auto_generate.is_(True),
                         User.subscription_status.is_(True),
                     )
                     .order_by(Project.id.asc())
@@ -377,7 +379,7 @@ async def ensure_project_queue(project_id: int, *, generation_budget: int = MAX_
 
     async with AsyncSessionLocal() as session:
         project = await session.get(Project, project_id)
-        if project is None or not project.is_active:
+        if project is None or not project.is_active or not project.auto_generate:
             return 0
 
         owner = await session.get(User, project.owner_id) if project.owner_id is not None else None
@@ -442,6 +444,7 @@ async def _ensure_account_queue_for_project(
 
     if (
         not project.is_active
+        or not project.auto_generate
         or account.project_id != project.id
         or account.status != AccountStatus.ACTIVE
         or account.platform != Platform.THREADS

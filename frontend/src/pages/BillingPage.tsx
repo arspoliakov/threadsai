@@ -134,6 +134,7 @@ export default function BillingPage() {
           </p>
         </div>
 
+        {!billing?.subscription_status && <Link to="/app/studio" className="mt-4 block rounded-2xl border border-[#d8e2da] p-4 text-sm"><strong>Сначала попробуйте три бесплатных черновика →</strong><span className="mt-1 block">Карта и подключение Threads не нужны.</span></Link>}
         {billing?.subscription_status ? (
           <Link to="/app" className="mt-5 inline-flex rounded-full bg-[#111] px-6 py-3 text-sm font-semibold text-white">Перейти к проектам →</Link>
         ) : (

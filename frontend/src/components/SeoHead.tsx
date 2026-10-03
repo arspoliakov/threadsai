@@ -62,11 +62,13 @@ function getAppPageMeta(pathname: string) {
     "/app/settings/": "Настройки стиля | ThreadsGo",
     "/app/billing": "Тариф и подписка | ThreadsGo",
     "/app/billing/": "Тариф и подписка | ThreadsGo",
+    "/app/studio": "Пробные черновики | ThreadsGo",
+    "/app/studio/": "Пробные черновики | ThreadsGo",
     "/app/how-it-works": "Как работает ThreadsGo",
     "/app/how-it-works/": "Как работает ThreadsGo",
   };
   const projectTitles: Record<string, string> = {
-    queue: "Очередь публикаций | ThreadsGo",
+    queue: "Черновики и календарь | ThreadsGo",
     trends: "Свежие темы | ThreadsGo",
     settings: "Настройки проекта | ThreadsGo",
   };

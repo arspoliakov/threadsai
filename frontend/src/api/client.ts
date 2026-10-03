@@ -267,6 +267,7 @@ export type Project = {
   active_hours_end: string;
   timezone: string;
   is_active: boolean;
+  auto_generate: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -274,6 +275,7 @@ export type Project = {
 export type ConversionMode = "bio_link" | "pinned_post" | "none";
 
 export type ProjectCreatePayload = {
+  auto_generate?: boolean;
   global_style_body?: string;
   name: string;
   slug: string;
@@ -410,6 +412,10 @@ export type PostingTask = {
 };
 
 export type GenerationMetadata = {
+  rubric?: string;
+  topic?: string;
+  plan_day?: number;
+  approved_by_owner?: boolean;
   publication_confirmation_pending?: boolean;
   applied_angle?: string;
   hook_mechanic?: string;
@@ -861,15 +867,40 @@ export async function getProjectTasks(projectId: number): Promise<PostingTask[]>
   return response.data;
 }
 
-export async function updateTask(taskId: number, contentText: string | string[]): Promise<PostingTask> {
+export async function updateTask(taskId: number, contentText: string | string[], expectedPostsChain?: string[]): Promise<PostingTask> {
   const response = await apiClient.put<PostingTask>(`/api/v1/tasks/${taskId}`,
-    Array.isArray(contentText) ? { posts_chain: contentText } : { content_text: contentText });
+    Array.isArray(contentText) ? { posts_chain: contentText, expected_posts_chain: expectedPostsChain } : { content_text: contentText });
   return response.data;
 }
 
 export async function regenerateTask(taskId: number): Promise<PostingTask> {
   const response = await apiClient.post<PostingTask>(`/api/v1/tasks/${taskId}/regenerate`);
   return response.data;
+}
+
+export type StudioDraft = { id: number; topic: string; content_text: string; imported_task_id: number | null };
+export type StudioTrial = { remaining: number; drafts: StudioDraft[] };
+export async function getStudioTrial(): Promise<StudioTrial> {
+  return (await apiClient.get<StudioTrial>("/api/v1/studio/trial")).data;
+}
+export async function generateStudioTrial(payload: { topic: string; context: string; tone: string }): Promise<StudioDraft> {
+  return (await apiClient.post<StudioDraft>("/api/v1/studio/trial", payload, { timeout: 65000 })).data;
+}
+export async function importStudioDraft(draftId: number, projectId: number): Promise<{ task_id: number; project_id: number }> {
+  return (await apiClient.post(`/api/v1/studio/trial/${draftId}/import`, { project_id: projectId })).data;
+}
+export async function createWeekPlan(projectId: number, rubrics: string[], goal: string): Promise<{ count: number }> {
+  return (await apiClient.post(`/api/v1/studio/projects/${projectId}/week-plan`, { rubrics, goal }, { timeout: 65000 })).data;
+}
+export type RewriteMode = "shorter" | "hook" | "clearer" | "warmer" | "custom";
+export async function previewTaskRewrite(taskId: number, mode: RewriteMode, instruction: string): Promise<{ posts_chain: string[]; source_posts_chain: string[] }> {
+  return (await apiClient.post(`/api/v1/tasks/${taskId}/rewrite-preview`, { mode, instruction }, { timeout: 65000 })).data;
+}
+export async function scheduleTask(taskId: number, scheduledAt: string, accountId: number): Promise<PostingTask> {
+  return (await apiClient.post<PostingTask>(`/api/v1/tasks/${taskId}/schedule`, { scheduled_at: scheduledAt, account_id: accountId })).data;
+}
+export async function returnTaskToDraft(taskId: number): Promise<PostingTask> {
+  return (await apiClient.post<PostingTask>(`/api/v1/tasks/${taskId}/to-draft`)).data;
 }
 
 export async function cancelTask(taskId: number): Promise<PostingTask> {

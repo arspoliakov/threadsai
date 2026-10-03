@@ -178,8 +178,8 @@ export default function ProjectOverviewPage() {
             {dashboard?.project.name || "Обзор проекта"}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Здесь вы управляете всем процессом. Проверьте: подключен ли профиль, собраны ли свежие идеи
-            для постов и составлено ли расписание публикаций на ближайшие дни.
+            Начните с черновика: опишите тему, создайте текст и проверьте его. Профиль Threads
+            нужен только для сбора идей из ленты и публикации — подключить его можно позже.
           </p>
         </div>
         {dashboard ? (
@@ -195,7 +195,7 @@ export default function ProjectOverviewPage() {
 
       {dashboard && !isLoading ? (
         <ProjectNextStep dashboard={dashboard} projectId={projectId} runningAction={runningAction}
-          onGenerate={() => void handleTriggerGeneration()} onCollect={() => void handleTriggerScraping()} />
+          onGenerate={() => void handleTriggerGeneration()} />
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -209,15 +209,22 @@ export default function ProjectOverviewPage() {
           onClick={() => void handleTriggerScraping()}
         />
         <ActionPanel
-          title="Добавить пост"
-          description="Нейросеть создаст текст на основе проекта и стиля. Если профиль готов, пост попадёт в расписание: проверьте и при необходимости отредактируйте его до времени выхода."
-          buttonText="Добавить новый пост в план"
+          title="Создать черновик"
+          description="Нейросеть создаст текст на основе проекта и стиля — даже без профиля Threads и собранных идей. Черновик не отправляется: сначала проверьте его, затем выберите время."
+          buttonText="Создать черновик"
           isLoading={runningAction === "generation"}
-          isDisabled={runningAction !== null || isLoading || !hasActiveAccount(dashboard)}
-          disabledReason={!hasActiveAccount(dashboard) ? "Сначала подключите рабочий профиль Threads" : undefined}
+          isDisabled={runningAction !== null || isLoading}
+          disabledReason={undefined}
           onClick={() => void handleTriggerGeneration()}
         />
       </div>
+
+      {dashboard ? (
+        <Link to={`/app/projects/${projectId}/queue`} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dfe4dc] bg-white px-5 py-4 text-sm transition hover:bg-[#eef4ec]">
+          <span><strong>Черновики и календарь</strong><span className="mt-1 block text-[#667066]">Проверьте тексты, попробуйте ИИ-правку или соберите план на неделю.</span></span>
+          <span aria-hidden="true">Открыть →</span>
+        </Link>
+      ) : null}
 
       {dashboard ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
@@ -272,31 +279,23 @@ export default function ProjectOverviewPage() {
   );
 }
 
-function ProjectNextStep({ dashboard, projectId, runningAction, onGenerate, onCollect }: {
+function ProjectNextStep({ dashboard, projectId, runningAction, onGenerate }: {
   dashboard: ProjectDashboard; projectId: number; runningAction: RunningAction;
-  onGenerate: () => void; onCollect: () => void;
+  onGenerate: () => void;
 }) {
   if (!(dashboard.project.global_context || dashboard.project.description || "").trim()) {
     return <JourneyNextStep title="Расскажите, о чём писать" description="Опишите вашу тему, аудиторию и пользу. Это основа текстов; остальные настройки можно уточнить позже."
       action="Описать проект" to={`/app/projects/${projectId}/settings`} />;
   }
-  if (!hasActiveAccount(dashboard)) {
-    return <JourneyNextStep title="Подключите рабочий профиль" description="Добавьте профиль в разделе «Профили», затем выберите его в настройках этого проекта. Если профиль уже подключён, проверьте его состояние."
-      action="Выбрать профиль для проекта" to={`/app/projects/${projectId}/settings#profiles`} />;
-  }
   const queued = dashboard.posting_tasks_by_status.queued ?? 0;
   const drafts = dashboard.posting_tasks_by_status.draft ?? 0;
   if (queued > 0 || drafts > 0) {
     return <JourneyNextStep title={queued > 0 ? "Проверьте текст до публикации" : "Посмотрите подготовленный черновик"}
-      description={queued > 0 ? "В расписании уже есть посты. Откройте ближайший: проверьте текст, профиль и время. Ненужный пост можно отменить до отправки." : "Черновик сохранён, но пока не запланирован. В расписании видно его состояние; отправка не начнётся сама."}
-      action="Открыть расписание" to={`/app/projects/${projectId}/queue`} />;
+      description={queued > 0 ? "В расписании уже есть посты. Откройте ближайший: проверьте текст, профиль и время. Ненужный пост можно отменить до отправки." : "Черновик сохранён, но пока не запланирован. Откройте редактор, проверьте текст и назначьте время. Для публикации понадобится подключённый профиль. Отправка не начнётся сама."}
+      action="Открыть черновики и календарь" to={`/app/projects/${projectId}/queue`} />;
   }
-  if (dashboard.saved_trends_count === 0) {
-    return <JourneyNextStep title="Соберите идеи для первого поста" description="Изучим ленту и найдём подходящие приёмы для ваших текстов. Сбор идёт в фоне — вы можете продолжать настройку проекта."
-      action={runningAction === "scraping" ? "Собираем идеи…" : "Собрать идеи"} onAction={onCollect} disabled={runningAction !== null} />;
-  }
-  return <JourneyNextStep title="Подготовьте первый пост" description="Идеи и профиль готовы. Создайте текст, затем откройте расписание и проверьте его до публикации."
-    action={runningAction === "generation" ? "Готовим текст…" : "Создать пост в расписании"} onAction={onGenerate} disabled={runningAction !== null} />;
+  return <JourneyNextStep title="Подготовьте первый черновик" description="Создайте текст по описанию проекта и вашему стилю. Профиль и идеи из ленты не обязательны. Затем откройте черновики: проверьте текст и выберите время публикации."
+    action={runningAction === "generation" ? "Готовим текст…" : "Создать черновик"} onAction={onGenerate} disabled={runningAction !== null} />;
 }
 
 function SystemStatusCard({
@@ -377,13 +376,13 @@ function ReadinessChecklist({
     {
       title: "Подключите Threads-профиль",
       done: activeAccounts > 0,
-      hint: "Войдите через отдельное окно или импортируйте сессию, затем выберите профиль для проекта.",
+      hint: "Нужен для публикации и сбора ленты. Черновики можно готовить до подключения.",
       to: `/app/projects/${projectId}/settings#profiles`,
     },
     {
-      title: "Обновите идеи",
+      title: "Дополнительно: идеи из ленты",
       done: dashboard.saved_trends_count > 0,
-      hint: "Так посты будут собираться не из воздуха, а из живой механики ленты.",
+      hint: "Необязательный шаг: добавьте наблюдения из ленты к теме и стилю проекта.",
       to: `/app/projects/${projectId}/trends`,
     },
     {
@@ -857,8 +856,8 @@ function getProjectSystemStatus({
 
   if (activeAccounts === 0) {
     return {
-      title: "ждет профиль",
-      description: "Подключите рабочий Threads-профиль, чтобы собирать идеи, готовить и публиковать посты. Общий стиль можно настроить уже сейчас.",
+      title: "готов к черновикам",
+      description: "Готовьте и редактируйте тексты уже сейчас. Подключённый Threads-профиль понадобится для публикации и сбора идей из ленты.",
       dotClass: "bg-[#9aa39a]",
       pulse: false,
     };
@@ -866,8 +865,8 @@ function getProjectSystemStatus({
 
   if (trendsCount === 0) {
     return {
-      title: "готов к анализу",
-      description: "Профиль подключен. Теперь обновите идеи, чтобы посты опирались на живую ленту.",
+      title: "готов к черновикам",
+      description: "Профиль подключён. Создайте текст по теме проекта или дополнительно обновите идеи из ленты.",
       dotClass: "bg-[#0076ff]",
       pulse: false,
     };
@@ -876,7 +875,7 @@ function getProjectSystemStatus({
   if (queuedCount > 0) {
     return {
       title: "расписание постов готово",
-      description: "Все посты уже запланированы. Можно проверить тексты или просто ждать публикации по расписанию.",
+      description: "В расписании есть посты. Проверьте их тексты, профиль и время в календаре.",
       dotClass: "bg-[#70ff35]",
       pulse: true,
     };
@@ -884,7 +883,7 @@ function getProjectSystemStatus({
 
   return {
     title: "готов к генерации",
-    description: "Идеи собраны, профиль активен. Можно создать пост сейчас или дождаться, пока система сделает это сама.",
+    description: "Создайте черновик и проверьте его в редакторе. Автоматическая подготовка и отправка работают только при включённом автоматическом режиме в настройках проекта.",
     dotClass: "bg-[#70ff35]",
     pulse: false,
   };

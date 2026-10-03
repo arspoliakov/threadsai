@@ -57,9 +57,20 @@ export default function HowItWorksPage() {
           />
           <SmallCard
             title="Аккаунт"
-            text="Войдите в свой профиль в отдельном окне браузера или импортируйте данные входа. Затем проверьте подключение в проекте."
+            text="Подключите перед публикацией: через отдельное окно браузера или импорт данных входа. Для подготовки черновиков профиль не нужен."
           />
         </div>
+      </section>
+
+      <section className="rounded-[28px] border border-[#dfe4dc] bg-[#eef4ec] p-6 shadow-sm">
+        <h2 className="font-display text-3xl leading-none text-[#111]">Сначала текст, потом публикация</h2>
+        <p className="mt-4 max-w-3xl text-sm leading-7 text-[#667066]">
+          В пробной студии доступны три черновика без карты и подключения Threads. В проекте можно подготовить один текст
+          или семь черновиков по рубрикам на неделю. В редакторе ИИ предложит правку с предпросмотром: вы решаете,
+          принять её или оставить исходный вариант. После проверки выбирайте профиль и время в календаре.
+          Ручная генерация не запускает отправку; новые проекты начинают с согласования.
+        </p>
+        <Link to="/app/studio" className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-[#141815] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">Попробовать черновики</Link>
       </section>
 
       <section className="rounded-[28px] border border-[#dfe4dc] bg-white p-6 shadow-sm">

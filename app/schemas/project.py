@@ -23,6 +23,7 @@ class ProjectBase(BaseModel):
     active_hours_end: str = Field(default="21:00", pattern=r"^\d{2}:\d{2}$")
     timezone: str = Field(default="Europe/Moscow", min_length=1, max_length=64)
     is_active: bool = True
+    auto_generate: bool = True
 
     @field_validator("timezone")
     @classmethod
@@ -36,6 +37,7 @@ class ProjectBase(BaseModel):
 
 
 class ProjectCreate(ProjectBase):
+    auto_generate: bool = False
     slug: str | None = Field(default=None, max_length=120)
     global_style_body: str | None = Field(default=None, min_length=10, max_length=6000)
 
@@ -70,6 +72,7 @@ class ProjectUpdate(BaseModel):
     active_hours_end: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     is_active: bool | None = None
+    auto_generate: bool | None = None
 
     @field_validator("timezone")
     @classmethod

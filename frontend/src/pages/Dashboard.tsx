@@ -147,6 +147,8 @@ export default function Dashboard() {
         ) : null}
       </header>
 
+      <Link to="/app/studio" className="block rounded-2xl border border-[#d8e2da] bg-white p-5 text-sm"><strong>Попробуйте три черновика бесплатно</strong><span className="mt-1 block text-[#67786e]">Оцените тексты до привязки карты и подключения Threads →</span></Link>
+
       {!isLoading && summary && summary.projects.length > 0 ? (() => {
         const attentionProject = summary.projects.find((project) => project.active_accounts_count === 0)
           || summary.projects.find((project) => !project.next_post_time);

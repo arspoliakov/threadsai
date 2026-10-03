@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -8,12 +8,13 @@ import {
   getProjectDashboard,
   getProjectTasks,
   publishTaskNow,
-  regenerateTask,
   updateTask,
   type PostingTask,
   type PostingTaskStatus,
   type ProjectAccountState,
 } from "../../api/client";
+import { TaskPlanningControls, TaskRewriteControls, WeekPlanBuilder } from "../../components/ContentStudioControls";
+import { WeekCalendar, localDay } from "../../components/WeekCalendar";
 import { DismissibleTip } from "../../components/DismissibleTip";
 import { trackSeoEvent } from "../../components/SeoAnalytics";
 
@@ -29,12 +30,14 @@ export default function ProjectQueuePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [publishingId, setPublishingId] = useState<number | null>(null);
-  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [accountStates, setAccountStates] = useState<ProjectAccountState[]>([]);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const loadSequence = useRef(0);
 
   async function loadTasks({ silent = false }: { silent?: boolean } = {}) {
+    const sequence = ++loadSequence.current;
     setIsLoading(true);
     setLoadError(null);
 
@@ -43,24 +46,31 @@ export default function ProjectQueuePage() {
         getProjectTasks(projectId),
         getProjectDashboard(projectId),
       ]);
+      if (sequence !== loadSequence.current) return;
       setTasks(sortTasks(tasksResult));
       setAccountStates(dashboardResult.account_states);
       if (!silent) {
         toast.success("Расписание постов обновлено");
       }
     } catch (error) {
+      if (sequence !== loadSequence.current) return;
       const message = getApiErrorMessage(error, "Не удалось загрузить расписание постов.");
       setLoadError(message);
       toast.error(message);
     } finally {
-      setIsLoading(false);
+      if (sequence === loadSequence.current) setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    if (Number.isFinite(projectId)) {
+    setSelectedDay(null);
+    setExpandedTaskIds(new Set());
+    if (Number.isInteger(projectId) && projectId > 0) {
       void loadTasks({ silent: true });
+    } else {
+      setLoadError("Проект не найден"); setIsLoading(false);
     }
+    return () => { loadSequence.current++; };
   }, [projectId]);
 
   function toggleExpanded(taskId: number) {
@@ -124,7 +134,8 @@ export default function ProjectQueuePage() {
     setSavingId(taskId);
 
     try {
-      const updatePromise = updateTask(taskId, contentText);
+      const task = tasks.find(item => item.id === taskId);
+      const updatePromise = updateTask(taskId, contentText, task?.posts_chain.length ? task.posts_chain : task ? [task.content_text] : undefined);
       toast.promise(updatePromise, {
         loading: "Сохраняем текст...",
         success: "Текст публикации сохранен",
@@ -142,31 +153,17 @@ export default function ProjectQueuePage() {
     }
   }
 
-  async function handleRegenerateTask(taskId: number) {
-    setRegeneratingId(taskId);
-
-    try {
-      const regeneratePromise = regenerateTask(taskId);
-      toast.promise(regeneratePromise, {
-        loading: "Переписываем пост...",
-        success: "Пост переписан",
-        error: (error) => getApiErrorMessage(error, "Не удалось переписать пост."),
-      });
-      const regeneratedTask = await regeneratePromise;
-      trackSeoEvent("draft_regenerated", { project_id: projectId, task_id: taskId });
-      setTasks((current) => sortTasks(current.map((task) => (task.id === taskId ? regeneratedTask : task))));
-      setExpandedTaskIds((current) => new Set(current).add(taskId));
-    } catch {
-      // The promise toast displays the error; keep the current text available.
-    } finally {
-      setRegeneratingId(null);
-    }
+  function onTaskUpdated(updated: PostingTask) {
+    setTasks(current => sortTasks(current.map(task => task.id === updated.id ? updated : task)));
+    if (selectedDay && selectedDay !== "drafts" && updated.status === "draft") setSelectedDay("drafts");
+    if (selectedDay === "drafts" && updated.status === "queued" && updated.scheduled_at) setSelectedDay(localDay(new Date(updated.scheduled_at)));
   }
+  const visibleTasks = tasks.filter(task => !selectedDay || (selectedDay === "drafts" ? task.status === "draft" : task.scheduled_at && localDay(new Date(task.scheduled_at)) === selectedDay));
 
   return (
     <section className="space-y-5">
       <header>
-        <h1 className="font-display text-4xl leading-none">Расписание будущих постов</h1>
+        <h1 className="font-display text-4xl leading-none">Черновики и календарь</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
           Здесь собраны посты, которые выйдут в ближайшее время. Можно посмотреть текст, профиль и время выхода,
           быстро отредактировать публикацию или попросить систему переписать её заново.
@@ -178,6 +175,9 @@ export default function ProjectQueuePage() {
         проверять то, что еще должно выйти.
       </DismissibleTip>
 
+      <WeekPlanBuilder projectId={projectId} onCreated={() => { setSelectedDay("drafts"); void loadTasks({ silent: true }); }} />
+      {!isLoading && !loadError && <WeekCalendar tasks={tasks} selected={selectedDay} onSelect={setSelectedDay} />}
+      {!isLoading && !loadError && tasks.length > 0 && visibleTasks.length === 0 && <p className="rounded-2xl border p-5 text-sm">На выбранный день постов нет. Выберите черновик и назначьте время.</p>}
       {isLoading ? (
         <TaskSkeleton />
       ) : loadError ? (
@@ -196,14 +196,15 @@ export default function ProjectQueuePage() {
         />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
-          {tasks.map((task) => (
+          {visibleTasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
+              accounts={accountStates}
+              onUpdated={onTaskUpdated}
               isExpanded={expandedTaskIds.has(task.id)}
               isCancelling={cancellingId === task.id}
               isPublishing={publishingId === task.id}
-              isRegenerating={regeneratingId === task.id}
               isSaving={savingId === task.id}
               isSessionDead={isTaskAccountSessionDead(task, accountStates)}
               accountBlockMessage={getAccountBlockMessage(task, accountStates)}
@@ -211,7 +212,6 @@ export default function ProjectQueuePage() {
               onCancel={() => void handleCancel(task.id)}
               onPublishNow={() => void handlePublishNow(task.id)}
               onSave={(contentText) => handleSaveTask(task.id, contentText)}
-              onRegenerate={() => void handleRegenerateTask(task.id)}
             />
           ))}
         </div>
@@ -222,10 +222,11 @@ export default function ProjectQueuePage() {
 
 function TaskCard({
   task,
+  accounts,
+  onUpdated,
   isExpanded,
   isCancelling,
   isPublishing,
-  isRegenerating,
   isSaving,
   isSessionDead,
   accountBlockMessage,
@@ -233,13 +234,13 @@ function TaskCard({
   onCancel,
   onPublishNow,
   onSave,
-  onRegenerate,
 }: {
   task: PostingTask;
+  accounts: ProjectAccountState[];
+  onUpdated: (task: PostingTask) => void;
   isExpanded: boolean;
   isCancelling: boolean;
   isPublishing: boolean;
-  isRegenerating: boolean;
   isSaving: boolean;
   isSessionDead: boolean;
   accountBlockMessage: string;
@@ -247,18 +248,19 @@ function TaskCard({
   onCancel: () => void;
   onPublishNow: () => void;
   onSave: (contentText: string[]) => Promise<boolean>;
-  onRegenerate: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draftParts, setDraftParts] = useState(task.posts_chain.length > 0 ? task.posts_chain : [task.content_text]);
-  const isBusy = isCancelling || isPublishing || isRegenerating || isSaving;
+  const [controlBusy, setControlBusy] = useState<"rewrite" | "planning" | null>(null);
+  const externalBusy = isCancelling || isPublishing || isSaving;
+  const isBusy = externalBusy || controlBusy !== null;
   const canChange = task.status !== "running" && task.status !== "success" && task.status !== "partial_success"
     && !task.generation_metadata?.publication_confirmation_pending;
   const canEdit = canChange;
 
   useEffect(() => {
-    setDraftParts(task.posts_chain.length > 0 ? task.posts_chain : [task.content_text]);
-  }, [task.content_text, task.posts_chain]);
+    if (!isEditing) setDraftParts(task.posts_chain.length > 0 ? task.posts_chain : [task.content_text]);
+  }, [task.content_text, task.posts_chain, isEditing]);
 
   function handleCancelEdit() {
     setDraftParts(task.posts_chain.length > 0 ? task.posts_chain : [task.content_text]);
@@ -280,7 +282,7 @@ function TaskCard({
   }
 
   return (
-    <article className={`rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md ${isRegenerating ? "animate-pulse" : ""}`}>
+    <article className={`rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md`}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e7e5de] pb-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">Публикация #{task.id}</p>
@@ -328,16 +330,17 @@ function TaskCard({
         <button
           type="button"
           onClick={onToggle}
-          className="mt-4 w-full whitespace-pre-line text-left text-sm leading-6 text-[#252525] transition-all duration-200 ease-in-out hover:text-[#000]"
+          aria-expanded={isExpanded}
+          className="mt-4 w-full break-words whitespace-pre-line text-left text-sm leading-6 text-[#252525] transition-all duration-200 ease-in-out hover:text-[#000]"
         >
-          {isRegenerating ? "Переписываем пост..." : isExpanded ? (task.posts_chain.length > 1 ? task.posts_chain.map((text, index) => `${index + 1}. ${text}`).join("\n\n") : task.content_text) : truncate(task.content_text, 240)}
+          {isExpanded ? (task.posts_chain.length > 1 ? task.posts_chain.map((text, index) => `${index + 1}. ${text}`).join("\n\n") : task.content_text) : truncate(task.content_text, 240)}
         </button>
       )}
 
       {isExpanded && !isEditing ? <GenerationMetadataBlock task={task} /> : null}
 
       {task.status === "draft" ? (
-        <p className="mt-4 text-xs leading-5 text-[#77766f]">Это черновик: сохранение текста не запускает публикацию. Для нового поста в расписании проверьте подключение профиля в обзоре проекта.</p>
+        <p className="mt-4 text-xs leading-5 text-[#77766f]">Это черновик: сохранение текста не запускает публикацию. Проверьте факты, затем выберите профиль и время кнопкой «Согласовать и запланировать».</p>
       ) : null}
       {task.posts_chain.length > 1 && task.status === "queued" ? (
         <p className="mt-4 text-xs leading-5 text-[#77766f]">Цепочка из {task.posts_chain.length} постов. Нажмите на текст, чтобы увидеть её целиком, или «Редактировать», чтобы изменить отдельные части.</p>
@@ -346,7 +349,7 @@ function TaskCard({
       {task.error_message ? (
         <div className="mt-5 rounded-2xl border border-[#e0b4ae] bg-[#fff8f6] px-4 py-3 text-xs leading-5 text-[#8a2d25]">
           <p className="font-medium">Публикация не прошла, но текст сохранён.</p>
-          <p className="mt-1 text-[#8a4a44]">Проверьте состояние профиля в настройках проекта и повторите публикацию.</p>
+          <p className="mt-1 text-[#8a4a44]">Проверьте состояние профиля в настройках проекта и обратитесь в поддержку.</p>
           <details className="mt-2">
             <summary className="cursor-pointer text-[#7a625f]">Техническая информация для поддержки</summary>
             <p className="mt-2 break-words text-[#7a625f]">{truncate(task.error_message, 500)}</p>
@@ -369,9 +372,6 @@ function TaskCard({
             <ActionButton onClick={() => setIsEditing(true)} disabled={isBusy || isEditing || !canEdit} isLoading={false}>
               Редактировать
             </ActionButton>
-            <ActionButton onClick={onRegenerate} disabled={isBusy || isEditing || !canChange} isLoading={isRegenerating}>
-              Переписать
-            </ActionButton>
             <ActionButton onClick={onCancel} disabled={isBusy || isEditing} isLoading={isCancelling}>
               Отменить
             </ActionButton>
@@ -381,7 +381,7 @@ function TaskCard({
             <ActionButton onClick={() => setIsEditing(true)} disabled={isBusy || isEditing || !canEdit} isLoading={false}>
               Редактировать черновик
             </ActionButton>
-            <Link to={`/app/projects/${task.project_id}`} className="inline-flex items-center rounded-2xl border border-[#151515] px-4 py-2 text-xs text-[#151515]">К настройке публикации</Link>
+
           </>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
@@ -399,6 +399,11 @@ function TaskCard({
           </div>
         )}
       </div>
+      {canChange && (task.status === "draft" || task.status === "queued") && <>
+        <div hidden={isEditing}><TaskRewriteControls task={task} onUpdated={onUpdated} disabled={externalBusy || isEditing || controlBusy === "planning"} onBusyChange={busy => setControlBusy(busy ? "rewrite" : null)} />
+        <TaskPlanningControls task={task} accounts={accounts} onUpdated={onUpdated} disabled={externalBusy || isEditing || controlBusy === "rewrite"} onBusyChange={busy => setControlBusy(busy ? "planning" : null)} /></div>
+      </>}
+      {task.generation_metadata?.rubric && <p className="mt-3 text-xs text-[#67786e]">Рубрика: {String(task.generation_metadata.rubric)}</p>}
     </article>
   );
 }

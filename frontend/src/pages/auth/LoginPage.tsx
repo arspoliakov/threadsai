@@ -41,6 +41,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as LocationState | null;
+  const requestedPath = new URLSearchParams(location.search).get("intent") === "studio" ? "/app/studio" : state?.from;
   const loginReason = new URLSearchParams(location.search).get("reason");
   const sessionNeedsRefresh = loginReason === "session-expired" || loginReason === "access-denied";
   const widgetContainerRef = useRef<HTMLDivElement | null>(null);
@@ -60,8 +61,8 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
     trackSeoEvent("telegram_login_complete");
     if (response.is_new_user) trackSeoEventOnce("registration_complete");
     toast.success("Вход через Telegram выполнен");
-    navigate(await getPostLoginDestination(state?.from), { replace: true });
-  }, [navigate, state?.from]);
+    navigate(await getPostLoginDestination(requestedPath), { replace: true });
+  }, [navigate, requestedPath]);
 
   const botLogin = useTelegramBotLogin(finishAuthenticated, registration);
 
@@ -182,7 +183,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
   }, [canLogin, handleTelegramAuth, widgetKey]);
 
   if (isAuthenticated()) {
-    return <Navigate to={sanitizeReturnPath(state?.from)} replace />;
+    return <Navigate to={sanitizeReturnPath(requestedPath)} replace />;
   }
 
   return (
@@ -365,7 +366,7 @@ async function getPostLoginDestination(requestedPath?: string) {
   try {
     const user = await getCurrentUser();
     if (!user.subscription_status) {
-      return "/app/billing";
+      return requestedPath === "/app/billing" ? "/app/billing" : "/app/studio";
     }
   } catch {
     // The normal API interceptor will handle invalid access; keep a safe fallback here.

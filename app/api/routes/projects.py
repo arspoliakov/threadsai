@@ -23,6 +23,7 @@ from app.db.models import (
     ProjectOperationType,
     ProjectPrompt,
     SavedTrend,
+    StudioDraft,
     User,
 )
 from app.db.repositories.projects import ProjectRepository
@@ -221,6 +222,9 @@ async def delete_project(
         .where(Account.project_id == project.id)
         .values(project_id=None)
     )
+    await db.execute(update(StudioDraft).where(StudioDraft.imported_task_id.in_(
+        select(PostingTask.id).where(PostingTask.project_id == project.id)
+    )).values(imported_task_id=None))
     await db.execute(delete(PostingTask).where(PostingTask.project_id == project.id))
     await db.execute(delete(SavedTrend).where(SavedTrend.project_id == project.id))
     await db.execute(delete(ProjectPrompt).where(ProjectPrompt.project_id == project.id))
@@ -429,14 +433,6 @@ async def trigger_project_generation(
     _subscription: User = Depends(require_active_subscription),
 ) -> TriggerGenerationRead:
     project = await _get_owned_project(project_id=project_id, owner_id=current_user_id, db=db)
-    account_id = await _get_active_threads_account_id(project_id=project.id, owner_id=current_user_id, db=db)
-
-    if account_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Сначала подключите рабочий профиль Threads. После этого можно будет готовить посты.",
-        )
-
     operation = ProjectOperation(
         project_id=project.id,
         owner_id=current_user_id,
@@ -448,18 +444,21 @@ async def trigger_project_generation(
     await db.flush()
 
     try:
-        scheduled_at = await calculate_next_account_slot(project, account_id, db)
         posting_task = await generate_post(
             project_id=project.id,
             topic_or_context=_build_generation_topic(project),
             session=db,
             platform=Platform.THREADS,
-            account_id=account_id,
-            scheduled_at=scheduled_at,
+            account_id=None,
+            scheduled_at=None,
             use_trends=True,
+            persist=False,
         )
+        posting_task.status = PostingTaskStatus.DRAFT
+        db.add(posting_task)
+        await db.flush()
         operation.status = ProjectOperationStatus.SUCCESS
-        operation.message = f"Пост сгенерирован и поставлен в очередь: задача #{posting_task.id}."
+        operation.message = f"Черновик подготовлен: задача #{posting_task.id}."
         operation.result_json = {
             "task_id": posting_task.id,
             "scheduled_at": posting_task.scheduled_at.isoformat() if posting_task.scheduled_at else None,

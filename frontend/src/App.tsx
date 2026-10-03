@@ -22,6 +22,7 @@ const ResourcesPage = lazy(() => import("./pages/seo/ResourcesPage"));
 const GlobalLayout = lazy(() => import("./layouts/GlobalLayout"));
 const ProjectLayout = lazy(() => import("./layouts/ProjectLayout"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const StudioPage = lazy(() => import("./pages/StudioPage"));
 const BillingPage = lazy(() => import("./pages/BillingPage"));
 const InfrastructurePage = lazy(() => import("./pages/global/InfrastructurePage"));
 const GlobalSettingsPage = lazy(() => import("./pages/global/GlobalSettingsPage"));
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="app" element={<GlobalLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="billing" element={<BillingPage />} />
+            <Route path="studio" element={<StudioPage />} />
             <Route path="how-it-works" element={<HowItWorksPage />} />
             <Route path="infrastructure" element={<InfrastructurePage />} />
             <Route path="settings" element={<GlobalSettingsPage />} />

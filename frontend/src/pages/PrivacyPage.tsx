@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { OperatorDetails, operator } from "../components/OperatorDetails";
+import { OperatorDetails } from "../components/OperatorDetails";
 import { ThemeToggle } from "../components/ThemeToggle";
 
 export default function PrivacyPage() {
@@ -46,7 +46,7 @@ export default function PrivacyPage() {
         </p>
 
         <div className="legal-copy mt-14 border-t border-[#d9ddd4] pt-4">
-          <p>Редакция от 2 октября 2026 года.</p>
+          <p>Редакция от 3 октября 2026 года.</p>
           <OperatorDetails />
           <h3>Какие данные используются</h3>
           <p>
@@ -118,10 +118,6 @@ export default function PrivacyPage() {
           <p>
             Чтобы запросить удаление профиля и связанных данных, напишите в
             поддержку:{" "}
-            <a href={`mailto:${operator.email}`} className="underline">
-              {operator.email}
-            </a>{" "}
-            или{" "}
             <a href="https://t.me/cuartenlol" className="underline">
               @cuartenlol
             </a>

@@ -16,7 +16,7 @@ export default function ConsentPage() {
           Согласие на обработку персональных данных
         </h1>
         <p className="mt-4 text-sm text-[#60716a]">
-          Редакция от 2 октября 2026 года. Согласие подтверждается отдельной
+          Редакция от 3 октября 2026 года. Согласие подтверждается отдельной
           отметкой при регистрации.
         </p>
         <div className="mt-8 space-y-6 rounded-2xl border border-[#dbe6dd] bg-white p-6 text-sm leading-7 sm:p-8">
@@ -24,7 +24,7 @@ export default function ConsentPage() {
           <section>
             <h2 className="text-lg font-semibold">Для чего нужны данные</h2>
             <p className="mt-2">
-              Я разрешаю оператору {operator.name} обрабатывать данные моего
+              Я разрешаю сервису {operator.name} обрабатывать данные моего
               Telegram-профиля для создания и обслуживания кабинета ThreadsGo,
               проверки доступа, работы проектов и ответа на обращения в
               поддержку.
@@ -44,11 +44,11 @@ export default function ConsentPage() {
             <h2 className="text-lg font-semibold">Срок и отзыв</h2>
             <p className="mt-2">
               Согласие действует до его отзыва или удаления кабинета. Отзыв
-              можно направить на{" "}
-              <a href={`mailto:${operator.email}`} className="underline">
-                {operator.email}
+              можно направить в{" "}
+              <a href={operator.supportUrl} className="underline">
+                {operator.supportLabel}
               </a>{" "}
-              или по почтовому адресу оператора, указанному выше. После отзыва
+              — по ссылке выше. После отзыва
               обработка прекращается, кроме случаев, когда хранение требуется
               законом или для исполнения сохраняющихся обязательств.
             </p>

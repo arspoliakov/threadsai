@@ -1,23 +1,18 @@
 export const operator = {
-  name: "Поляков Арсений Александрович",
-  status: "самозанятый (плательщик налога на профессиональный доход)",
-  address: "город Москва, улица Учинская, дом 1, квартира 141",
-  email: "arspoliakov@mail.ru",
+  name: "ThreadsGo",
+  supportUrl: "https://t.me/cuartenlol",
+  supportLabel: "поддержку ThreadsGo в Telegram",
 };
 
 export function OperatorDetails() {
   return (
     <section className="operator-details">
-      <h2>Оператор сервиса и персональных данных</h2>
-      <p>
-        {operator.name}, {operator.status}.
-      </p>
-      <p>Адрес для обращений: {operator.address}.</p>
+      <h2>Связь с поддержкой</h2>
       <p>
         Вопросы о сервисе, обработке данных, их исправлении, удалении и отзыве
-        согласия:{" "}
-        <a href={`mailto:${operator.email}`} className="underline">
-          {operator.email}
+        согласия можно направить в{" "}
+        <a href={operator.supportUrl} className="underline">
+          {operator.supportLabel}
         </a>
         .
       </p>

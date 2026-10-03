@@ -45,6 +45,7 @@ class ProjectAccountStateRead(BaseModel):
     status: AccountStatus
     last_error: str | None
     last_used_at: datetime | None
+    ready_for_ideas: bool = False
 
 
 class ProjectDashboardRead(BaseModel):
@@ -327,6 +328,9 @@ async def get_project_dashboard(
                 status=account.status,
                 last_error=account.last_error,
                 last_used_at=account.last_used_at,
+                ready_for_ideas=bool(account.owner_id == current_user_id and account.platform == Platform.THREADS
+                    and account.status == AccountStatus.ACTIVE and account.cookies_encrypted
+                    and (account.assigned_port is not None or account.proxy_provider == "proxly")),
             )
             for account in account_states
         ],

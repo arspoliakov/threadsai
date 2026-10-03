@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import {
   cancelTask,
+  createManualTask,
   getApiErrorMessage,
   getProjectDashboard,
   getProjectTasks,
@@ -25,6 +26,9 @@ export default function ProjectQueuePage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const projectId = Number(id);
+  const [ownText, setOwnText] = useState("");
+  const [isOwnTextOpen, setIsOwnTextOpen] = useState(false);
+  const [isSavingOwnText, setIsSavingOwnText] = useState(false);
   const [tasks, setTasks] = useState<PostingTask[]>([]);
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -68,6 +72,8 @@ export default function ProjectQueuePage() {
   useEffect(() => {
     setIsLoading(true);
     setSelectedDay(null);
+    setOwnText("");
+    setIsOwnTextOpen(false);
     setExpandedTaskIds(new Set());
     if (Number.isInteger(projectId) && projectId > 0) {
       void loadTasks({ silent: true });
@@ -76,6 +82,26 @@ export default function ProjectQueuePage() {
     }
     return () => { loadSequence.current++; };
   }, [projectId]);
+
+  async function handleCreateOwnPost() {
+    const text = ownText.trim();
+    if (!text || isSavingOwnText) return;
+    setIsSavingOwnText(true);
+    try {
+      const created = await createManualTask(projectId, text);
+      if (activeProjectId.current !== projectId) return;
+      setTasks(current => sortTasks([created, ...current]));
+      setSelectedDay("drafts");
+      setExpandedTaskIds(current => new Set([...current, created.id]));
+      setOwnText("");
+      setIsOwnTextOpen(false);
+      toast.success("Ваш текст сохранён в черновиках. Выберите профиль и время, чтобы опубликовать.");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Не удалось сохранить ваш пост. Текст остался в поле."));
+    } finally {
+      setIsSavingOwnText(false);
+    }
+  }
 
   function toggleExpanded(taskId: number) {
     setExpandedTaskIds((current) => {
@@ -169,8 +195,9 @@ export default function ProjectQueuePage() {
       <header>
         <h1 className="font-display text-4xl leading-none">Черновики и календарь</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-          Здесь собраны посты, которые выйдут в ближайшее время. Можно посмотреть текст, профиль и время выхода,
-          отредактировать текст или улучшить его с ИИ. После изменения запланированного текста нужно снова согласовать время.
+          В календаре — автоматические и запланированные вами посты. Черновики — отдельные тексты, которые ещё не готовы к отправке.
+          В автоматическом режиме ИИ пишет и публикует сам. Черновик нужен, если хотите сделать отдельный пост или вставить свой текст.
+          После правки запланированного поста снова подтвердите время.
         </p>
       </header>
 
@@ -178,6 +205,27 @@ export default function ProjectQueuePage() {
         Сначала смотрите ближайшие посты. Ошибки и отмененные публикации уходят вниз списка, чтобы не мешать
         проверять то, что еще должно выйти.
       </DismissibleTip>
+
+      <section className="rounded-2xl border border-[#d8e2da] bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="font-semibold">Хотите опубликовать свой текст?</h2>
+            <p className="mt-1 text-sm text-[#67786e]">Дополнительный пост к тем, которые пишет ИИ. Сначала сохраним его в черновиках.</p></div>
+          <button type="button" className="rounded-full border px-4 py-2 text-sm" disabled={isSavingOwnText} onClick={() => setIsOwnTextOpen(current => !current)}>
+            {isOwnTextOpen ? "Скрыть редактор" : "Написать свой пост"}
+          </button>
+        </div>
+        {isOwnTextOpen ? <form className="mt-4 space-y-3" onSubmit={event => { event.preventDefault(); void handleCreateOwnPost(); }}>
+          <label htmlFor="own-post-text" className="block text-sm">Текст поста</label>
+          <textarea id="own-post-text" className="min-h-36 w-full rounded-xl border p-3 text-sm" value={ownText} maxLength={THREADS_POST_CHAR_LIMIT}
+            disabled={isSavingOwnText} onChange={event => setOwnText(event.target.value)} placeholder="Вставьте свой текст или напишите здесь…" />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-[#67786e]">{ownText.length} / {THREADS_POST_CHAR_LIMIT}. Сохранение не запускает публикацию.</p>
+            <button type="submit" disabled={!ownText.trim() || isSavingOwnText} className="rounded-full bg-[#151515] px-5 py-3 text-sm text-white disabled:opacity-50">
+              {isSavingOwnText ? "Сохраняем…" : "Сохранить свой черновик"}
+            </button>
+          </div>
+        </form> : null}
+      </section>
 
       <WeekPlanBuilder key={projectId} projectId={projectId} onCreated={() => { void loadTasks({ silent: true }); }} />
       {!isLoading && !loadError && <WeekCalendar tasks={tasks} selected={selectedDay} onSelect={setSelectedDay} />}
@@ -194,7 +242,7 @@ export default function ProjectQueuePage() {
       ) : tasks.length === 0 ? (
         <EmptyState
           title="Публикаций пока нет"
-          description="Создайте первый черновик на обзоре проекта или составьте план недели здесь. После проверки текста выберите профиль и время публикации."
+          description="Для регулярных постов включите автоматическую публикацию в настройках проекта. Для отдельного поста создайте черновик в обзоре: используйте ИИ или кнопку «Написать свой пост», затем назначьте время."
           actionLabel="К следующему шагу"
           onAction={() => navigate(`/app/projects/${projectId}`)}
         />
@@ -345,7 +393,7 @@ function TaskCard({
       {isExpanded && !isEditing ? <GenerationMetadataBlock task={task} /> : null}
 
       {task.status === "draft" ? (
-        <p className="mt-4 text-xs leading-5 text-[#77766f]">Это черновик: сохранение текста не запускает публикацию. Проверьте факты, затем выберите профиль и время кнопкой «Согласовать и запланировать».</p>
+        <p className="mt-4 text-xs leading-5 text-[#77766f]">Это черновик: сохранение текста не запускает публикацию. Проверьте факты, затем выберите профиль и время кнопкой «Запланировать публикацию».</p>
       ) : null}
       {task.posts_chain.length > 1 && task.status === "queued" ? (
         <p className="mt-4 text-xs leading-5 text-[#77766f]">Цепочка из {task.posts_chain.length} постов. Нажмите на текст, чтобы увидеть её целиком, или «Редактировать», чтобы изменить отдельные части.</p>

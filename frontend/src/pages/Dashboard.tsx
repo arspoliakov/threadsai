@@ -8,13 +8,14 @@ import {
   deleteProject,
   getApiErrorMessage,
   getDashboardSummary,
+  getCurrentUser,
+  getAccounts,
   type DashboardProjectSummary,
   type DashboardSummary,
 } from "../api/client";
 import { ProjectContextAssistant } from "../components/ProjectContextAssistant";
 import { StyleAssistant } from "../components/StyleAssistant";
 import { BotStatusCard } from "../components/BotStatusCard";
-import { DismissibleTip } from "../components/DismissibleTip";
 import { trackSeoEvent } from "../components/SeoAnalytics";
 import { JourneyNextStep } from "../components/JourneyNextStep";
 import { DashboardWelcome } from "../components/DashboardWelcome";
@@ -31,6 +32,8 @@ type NewProjectDraft = {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
+  const [hasAccounts, setHasAccounts] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] =
@@ -63,6 +66,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     void loadSummary({ silent: true });
+    let cancelled = false;
+    void Promise.all([getCurrentUser(), getAccounts()]).then(([user, accounts]) => {
+      if (!cancelled) { setHasSubscription(user.subscription_status); setHasAccounts(accounts.length > 0); }
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   async function handleCreateProject(payload: NewProjectDraft) {
@@ -125,7 +133,7 @@ export default function Dashboard() {
             Ваши проекты
           </h1>
           <p className="mt-3 text-sm leading-6 text-[#67786e]">
-            Идеи, тексты и расписание — всё начинается с проекта.
+            Нейросеть пишет посты по настройкам проекта. Вы выбираете тему, стиль и время публикации.
           </p>
         </div>
 
@@ -152,27 +160,25 @@ export default function Dashboard() {
         ) : null}
       </header>
 
-      <Link to="/app/studio" className="block rounded-2xl border border-[#d8e2da] bg-white p-5 text-sm"><strong>Попробуйте три черновика бесплатно</strong><span className="mt-1 block text-[#67786e]">Оцените тексты до привязки карты и подключения Threads →</span></Link>
+      {!isLoading && summary?.projects.length === 0 && hasSubscription === false && hasAccounts === false && <Link to="/app/studio" className="block rounded-2xl border border-[#d8e2da] bg-white p-5 text-sm"><strong>Попробуйте три текста бесплатно</strong><span className="mt-1 block text-[#67786e]">Посмотрите, как нейросеть пишет по вашей теме →</span></Link>}
 
       {!isLoading && summary && summary.projects.length > 0 ? (() => {
         const attentionProject = summary.projects.find((project) => project.active_accounts_count === 0)
           || summary.projects.find((project) => !project.next_post_time);
         return attentionProject ? <div className="dashboard-next-step tg-reveal" key={attentionProject.id}><JourneyNextStep title={`Продолжите настройку «${attentionProject.name}»`}
-          description={attentionProject.active_accounts_count === 0 ? "Сначала создайте и проверьте черновик. Профиль Threads можно подключить позже, когда будете готовы к публикации." : "Ближайший пост пока не запланирован. Откройте проект и пройдите следующий шаг до первого текста."}
+          description={attentionProject.active_accounts_count === 0 ? "Подключите аккаунт Threads, чтобы публиковать посты. Нейросеть будет писать их по настройкам проекта." : "Ближайший пост пока не запланирован. Выберите время и включите автоматические посты в настройках проекта."}
           action="Продолжить" to={`/app/projects/${attentionProject.id}`} /></div> : null;
       })() : null}
 
       {summary?.projects.length !== 0 ? (
         <div className="grid gap-3 lg:grid-cols-4">
           <BotStatusCard
-            nextTrendCheck={
-              nextProject?.next_post_time ?? summary?.next_trend_check ?? null
-            }
+            nextTrendCheck={nextProject?.next_post_time ?? null}
             currentAction={getCurrentAction(summary, isLoading)}
             nextActionLabel={
               nextProject
                 ? `Следующий пост: «${nextProject.name}» → выйдет`
-                : "следующий сбор идей"
+                : "Следующий пост"
             }
             compact
             className="lg:col-span-2"
@@ -188,25 +194,6 @@ export default function Dashboard() {
             value={isLoading ? "..." : String(totalPublished)}
           />
         </div>
-      ) : null}
-
-      {summary && summary.projects.length > 0 ? (
-        <DismissibleTip
-          storageKey="threadsgo.dashboard-start-tip"
-          title="С чего начать"
-          action={
-            <Link
-              to="/app/how-it-works"
-              className="inline-flex h-10 items-center justify-center rounded-full border border-[#141815] px-4 text-sm text-[#141815] transition hover:bg-[#141815] hover:text-white"
-            >
-              Как нейросеть пишет посты
-            </Link>
-          }
-        >
-          Создайте проект и опишите его → подготовьте и проверьте черновик →
-          подключите профиль Threads и согласуйте время. Новый проект ничего не
-          публикует сам. В настройках можно выбрать автоматическую генерацию и публикацию без проверки каждого поста. Ручные черновики остаются для согласования.
-        </DismissibleTip>
       ) : null}
 
       <div className="dashboard-project-grid grid gap-3 lg:grid-cols-2 2xl:grid-cols-3" aria-busy={isLoading}>
@@ -296,7 +283,7 @@ function getCurrentAction(
   }
 
   if (!summary.projects.some((project) => project.next_post_time)) {
-    return "Готовим расписание";
+    return "Публикации пока не запланированы";
   }
 
   return "Следим за публикациями";
@@ -554,9 +541,9 @@ function ProjectCard({
               {project.name}
             </h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-[#667066]">
-              {project.active_accounts_count === 0 ? "Создайте и проверьте черновик. Профиль нужен только для публикации."
-                : !project.next_post_time ? "Откройте проект, чтобы подготовить текст и проверить расписание."
-                : "Посты запланированы. Проверьте ближайший текст и время выхода."}
+              {project.active_accounts_count === 0 ? "Для публикации нужен подключённый аккаунт Threads."
+                : !project.next_post_time ? "Настройте время и включите автоматические посты."
+                : "Посты запланированы. В проекте можно посмотреть ближайший текст и время выхода."}
             </p>
           </Link>
           <div className="flex shrink-0 items-center gap-2">

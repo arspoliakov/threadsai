@@ -23,7 +23,7 @@ import { JourneyNextStep } from "../../components/JourneyNextStep";
 type RunningAction = "scraping" | "generation" | null;
 
 const DESCRIPTION_HINT =
-  "Внимание: заполняйте максимально подробно. Укажите суть, боли ЦА и Tone of Voice. ИИ использует этот текст как ядро для генерации всех постов.";
+  "Расскажите, о чём ваш проект, для кого вы пишете и как хотите звучать. Чем понятнее описание, тем точнее ИИ попадёт в ваш стиль.";
 
 export default function ProjectOverviewPage() {
   const { id } = useParams();
@@ -65,10 +65,10 @@ export default function ProjectOverviewPage() {
     setLatestScrapingOperation(operation);
     void getProjectOperations(projectId, 12).then(setOperations).catch(() => undefined);
 
-    if (operation?.status === "running") {
+    if (operation?.status === "queued" || operation?.status === "running") {
       setRunningAction("scraping");
       setError(null);
-      setStatusMessage(operation.message || "Система обновляет идеи в фоне.");
+      setStatusMessage(null);
       return operation;
     }
 
@@ -101,13 +101,13 @@ export default function ProjectOverviewPage() {
   }, [projectId]);
 
   useEffect(() => {
-    if (latestScrapingOperation?.status !== "running") {
+    if (latestScrapingOperation?.status !== "running" && latestScrapingOperation?.status !== "queued") {
       return;
     }
 
     const intervalId = window.setInterval(() => {
       void refreshScrapingOperation().then((operation) => {
-        if (operation?.status !== "running") {
+        if (operation?.status !== "running" && operation?.status !== "queued") {
           void loadDashboard();
         }
       });
@@ -117,6 +117,10 @@ export default function ProjectOverviewPage() {
   }, [latestScrapingOperation?.status, projectId]);
 
   async function handleTriggerScraping() {
+    if (!hasActiveAccount(dashboard)) {
+      toast.error("Подключите рабочий профиль Threads в настройках проекта.");
+      return;
+    }
     setRunningAction("scraping");
     setStatusMessage(null);
     setError(null);
@@ -128,8 +132,8 @@ export default function ProjectOverviewPage() {
         project_id: projectId,
         source: "project_overview",
       });
-      setStatusMessage(result.message || "Сбор идей запущен в фоне.");
-      toast.success("Сбор идей запущен в фоне");
+      setStatusMessage(result.message || "Сбор идей добавлен в очередь.");
+      toast.success("Сбор идей добавлен в очередь");
       await refreshScrapingOperation();
       await loadDashboard();
     } catch (scrapingError) {
@@ -178,8 +182,8 @@ export default function ProjectOverviewPage() {
             {dashboard?.project.name || "Обзор проекта"}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Начните с черновика: опишите тему, создайте текст и проверьте его. Профиль Threads
-            нужен только для сбора идей из ленты и публикации — подключить его можно позже.
+            ИИ пишет посты по вашей теме и в вашем стиле. Подключите Threads и выберите режим:
+            публиковать автоматически или сначала показывать тексты вам. Черновики нужны для отдельного поста и ваших правок.
           </p>
         </div>
         {dashboard ? (
@@ -198,10 +202,19 @@ export default function ProjectOverviewPage() {
           onGenerate={() => void handleTriggerGeneration()} />
       ) : null}
 
+      {dashboard ? (
+        <JourneyNextStep
+          title={dashboard.project.auto_generate ? "ИИ пишет и публикует сам" : "Сейчас вы проверяете каждый пост"}
+          description={dashboard.project.auto_generate
+            ? "Автоматические посты выходят по расписанию проекта, когда профиль готов и подписка действует. Создавать черновики вручную не обязательно."
+            : "Для работы без ручной проверки включите автоматическую публикацию. ИИ будет сам готовить новые посты и отправлять их по расписанию."}
+          action="Настроить режим публикации" to={`/app/projects/${projectId}/settings#publication-mode`} />
+      ) : null}
+
       <div className="grid gap-3 md:grid-cols-2">
         <ActionPanel
           title="Обновить идеи для постов"
-          description="Нейросеть изучит, о чем сейчас говорят в ленте Threads, и подберет актуальные темы. На их основе мы будем создавать ваши посты."
+          description="Прочитаем ленту подключённого профиля и сохраним удачные приёмы: начало поста, подачу и ритм. ИИ использует их для ваших текстов. Без рабочего профиля сбор не запускается."
           buttonText="Обновить идеи для постов"
           isLoading={runningAction === "scraping"}
           isDisabled={runningAction !== null || isLoading || !hasActiveAccount(dashboard)}
@@ -209,8 +222,8 @@ export default function ProjectOverviewPage() {
           onClick={() => void handleTriggerScraping()}
         />
         <ActionPanel
-          title="Создать черновик"
-          description="Нейросеть создаст текст на основе проекта и стиля — даже без профиля Threads и собранных идей. Черновик не отправляется: сначала проверьте его, затем выберите время."
+          title="Подготовить отдельный пост"
+          description="Для поста вне автоматического расписания. ИИ подготовит черновик; можно переписать его или заменить своим текстом, затем выбрать время. Сам он не опубликуется."
           buttonText="Создать черновик"
           isLoading={runningAction === "generation"}
           isDisabled={runningAction !== null || isLoading}
@@ -221,7 +234,7 @@ export default function ProjectOverviewPage() {
 
       {dashboard ? (
         <Link to={`/app/projects/${projectId}/queue`} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dfe4dc] bg-white px-5 py-4 text-sm transition hover:bg-[#eef4ec]">
-          <span><strong>Черновики и календарь</strong><span className="mt-1 block text-[#667066]">Проверьте тексты, попробуйте ИИ-правку или соберите план на неделю.</span></span>
+          <span><strong>Черновики и календарь</strong><span className="mt-1 block text-[#667066]">Посмотрите автоматические посты или отредактируйте отдельный черновик, в том числе своим текстом.</span></span>
           <span aria-hidden="true">Открыть →</span>
         </Link>
       ) : null}
@@ -241,9 +254,9 @@ export default function ProjectOverviewPage() {
         </div>
       ) : null}
 
-      {latestScrapingOperation?.status === "running" ? (
+      {hasActiveAccount(dashboard) && (latestScrapingOperation?.status === "running" || latestScrapingOperation?.status === "queued") ? (
         <Notice tone="neutral">
-          Сбор идей идет в фоне. Можно перейти в настройки или расписание постов: система продолжит работу сама.
+          {latestScrapingOperation?.status === "queued" ? "Сбор идей ждёт своей очереди. Лента пока не читается." : "Читаем ленту и собираем идеи. Можно закрыть страницу — работа продолжится."}
         </Notice>
       ) : null}
       {statusMessage ? <Notice tone="neutral">{statusMessage}</Notice> : null}
@@ -289,6 +302,11 @@ function ProjectNextStep({ dashboard, projectId, runningAction, onGenerate }: {
   }
   const queued = dashboard.posting_tasks_by_status.queued ?? 0;
   const drafts = dashboard.posting_tasks_by_status.draft ?? 0;
+  if (dashboard.project.auto_generate && hasActiveAccount(dashboard)) {
+    return <JourneyNextStep title="Автоматическая публикация включена"
+      description={queued > 0 ? "Посты уже в календаре и выйдут сами. Проверять каждый текст не обязательно; при желании его можно изменить или отменить." : "ИИ будет готовить посты по расписанию проекта. Дополнительный черновик нужен только если хотите сделать отдельный пост."}
+      action="Открыть календарь" to={`/app/projects/${projectId}/queue`} />;
+  }
   if (queued > 0 || drafts > 0) {
     return <JourneyNextStep title={queued > 0 ? "Проверьте текст до публикации" : "Посмотрите подготовленный черновик"}
       description={queued > 0 ? "В расписании уже есть посты. Откройте ближайший: проверьте текст, профиль и время. Ненужный пост можно отменить до отправки." : "Черновик сохранён, но пока не запланирован. Откройте редактор, проверьте текст и назначьте время. Для публикации понадобится подключённый профиль. Отправка не начнётся сама."}
@@ -771,7 +789,7 @@ function formatOperation(operation: ProjectOperation | null) {
 }
 
 function hasActiveAccount(dashboard: ProjectDashboard | null) {
-  return dashboard?.account_states.some((account) => account.status === "active") ?? false;
+  return dashboard?.account_states.some((account) => account.ready_for_ideas === true) ?? false;
 }
 
 function formatUserFacingError(message: string) {
@@ -823,6 +841,9 @@ function getProjectSystemStatus({
   trendsCount: number;
   queuedCount: number;
 }) {
+  if (activeAccounts === 0 && runningOperation?.action_type === "scraping") {
+    return { title: "нужен профиль для сбора идей", description: "Рабочий профиль не подключён. Лента не читается; можно подготовить текст по описанию проекта.", dotClass: "bg-[#9aa39a]", pulse: false };
+  }
   if (runningOperation?.status === "queued") {
     return {
       title: "ждет своей очереди",
@@ -837,7 +858,7 @@ function getProjectSystemStatus({
       title: runningOperation.action_type === "scraping" ? "обновляет идеи" : "готовит пост",
       description:
         runningOperation.action_type === "scraping"
-          ? "Система смотрит ленту Threads и сохраняет идеи, которые помогут писать нативные посты."
+          ? "Читаем ленту Threads и сохраняем удачные приёмы для ваших постов."
           : "Система берет описание проекта, стиль и актуальные идеи, чтобы подготовить новый пост.",
       dotClass: "bg-[#70ff35]",
       pulse: true,

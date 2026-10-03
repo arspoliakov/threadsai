@@ -62,9 +62,10 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
   const finishAuthenticated = useCallback(async (response: LoginResponse) => {
     if (isRegistration && (onboardingConsent || marketingConsent)) {
       try {
-        await apiClient.put("/api/v1/retention/preferences", { onboarding_consent: onboardingConsent, marketing_consent: marketingConsent });
+        const existing = (await apiClient.get("/api/v1/retention/preferences")).data;
+        await apiClient.put("/api/v1/retention/preferences", { onboarding_consent: onboardingConsent || existing.onboarding_consent, marketing_consent: marketingConsent || existing.marketing_consent });
       } catch {
-        toast.error("Вход выполнен, но настройки сообщений не сохранились. Включите их в разделе «Сообщения в Telegram».");
+        toast.error("Вы вошли, но выбор сообщений не сохранился. Настройки можно открыть в профиле.");
       }
     }
     if (response.user_id != null) setAnalyticsUser(response.user_id);
@@ -248,9 +249,7 @@ export default function LoginPage({mode = "login"}: {mode?: "login" | "register"
             <AgreementCheckbox checked={termsAccepted} onChange={setTermsAccepted}>Я принимаю <Link to="/terms#terms" className="underline">условия использования</Link>.</AgreementCheckbox>
             <AgreementCheckbox checked={privacyAccepted} onChange={setPrivacyAccepted}>Я отдельно даю <Link to="/consent" className="underline">согласие на обработку персональных данных</Link> и ознакомился с <Link to="/privacy" className="underline">политикой конфиденциальности</Link>.</AgreementCheckbox>
             <AgreementCheckbox checked={metaNoticeAccepted} onChange={setMetaNoticeAccepted}>Я понимаю риски ограничений и блокировки профиля при автоматизации. Я ознакомился с <Link to="/terms#meta-notice" className="underline">оговоркой о Meta</Link>.</AgreementCheckbox>
-            <p className="pt-2 text-xs text-[#60716a]">По желанию — на регистрацию это не влияет:</p>
-            <AgreementCheckbox checked={onboardingConsent} onChange={setOnboardingConsent}>Разрешаю присылать в Telegram помощь со стартом, если пока не создал проект или не опубликовал первый пост.</AgreementCheckbox>
-            <AgreementCheckbox checked={marketingConsent} onChange={setMarketingConsent}>Согласен получать в Telegram новости и рекламные предложения ThreadsGo. Отписаться можно в боте или настройках кабинета.</AgreementCheckbox>
+            <AgreementCheckbox checked={marketingConsent} onChange={value=>{setMarketingConsent(value);setOnboardingConsent(value);}}>Согласен получать в Telegram новости, рекламные предложения ThreadsGo и помощь с началом работы. По желанию; отключить сообщения можно в профиле или боте.</AgreementCheckbox>
           </div> : null}
 
           <div className="mt-8 rounded-[1.6rem] border border-[#dbe6dd] bg-[#f8faf9] p-5">

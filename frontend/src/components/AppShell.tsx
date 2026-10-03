@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import "../workspace-refresh.css";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { getAccounts, getCurrentUser, getProjects } from "../api/client";
 import { AppIcon } from "./AppIcons";
 import { FloatingDock, type FloatingDockItem } from "./FloatingDock";
 import { ProfileMenu } from "./ProfileMenu";
@@ -17,6 +18,18 @@ export function AppShell({
   title?: string;
   children: ReactNode;
 }) {
+  const { pathname } = useLocation();
+  const [showStartHelp, setShowStartHelp] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setShowStartHelp(false);
+    void Promise.all([getCurrentUser(), getProjects(), getAccounts()])
+      .then(([user, projects, accounts]) => {
+        if (!cancelled) setShowStartHelp(!user.subscription_status && projects.length === 0 && accounts.length === 0);
+      })
+      .catch(() => { /* Keep novice prompts hidden when account data is unavailable. */ });
+    return () => { cancelled = true; };
+  }, [pathname]);
   return (
     <div className="app-refresh workspace-shell min-h-screen bg-[#f6f8f7] text-[#162b25]">
       <a
@@ -56,24 +69,13 @@ export function AppShell({
           ))}
         </nav>
         <div className="mt-auto space-y-1 pt-8">
-          <Link to="/app/notifications" className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#67786e] hover:bg-[#f5f8f6]">
-            <AppIcon name="user" />
-            Сообщения в Telegram
-          </Link>
-          <Link
-            to="/app/billing"
-            className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#67786e] hover:bg-[#f5f8f6]"
-          >
-            <AppIcon name="user" />
-            Моя подписка
-          </Link>
-          <Link
+          {showStartHelp && <Link
             to="/app/how-it-works"
             className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#67786e] hover:bg-[#f5f8f6]"
           >
             <AppIcon name="spark" />
             Как начать
-          </Link>
+          </Link>}
           <Link
             to="/updates/"
             className="flex items-center justify-between rounded-xl bg-[#f5f8f6] px-3 py-3 text-xs font-medium text-[#49705a]"

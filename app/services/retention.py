@@ -6,11 +6,12 @@ import re
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.sqlite import insert
 
-from app.db.models import (User, Project, Account, Platform, PostingTask, PostingTaskStatus, RetentionBotContact,
+from app.db.models import (User, Project, Account, Platform, TelegramLoginChallenge, PostingTask, PostingTaskStatus, RetentionBotContact,
                            RetentionSettings, RetentionCampaign, RetentionDelivery, RetentionConsentEvent)
 from app.services.subscriptions import has_current_subscription_access
 
 CONSENT_VERSION = "2026-10-03"
+LEGACY_CONSENT_CUTOFF = datetime(2026, 10, 3, 16, 17, 59, tzinfo=UTC)
 RULES = [
     {"key": "no_project_3d", "segment": "no_project", "days": 3, "message": "Привет! Хотите начать с ThreadsGo, но пока не знаете, что указать в проекте?\n\nСоздайте проект и коротко опишите, о чём хотите писать и для кого. Помощник в кабинете поможет сформулировать глобальный промпт — готовить его самостоятельно необязательно.\n\nНачать: https://threadsgo.ru/app/\nЕсли нужна помощь: https://t.me/cuartenlol"},
     {"key": "no_account_2d", "segment": "no_account", "days": 2, "message": "Проект в ThreadsGo уже создан — следующий шаг: подключить свой аккаунт Threads.\n\nОткройте проект → «Аккаунты» и выберите подключение. Если появляется проверка входа, пройдите её в окне подключения. Пароль или код подтверждения в переписку присылать не нужно.\n\nКабинет: https://threadsgo.ru/app/\nЕсли подключение не получается, поможем: https://t.me/cuartenlol"},
@@ -54,6 +55,34 @@ async def unsubscribe_user(session, telegram_id):
         await session.execute(update(RetentionDelivery).where(RetentionDelivery.user_id == user.id,
             RetentionDelivery.status == "queued").values(status="cancelled", error_code="opt_out"))
     await session.commit()
+
+
+async def import_owner_confirmed_legacy_consents(session):
+    """Owner confirmed prior consent on 2026-10-03; never overwrite a newer choice.
+
+    Audit time is the import time, not an invented original acceptance date.
+    Bot reachability is independent and is not inferred from this consent.
+    """
+    recorded = select(RetentionConsentEvent.user_id)
+    users = list((await session.scalars(select(User).where(User.created_at < LEGACY_CONSENT_CUTOFF,
+        User.id.not_in(recorded), User.retention_consent_updated_at.is_(None)))).all())
+    now = datetime.now(UTC)
+    for user in users:
+        user.marketing_consent = True
+        user.onboarding_consent = True
+        user.retention_consent_updated_at = now
+        session.add(RetentionConsentEvent(user_id=user.id, marketing_consent=True, onboarding_consent=True,
+            version="legacy-confirmed-2026-10-03", source="owner_confirmed_legacy"))
+        # A confirmed bot challenge proves prior private interaction. Preserve
+        # any newer contact/block record; widget-only login proves nothing.
+        confirmed_bot_contact = await session.scalar(select(TelegramLoginChallenge.id).where(
+            TelegramLoginChallenge.telegram_id == user.telegram_id,
+            TelegramLoginChallenge.status.in_(["approved", "consumed"])).limit(1))
+        if user.telegram_id and confirmed_bot_contact:
+            await session.execute(insert(RetentionBotContact).values(telegram_id=user.telegram_id, reachable=True, blocked=False)
+                .on_conflict_do_nothing(index_elements=["telegram_id"]))
+    await session.commit()
+    return len(users)
 
 
 async def preferences(db, user):

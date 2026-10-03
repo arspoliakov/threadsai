@@ -334,6 +334,7 @@ export type ProjectAccountState = {
   username: string;
   platform: Platform;
   status: AccountStatus;
+  ready_for_ideas?: boolean;
   last_error: string | null;
   last_used_at: string | null;
 };
@@ -413,6 +414,11 @@ export type PostingTask = {
   created_at: string;
   updated_at: string;
 };
+
+export async function createManualTask(projectId: number, contentText: string): Promise<PostingTask> {
+  const response = await apiClient.post<PostingTask>("/api/v1/tasks/manual", {project_id: projectId, content_text: contentText});
+  return response.data;
+}
 
 export type GenerationMetadata = {
   rubric?: string;

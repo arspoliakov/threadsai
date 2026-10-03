@@ -77,6 +77,37 @@ class PostingTaskUpdate(BaseModel):
 THREADS_POST_CHAR_LIMIT = 500
 
 
+class ManualTaskCreate(BaseModel):
+    project_id: int = Field(gt=0)
+    content_text: str = Field(min_length=1, max_length=THREADS_POST_CHAR_LIMIT)
+
+    @field_validator("content_text")
+    @classmethod
+    def meaningful_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Напишите текст поста")
+        return value.strip()
+
+
+@router.post("/manual", response_model=PostingTaskRead, status_code=status.HTTP_201_CREATED)
+async def create_manual_task(
+    payload: ManualTaskCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+    _subscription: User = Depends(require_active_subscription),
+) -> PostingTaskRead:
+    project = await db.scalar(select(Project).where(Project.id == payload.project_id, Project.owner_id == current_user_id))
+    if project is None:
+        raise HTTPException(404, "Проект не найден")
+    task = PostingTask(project_id=project.id, platform=Platform.THREADS,
+        content_text=payload.content_text, posts_chain=[payload.content_text], status=PostingTaskStatus.DRAFT,
+        account_id=None, scheduled_at=None, generation_metadata={"source": "manual"})
+    db.add(task)
+    await db.commit()
+    await db.refresh(task)
+    return PostingTaskRead.model_validate(task)
+
+
 @router.get("/", response_model=list[PostingTaskRead], status_code=status.HTTP_200_OK)
 async def get_tasks(
     project_id: int | None = Query(default=None),

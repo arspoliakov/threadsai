@@ -26,7 +26,6 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const StudioPage = lazy(() => import("./pages/StudioPage"));
 const ProxyAdminPage = lazy(() => import("./pages/global/ProxyAdminPage"));
 const RetentionAdminPage = lazy(() => import("./pages/global/RetentionAdminPage"));
-const NotificationSettingsPage = lazy(() => import("./pages/global/NotificationSettingsPage"));
 const AdminDashboardPage = lazy(() => import("./pages/global/AdminDashboardPage"));
 const AdminUsersPage = lazy(() => import("./pages/global/AdminUsersPage"));
 const BillingPage = lazy(() => import("./pages/BillingPage"));
@@ -85,7 +84,7 @@ export default function App() {
               <Route path="proxies" element={<ProxyAdminPage />} />
               <Route path="retention" element={<RetentionAdminPage />} />
             </Route>
-            <Route path="notifications" element={<NotificationSettingsPage />} />
+            <Route path="notifications" element={<Navigate to="/app?profile=messages" replace />} />
           </Route>
 
           <Route path="app/projects/:id" element={<ProjectLayout />}>

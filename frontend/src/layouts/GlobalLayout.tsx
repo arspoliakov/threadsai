@@ -3,7 +3,6 @@ import { AppShell } from "../components/AppShell";
 import type { FloatingDockItem } from "../components/FloatingDock";
 
 const navigation: FloatingDockItem[] = [
-  { label: "Черновики", to: "/app/studio", icon: "spark" },
   {
     label: "Проекты",
     to: "/app",
@@ -20,6 +19,7 @@ const navigation: FloatingDockItem[] = [
     to: "/app/settings",
     icon: "style",
   },
+  { label: "Пробные тексты", to: "/app/studio", icon: "spark" },
 ];
 
 export default function GlobalLayout() {

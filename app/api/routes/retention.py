@@ -43,6 +43,10 @@ class SettingsWrite(BaseModel):
     automated_enabled: bool
 
 
+class LegacyConsentImport(BaseModel):
+    prior_consent_confirmed: Literal[True]
+
+
 def campaign_json(campaign):
     return {key: getattr(campaign, key) for key in ("id", "title", "message", "segment", "kind", "status", "recipient_count", "created_at")}
 
@@ -101,6 +105,11 @@ async def settings(body: SettingsWrite, db: AsyncSession = Depends(get_db)):
 async def preview(body: CampaignPreview, db: AsyncSession = Depends(get_db)):
     ids, excluded = await service.preview(db, body.segment, body.kind)
     return {"eligible_count": len(ids), "excluded_count": excluded}
+
+
+@admin_router.post("/import-legacy-consents")
+async def import_legacy_consents(body: LegacyConsentImport, db: AsyncSession = Depends(get_db)):
+    return {"imported_users": await service.import_owner_confirmed_legacy_consents(db)}
 
 
 @admin_router.post("/campaigns")

@@ -26,7 +26,8 @@ export default function ProjectTrendsPage() {
   const [collectionOperation, setCollectionOperation] = useState<ProjectOperation | null>(null);
   const [dashboard, setDashboard] = useState<ProjectDashboard | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const hasThreadsProfile = dashboard?.account_states.some((account) => account.status === "active") ?? false;
+  const hasThreadsProfile = dashboard?.account_states.some((account) => account.ready_for_ideas === true) ?? false;
+  const isActuallyReading = hasThreadsProfile && collectionOperation?.status === "running";
 
   async function loadTrends({ silent = false }: { silent?: boolean } = {}) {
     if (trends.length === 0) {
@@ -131,21 +132,21 @@ export default function ProjectTrendsPage() {
         <div>
           <h1 className="font-display text-4xl leading-none">Актуальные идеи для постов</h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-            Здесь собраны свежие идеи из ленты Threads, которые сейчас интересны аудитории. Мы анализируем,
-            как лучше начать пост, какую эмоцию передать и как удержать внимание читателей. Система обновляет
-            подборку автоматически раз в 3 дня, но вы можете собрать новые идеи прямо сейчас.
+            Здесь — приёмы из ленты подключённого профиля: как начать пост, рассказать историю и удержать внимание.
+            ИИ использует их для ваших текстов. Без рабочего профиля лента не читается. В автоматическом режиме
+            подборку обновляем примерно раз в 3 дня, когда профиль свободен и наступило время работы проекта.
           </p>
         </div>
         <button
           type="button"
           onClick={() => hasThreadsProfile ? void handleCollectTrends() : navigate(`/app/projects/${projectId}/settings#profiles`)}
-          disabled={isLoading || isCollecting}
+          disabled={isLoading || (isCollecting && hasThreadsProfile)}
           title={!hasThreadsProfile ? "Сначала подключите рабочий профиль Threads" : undefined}
           className="flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#151515] bg-white px-5 text-sm transition-all duration-200 ease-in-out hover:bg-[#151515] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 md:w-fit"
         >
-          {isCollecting ? <Spinner /> : null}
-          {isCollecting
-            ? "Собираем идеи"
+          {isCollecting && hasThreadsProfile ? <Spinner /> : null}
+          {isCollecting && hasThreadsProfile
+            ? isActuallyReading ? "Читаем ленту" : "В очереди"
             : hasThreadsProfile
               ? "Обновить подборку идей"
               : "Сначала подключите профиль"}
@@ -160,23 +161,24 @@ export default function ProjectTrendsPage() {
           action="К созданию поста" to={`/app/projects/${projectId}`} />
       ) : null}
 
-      {isCollecting ? (
+      {isCollecting && hasThreadsProfile ? (
         <div className="flex items-start gap-3 rounded-[20px] border border-[#b9d5ee] bg-[#f1f8ff] p-4 text-sm leading-6 text-[#31516d]">
           <Spinner />
           <p>
-            Система изучает ленту Threads в фоне. Обычно это занимает несколько минут. Можно спокойно перейти в
-            другой раздел или закрыть страницу — работа не остановится.
+            {isActuallyReading
+              ? "Читаем ленту Threads. Можно перейти в другой раздел — сбор продолжится."
+              : "Запрос в очереди. Лента пока не читается: ждём свободного профиля и времени работы проекта."}
           </p>
         </div>
       ) : null}
 
       <DismissibleTip storageKey="threadsgo.trends-tip" title="Идеи — это не темы для копирования">
-        Система смотрит, как устроены живые посты: с чего они начинаются, где возникает напряжение и какой у них
-        ритм. Потом эти паттерны помогают писать свои тексты, а не повторять чужие.
+        Когда запускается сбор, смотрим, как устроены посты: с чего начинаются и как держат внимание.
+        Эти приёмы помогают ИИ писать ваши тексты. Чужие посты не копируем.
       </DismissibleTip>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <MetricCard label="Найдено свежих идей" value={isLoading ? "..." : String(trends.length)} />
+        <MetricCard label="Сохранено идей" value={isLoading ? "..." : String(trends.length)} />
         <MetricCard label="Последнее обновление" value={getLatestTrendDate(trends)} />
       </div>
 
@@ -187,7 +189,7 @@ export default function ProjectTrendsPage() {
       ) : trends.length === 0 ? (
         <EmptyState
           title="Актуальные идеи еще не собраны"
-          description={isCollecting ? "Подборка появится здесь, когда сбор завершится. Можно перейти в другой раздел — работа продолжится." : hasThreadsProfile ? "Нажмите «Обновить подборку идей» выше. Мы изучим ленту и сохраним найденные приёмы здесь." : "Сначала подключите рабочий профиль к проекту. После этого станет доступен сбор идей из ленты."}
+          description={isCollecting && hasThreadsProfile ? isActuallyReading ? "Подборка появится здесь после сбора. Можно перейти в другой раздел." : "Запрос ждёт своей очереди. Новая подборка появится после завершения сбора." : hasThreadsProfile ? "Нажмите «Обновить подборку идей» выше. Мы изучим ленту и сохраним найденные приёмы здесь." : "Сначала подключите рабочий профиль к проекту. После этого станет доступен сбор идей из ленты."}
         />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">

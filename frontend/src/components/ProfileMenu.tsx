@@ -1,16 +1,48 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 
-import { getCurrentUser, type CurrentUser } from "../api/client";
+import { apiClient, getApiErrorMessage, getCurrentUser, type CurrentUser } from "../api/client";
 import { logout } from "../auth";
 import { AppIcon } from "./AppIcons";
 import { RESTART_ONBOARDING_EVENT } from "./OnboardingTour";
 
 export function ProfileMenu() {
   const navigate = useNavigate();
+  const location = useLocation();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const [messagePrefs, setMessagePrefs] = useState<{marketing_consent:boolean; onboarding_consent:boolean} | null>(null);
+  const [messageError, setMessageError] = useState("");
+  const [savingMessages, setSavingMessages] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("profile") === "messages") {
+      setIsOpen(true); setMessagesOpen(true);
+      params.delete("profile");
+      navigate({pathname:location.pathname,search:params.toString()}, {replace:true});
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    if (!isOpen || !messagesOpen) return;
+    let active = true;
+    void apiClient.get("/api/v1/retention/preferences").then(r => { if(active) setMessagePrefs(r.data); })
+      .catch(e => {if(active) setMessageError(getApiErrorMessage(e,"Не удалось загрузить настройки."));});
+    return () => {active=false;};
+  }, [isOpen, messagesOpen]);
+
+  async function updateMessages(kind:"marketing_consent"|"onboarding_consent", enabled:boolean) {
+    if (!messagePrefs || savingMessages) return;
+    setSavingMessages(true); setMessageError("");
+    try {
+      const result = await apiClient.put("/api/v1/retention/preferences", {...messagePrefs,[kind]:enabled});
+      setMessagePrefs(result.data);
+    } catch(e) {setMessageError(getApiErrorMessage(e,"Не удалось сохранить выбор."));}
+    finally {setSavingMessages(false);}
+  }
 
   useEffect(() => {
     void getCurrentUser()
@@ -63,7 +95,7 @@ export function ProfileMenu() {
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-[1.8rem] border border-[#dfe4dc] bg-[#fbfcf7] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
+        <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50 max-h-[calc(100dvh-6rem)] w-[min(21rem,calc(100vw-2rem))] overflow-y-auto rounded-[1.8rem] border border-[#dfe4dc] bg-[#fbfcf7] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
           <div className="relative overflow-hidden rounded-[1.35rem] bg-[#07100e] p-3 text-white">
             <img
               src="/interface/profile-orb.webp"
@@ -103,7 +135,15 @@ export function ProfileMenu() {
           </Link>
 
           {user?.is_operator ? <Link to="/app/admin" onClick={() => setIsOpen(false)} className="mt-3 flex h-12 items-center justify-center rounded-full bg-[var(--workspace-accent)] text-sm font-semibold text-[var(--workspace-accent-ink)]">Админка ThreadsGo</Link> : null}
-          <Link to="/app/notifications" onClick={() => setIsOpen(false)} className="mt-3 flex h-12 items-center justify-center rounded-full border bg-white text-sm">Сообщения в Telegram</Link>
+          <button type="button" onClick={() => setMessagesOpen(v=>!v)} aria-expanded={messagesOpen} className="mt-3 flex h-12 w-full items-center justify-center rounded-full border bg-white text-sm">Настройки сообщений</button>
+          {messagesOpen && <div className="mt-3 space-y-3 rounded-2xl border border-[var(--workspace-border)] bg-[var(--workspace-panel)] p-4 text-sm text-[var(--workspace-ink)]">
+            <p className="text-xs text-[var(--workspace-muted)]">Изменения сохраняются сразу. Отписаться также можно кнопкой в сообщении бота.</p>
+            {messageError && <p role="alert">{messageError}</p>}
+            {!messagePrefs ? <p>Загружаем…</p> : <>
+              <label className="flex items-start gap-3"><input type="checkbox" checked={messagePrefs.onboarding_consent} disabled={savingMessages} onChange={e=>void updateMessages("onboarding_consent",e.target.checked)}/><span>Помощь с началом работы</span></label>
+              <label className="flex items-start gap-3"><input type="checkbox" checked={messagePrefs.marketing_consent} disabled={savingMessages} onChange={e=>void updateMessages("marketing_consent",e.target.checked)}/><span>Новости и рекламные предложения</span></label>
+            </>}
+          </div>}
 
           <button
             type="button"

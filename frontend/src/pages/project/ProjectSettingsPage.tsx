@@ -321,31 +321,30 @@ export default function ProjectSettingsPage() {
       <header>
         <h1 className="font-display text-4xl leading-none">Настройки проекта</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
-          Здесь задаются правила для системы: какие слова не использовать, когда публиковать посты,
-          с каких профилей вести работу и о чем рассказывать. Так нейросеть пишет точно под задачу проекта.
+          Расскажите ИИ, о чём и как писать. Выберите профиль Threads, время выхода постов и режим публикации.
         </p>
       </header>
 
-      {project && <section className="rounded-2xl border border-[#d8e2da] bg-white p-5">
+      {project && <section id="publication-mode" className="rounded-2xl border border-[#d8e2da] bg-white p-5">
         <h2 className="font-semibold">Режим публикации</h2>
-        <p className="mt-2 text-sm leading-6 text-[#67786e]">Вы решаете, нужна ли проверка каждого нового поста. Новые проекты начинают с согласования.</p>
+        <p className="mt-2 text-sm leading-6 text-[#67786e]">ИИ пишет сам в обоих режимах. Вы выбираете, проверять каждый пост или доверить ему публикацию. У нового проекта проверка включена.</p>
         <fieldset className="mt-4 grid gap-3" disabled={isSavingMode}>
           <legend className="sr-only">Выберите режим публикации проекта</legend>
-          {[{ enabled: false, title: "С согласованием", description: "Создавайте черновики, проверяйте текст и сами назначайте время каждого поста." },
-            { enabled: true, title: "Автоматическая генерация и публикация", description: "Система сама создаёт новые посты и публикует их без проверки по расписанию и лимитам проекта. Нужны действующая подписка и подключённый рабочий профиль Threads." }].map(mode =>
+          {[{ enabled: false, title: "С согласованием", description: "Готовьте посты с ИИ, меняйте текст при необходимости и сами выбирайте время выхода. Без вашего подтверждения пост не отправится." },
+            { enabled: true, title: "ИИ пишет и публикует сам", description: "ИИ сам пишет новые посты и отправляет их по расписанию проекта. Вам не нужно создавать или согласовывать каждый черновик. Нужны действующая подписка и рабочий профиль Threads." }].map(mode =>
             <label key={String(mode.enabled)} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d8e2da] p-4">
               <input type="radio" name="publication-mode" className="mt-1" checked={project.auto_generate === mode.enabled} onChange={async () => {
                 if (isSavingMode || project.auto_generate === mode.enabled) return;
                 setIsSavingMode(true);
                 try { await updateProject(project.id, { auto_generate: mode.enabled }); await loadSettings({ silent: true });
-                  toast.success(mode.enabled ? "Автоматическая генерация и публикация включена" : "Включён режим согласования"); }
+                  toast.success(mode.enabled ? "Автоматическая публикация включена" : "Включён режим согласования"); }
                 catch (error) { toast.error(getApiErrorMessage(error, "Не удалось изменить режим")); }
                 finally { setIsSavingMode(false); }
               }} />
               <span><strong className="block">{mode.title}</strong><span className="mt-1 block text-sm leading-6 text-[#67786e]">{mode.description}</span></span>
             </label>)}
         </fieldset>
-        <p className="mt-3 text-xs leading-5 text-[#67786e]">Кнопка «Создать черновик», план недели и перенос из бесплатной студии всегда сохраняют тексты для вашей проверки, даже в автоматическом режиме. Включение режима не отправляет накопленные черновики.</p>
+        <p className="mt-3 text-xs leading-5 text-[#67786e]">Хотите отдельный пост или свой текст? Создайте черновик, отредактируйте и назначьте время. Такие черновики, план недели и тексты из студии ждут вашего подтверждения даже в автоматическом режиме. Включение режима не публикует старые черновики.</p>
         <p className="mt-2 text-xs leading-5 text-[#67786e]">При переходе к согласованию новые автоматические посты снимаются с расписания. Посты, которые вы уже согласовали вручную, и публикации, начавшие отправляться, сохраняют своё состояние. Посты из прежнего автоматического режима могут оставаться в очереди: проверьте календарь и снимите ненужные.</p>
       </section>}
 
@@ -367,10 +366,10 @@ export default function ProjectSettingsPage() {
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <div className="grid gap-5 lg:grid-cols-[1fr_480px]">
             <div>
-              <h2 className="font-display text-3xl">Что система должна знать</h2>
+              <h2 className="font-display text-3xl">О чём и как писать</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
-                Здесь мы обучаем систему: кто вы, как общаетесь, что волнует ваших читателей
-                и к каким ненавязчивым действиям можно подвести в конце поста.
+                Расскажите, кто вы, как общаетесь и что интересно вашим читателям.
+                Если хотите, укажите, куда приглашать читателя в конце поста.
               </p>
             </div>
 
@@ -389,7 +388,7 @@ export default function ProjectSettingsPage() {
 
               <div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="field-label">Мягкие действия в конце поста</span>
+                  <span className="field-label">Что предложить читателю</span>
                   <button
                     type="button"
                     onClick={() => setTargetActions((current) => [...current, ""])}
@@ -480,7 +479,7 @@ export default function ProjectSettingsPage() {
                 <label className="grid gap-3 rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <span className="field-label">Как часто вести к целевому действию</span>
+                      <span className="field-label">Как часто добавлять приглашение</span>
                       <p className="mt-2 text-sm leading-5 text-[#66645d]">
                         {getConversionIntensityDescription(conversionIntensity)}
                       </p>
@@ -498,7 +497,7 @@ export default function ProjectSettingsPage() {
                     className="h-2 w-full cursor-pointer accent-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
                   />
                   <div className="flex justify-between text-xs text-[#77766f]">
-                    <span>без перехода к действию</span>
+                    <span>без приглашения</span>
                     <span>в каждом посте</span>
                   </div>
                 </label>
@@ -1018,18 +1017,18 @@ function normalizeTargetActions(actions: string[]) {
 
 function getConversionIntensityDescription(value: number) {
   if (value <= 0) {
-    return "Посты работают на охваты и обсуждения без перехода к целевому действию.";
+    return "Посты помогают начать обсуждение. Приглашения перейти по ссылке не добавляем.";
   }
   if (value <= 25) {
-    return "Бот ведет к действию редко и только когда это звучит естественно.";
+    return "Редко приглашаем читателя сделать следующий шаг, когда это подходит к теме.";
   }
   if (value <= 50) {
-    return "Примерно половина постов мягко ведет к выбранному действию.";
+    return "Добавляем приглашение примерно в половину постов.";
   }
   if (value <= 75) {
-    return "Большинство постов подводят читателя к выбранному действию.";
+    return "Добавляем приглашение в большинство постов.";
   }
-  return "Каждый пост мягко ведет к выбранному действию.";
+  return "Добавляем приглашение в каждый пост.";
 }
 
 function clampPostsPerDay(value: number, limit = 20) {

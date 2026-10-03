@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models import User, Project, Account, Platform, RetentionDelivery, RetentionSettings
+from app.db.models import User, Project, Account, Platform, TelegramLoginChallenge, RetentionBotContact, RetentionDelivery, RetentionSettings
 from app.services import retention as service
 
 
@@ -49,6 +49,32 @@ class RetentionTest(unittest.IsolatedAsyncioTestCase):
         config = await service.get_settings(db)
         config.sending_enabled = config.automated_enabled = True
         await db.commit()
+
+    async def test_legacy_import_preserves_opt_out_and_new_users(self):
+        async with self.sessions() as db:
+            old = User(first_name="Legacy", telegram_id=201, created_at=service.LEGACY_CONSENT_CUTOFF - timedelta(days=1))
+            declined = User(first_name="Declined", telegram_id=202, created_at=service.LEGACY_CONSENT_CUTOFF - timedelta(days=1))
+            new = User(first_name="New", telegram_id=203, created_at=service.LEGACY_CONSENT_CUTOFF + timedelta(days=1))
+            db.add_all([old, declined, new]); await db.commit()
+            await service.unsubscribe_user(db, 202)
+            self.assertEqual(await service.import_owner_confirmed_legacy_consents(db), 1)
+            self.assertTrue(old.marketing_consent)
+            self.assertFalse(declined.marketing_consent)
+            self.assertFalse(new.marketing_consent)
+            self.assertEqual(await service.import_owner_confirmed_legacy_consents(db), 0)
+
+    async def test_legacy_bot_contact_requires_confirmed_bot_login(self):
+        async with self.sessions() as db:
+            user = await self.customer(db, consent=False, contact=False)
+            user.created_at = service.LEGACY_CONSENT_CUTOFF - timedelta(days=1)
+            db.add(TelegramLoginChallenge(id="fixture", browser_secret_hash="browser", bot_secret_hash="bot",
+                display_code="123456", telegram_id=user.telegram_id, status="consumed", expires_at=self.now))
+            await db.commit()
+            self.assertEqual(await service.import_owner_confirmed_legacy_consents(db), 1)
+            self.assertTrue((await db.get(RetentionBotContact,user.telegram_id)).reachable)
+            await service.note_bot_blocked(db,user.telegram_id)
+            self.assertEqual(await service.import_owner_confirmed_legacy_consents(db), 0)
+            self.assertTrue((await db.get(RetentionBotContact,user.telegram_id)).blocked)
 
     async def campaign(self, db, key="unique-request-1"):
         campaign = await service.create_campaign(db, title="Test", message="Help", segment="all", kind="marketing", request_key=key)

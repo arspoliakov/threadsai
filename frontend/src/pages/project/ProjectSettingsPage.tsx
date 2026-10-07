@@ -19,6 +19,7 @@ import {
 import { trackSeoEvent } from "../../components/SeoAnalytics";
 import { StyleTemplatePicker } from "../../components/StyleTemplatePicker";
 import { StyleAssistant } from "../../components/StyleAssistant";
+import "./settings-ux.css";
 import AccountRiskNotice from "../../components/AccountRiskNotice";
 
 const timezoneOptions = [
@@ -51,6 +52,7 @@ export default function ProjectSettingsPage() {
   const location = useLocation();
   const { id } = useParams();
   const projectId = Number(id);
+  const settingsPane = ["#publication-mode", "#schedule"].includes(location.hash) ? "publication" : ["#profiles", "#accounts"].includes(location.hash) ? "accounts" : "content";
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [styleBody, setStyleBody] = useState("");
@@ -84,7 +86,9 @@ export default function ProjectSettingsPage() {
 
   useEffect(() => {
     if (!isLoading && Boolean(location.hash)) {
-      document.getElementById(location.hash === "#accounts" ? "profiles" : location.hash.slice(1))?.scrollIntoView({ block: "start", behavior: "smooth" });
+      const target = document.getElementById(location.hash === "#accounts" ? "profiles" : location.hash.slice(1));
+      if (target instanceof HTMLDetailsElement) target.open = true;
+      target?.scrollIntoView({ block: "start", behavior: "smooth" });
     }
   }, [isLoading, location.hash]);
 
@@ -349,7 +353,7 @@ export default function ProjectSettingsPage() {
   }
 
   return (
-    <section className="space-y-5">
+    <section className="project-settings-ux space-y-5" data-active-pane={settingsPane}>
       <header>
         <h1 className="font-display text-4xl leading-none">Настройки проекта</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
@@ -357,7 +361,9 @@ export default function ProjectSettingsPage() {
         </p>
       </header>
 
-      {project && <section id="publication-mode" className="rounded-2xl border border-[#d8e2da] bg-white p-5">
+      <nav aria-label="Разделы настроек проекта" className="settings-sections grid grid-cols-3 gap-2 rounded-2xl border border-[var(--workspace-border)] bg-[var(--workspace-panel)] p-2">{[{ key: "content", hash: "#content", title: "Контент" }, { key: "publication", hash: "#publication-mode", title: "Публикации" }, { key: "accounts", hash: "#profiles", title: "Аккаунты" }].map(item => <Link key={item.key} to={`${location.pathname}${item.hash}`} aria-current={settingsPane === item.key ? "page" : undefined} className="flex min-h-11 items-center justify-center rounded-xl px-2 text-sm font-medium">{item.title}</Link>)}</nav>
+
+      {project && <section data-settings-pane="publication" id="publication-mode" className="rounded-2xl border border-[#d8e2da] bg-white p-5">
         <h2 className="font-semibold">Режим публикации</h2>
         <p className="mt-2 text-sm leading-6 text-[#67786e]">ИИ может готовить посты с вашей проверкой или сразу публиковать по расписанию.</p>
         <fieldset className="mt-4 grid gap-3" disabled={isLoading || isSavingMode}>
@@ -387,19 +393,6 @@ export default function ProjectSettingsPage() {
         </details>
       </section>}
 
-      {project && <section id="style" className="scroll-mt-28 rounded-2xl border border-[#d8e2da] bg-white p-5">
-        <h2 className="font-semibold">Стиль этого проекта</h2><p className="mt-2 text-sm opacity-70">Как звучат ваши тексты: тон, длина, юмор и любимые приёмы. Другие проекты сохранят свой стиль.</p>
-        <textarea aria-label="Стиль проекта" value={styleBody} onChange={event => setStyleBody(event.target.value)} maxLength={12000} rows={5} className="mt-4 w-full rounded-xl border bg-transparent p-3 text-sm" disabled={savingStyle} />
-        <StyleAssistant disabled={savingStyle} onApply={setStyleBody} /><StyleTemplatePicker disabled={savingStyle} onApply={setStyleBody} />
-        <button type="button" className="mt-4 rounded-full bg-[#151515] px-5 py-3 text-sm text-white" disabled={savingStyle} onClick={async () => { setSavingStyle(true); try { const saved = await updateProject(project.id, { style_body: styleBody.trim() }); setProject(saved); notifyProjectUpdated(); toast.success("Стиль проекта сохранён"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить стиль")); } finally { setSavingStyle(false); } }}>{savingStyle ? "Сохраняем…" : "Сохранить стиль"}</button>
-        <details className="mt-4 text-sm"><summary className="cursor-pointer">Шаблоны и вдохновение</summary><div className="mt-3 flex flex-wrap gap-4"><Link to="/app/settings">Мой шаблон стиля</Link><Link to={`/app/projects/${project.id}/trends`}>Источники вдохновения</Link></div></details>
-      </section>}
-      {project && <section id="project-management" className="scroll-mt-28 rounded-2xl border border-[#d8e2da] bg-white p-5"><h2 className="font-semibold">Название и работа проекта</h2>
-        <label className="mt-3 block text-sm">Название<input value={projectName} onChange={event => setProjectName(event.target.value)} maxLength={120} className="mt-2 w-full rounded-xl border bg-transparent p-3" /></label>
-        <div className="mt-4 flex flex-wrap gap-3"><button type="button" disabled={managementBusy || !projectName.trim()} className="rounded-full border px-5 py-3 text-sm" onClick={async () => { setManagementBusy(true); try { setProject(await updateProject(project.id, { name: projectName.trim() })); notifyProjectUpdated(); toast.success("Название сохранено"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить название")); } finally { setManagementBusy(false); } }}>Сохранить название</button>
-        <button type="button" disabled={managementBusy} className="rounded-full border px-5 py-3 text-sm" onClick={async () => { setManagementBusy(true); try { setProject(await updateProject(project.id, { is_active: !project.is_active })); notifyProjectUpdated(); toast.success(project.is_active ? "Проект на паузе" : "Проект возобновлён"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось изменить состояние")); } finally { setManagementBusy(false); } }}>{project.is_active ? "Поставить на паузу" : "Возобновить проект"}</button></div><p className="mt-3 text-xs opacity-70">На паузе проект сохраняет настройки и посты. Подготовка и публикации останавливаются.</p>
-      </section>}
-
       {loadError ? (
         <div className="rounded-[24px] border border-[#e8c7c2] bg-[#fff7f5] p-6 shadow-sm">
           <h2 className="font-display text-3xl text-[#111]">Настройки пока не загрузились</h2>
@@ -414,8 +407,8 @@ export default function ProjectSettingsPage() {
         </div>
       ) : null}
 
-      <div className={`${loadError && !project ? "hidden" : "grid"} gap-4 xl:grid-cols-[1.2fr_0.8fr]`}>
-        <section id="content" className="scroll-mt-28 rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
+      <div className={`settings-content-grid ${loadError && !project ? "hidden" : "grid"} gap-4 xl:grid-cols-[1.2fr_0.8fr]`}>
+        <section data-settings-pane="content" id="content" className="scroll-mt-28 rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <div className="grid gap-5 lg:grid-cols-[1fr_480px]">
             <div>
               <h2 className="font-display text-3xl">О чём и как писать</h2>
@@ -432,7 +425,7 @@ export default function ProjectSettingsPage() {
                   value={globalContext}
                   onChange={(event) => setGlobalContext(event.target.value)}
                   disabled={isLoading || isSavingContext}
-                  rows={8}
+                  rows={5}
                   placeholder="Кто вы, для кого пишете, какие темы хотите обсуждать и какие факты ИИ должен учитывать. Стиль этого проекта настраивается ниже."
                   className="resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-sm leading-6 text-[#24231f] outline-none transition focus:border-[#151515] disabled:opacity-50"
                 />
@@ -570,7 +563,13 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
 
-        <details className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
+      {project && <section data-settings-pane="content" id="style" className="scroll-mt-28 rounded-2xl border border-[#d8e2da] bg-white p-5">
+        <h2 className="font-semibold">Стиль этого проекта</h2><p className="mt-2 text-sm opacity-70">Как звучат ваши тексты: тон, длина, юмор и любимые приёмы. Другие проекты сохранят свой стиль.</p>
+        <textarea aria-label="Стиль проекта" value={styleBody} onChange={event => setStyleBody(event.target.value)} maxLength={12000} rows={5} className="mt-4 w-full rounded-xl border bg-transparent p-3 text-sm" disabled={savingStyle} />
+        <button type="button" className="mt-4 rounded-full bg-[#151515] px-5 py-3 text-sm text-white" disabled={savingStyle} onClick={async () => { setSavingStyle(true); try { const saved = await updateProject(project.id, { style_body: styleBody.trim() }); setProject(saved); notifyProjectUpdated(); toast.success("Стиль проекта сохранён"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить стиль")); } finally { setSavingStyle(false); } }}>{savingStyle ? "Сохраняем…" : "Сохранить стиль"}</button>
+        <details className="mt-4 text-sm"><summary className="cursor-pointer">Помощь со стилем и источники вдохновения</summary><div className="mt-4"><StyleAssistant disabled={savingStyle} onApply={setStyleBody} /><StyleTemplatePicker disabled={savingStyle} onApply={setStyleBody} /></div><div className="mt-3 flex flex-wrap gap-4"><Link to="/app/settings">Мой шаблон стиля</Link><Link to={`/app/projects/${project.id}/trends`}>Источники вдохновения</Link></div></details>
+      </section>}
+        <details data-settings-pane="content" className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <summary className="cursor-pointer font-semibold">Стоп-слова — дополнительные настройки</summary><div className="mt-4 grid gap-5 lg:grid-cols-[1fr_420px]">
             <div>
               <h2 className="font-display text-3xl">Запрещенные слова</h2>
@@ -595,7 +594,7 @@ export default function ProjectSettingsPage() {
           </div>
         </details>
 
-        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
+        <section data-settings-pane="publication" id="schedule" className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <div className="grid gap-5 lg:grid-cols-[1fr_480px]">
             <div>
               <h2 className="font-display text-3xl">Настройка публикаций</h2>
@@ -695,7 +694,7 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
 
-        <section id="profiles" className="scroll-mt-28 rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
+        <section data-settings-pane="accounts" id="profiles" className="scroll-mt-28 rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7e5de] pb-4">
             <div>
               <h2 className="font-display text-3xl">Аккаунты проекта</h2>
@@ -730,7 +729,7 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
+        <section data-settings-pane="accounts" className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm">
           <h2 className="font-display text-3xl">Добавить аккаунт в проект</h2>
           <div className="mt-3"><AccountRiskNotice /></div>
           <p className="mt-3 text-sm leading-6 text-[#66645d]">
@@ -769,6 +768,12 @@ export default function ProjectSettingsPage() {
 
         </section>
       </div>
+      {project && <details id="project-management" className="scroll-mt-28 rounded-2xl border border-[#d8e2da] bg-white p-5"><summary className="cursor-pointer font-semibold">{project.is_active ? "Название и пауза проекта" : "Проект на паузе · настройки"}</summary>
+        <label className="mt-3 block text-sm">Название<input value={projectName} onChange={event => setProjectName(event.target.value)} maxLength={120} className="mt-2 w-full rounded-xl border bg-transparent p-3" /></label>
+        <div className="mt-4 flex flex-wrap gap-3"><button type="button" disabled={managementBusy || !projectName.trim()} className="rounded-full border px-5 py-3 text-sm" onClick={async () => { setManagementBusy(true); try { setProject(await updateProject(project.id, { name: projectName.trim() })); notifyProjectUpdated(); toast.success("Название сохранено"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить название")); } finally { setManagementBusy(false); } }}>Сохранить название</button>
+        <button type="button" disabled={managementBusy} className="rounded-full border px-5 py-3 text-sm" onClick={async () => { setManagementBusy(true); try { setProject(await updateProject(project.id, { is_active: !project.is_active })); notifyProjectUpdated(); toast.success(project.is_active ? "Проект на паузе" : "Проект возобновлён"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось изменить состояние")); } finally { setManagementBusy(false); } }}>{project.is_active ? "Поставить на паузу" : "Возобновить проект"}</button></div><p className="mt-3 text-xs opacity-70">На паузе проект сохраняет настройки и посты. Подготовка и публикации останавливаются.</p>
+      </details>}
+
       {!isLoading && project ? (
         <Link to={`/app/projects/${projectId}`} className="inline-flex min-h-11 items-center rounded-full bg-[#151515] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">
           Открыть проект

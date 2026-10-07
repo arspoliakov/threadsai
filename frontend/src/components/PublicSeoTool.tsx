@@ -297,7 +297,7 @@ function BrandStrategyTool() {
 }
 
 function ToolFrame({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="border-y border-[#d9ddd4] bg-[#edf3eb]"><div className="mx-auto max-w-6xl px-5 py-14 sm:px-8"><h2 className="font-display text-4xl">{title}</h2><div className="mt-7">{children}</div></div></section>;
+  return <section className="ym-hide-content border-y border-[#d9ddd4] bg-[#edf3eb]"><div className="mx-auto max-w-6xl px-5 py-14 sm:px-8"><h2 className="font-display text-4xl">{title}</h2><div className="mt-7">{children}</div></div></section>;
 }
 
 function ToolInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {

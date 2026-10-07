@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
 
 from app.db.models import Account, PostingTask, PostingTaskStatus, Project, StudioDraft, TributeWebhookEvent, User
 from app.services.project_workflow import account_connection_ready, build_project_workflow
@@ -26,6 +27,11 @@ def utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def excluded_analytics_user(user: User) -> bool:
+    return bool((settings.admin_tg_id is not None and user.telegram_id == settings.admin_tg_id)
+                or user.id in set(getattr(settings, "analytics_excluded_user_ids", [])))
 
 
 def confirmed_payment_at(event: TributeWebhookEvent) -> datetime | None:
@@ -53,7 +59,8 @@ async def build_product_funnel(session: AsyncSession, *, days: int = 30, now: da
     query = select(User).where(User.created_at <= reference)
     if since is not None:
         query = query.where(User.created_at >= since)
-    users = {u.id: u for u in (await session.scalars(query)).all()}
+    candidates = list((await session.scalars(query)).all())
+    users = {u.id: u for u in candidates if not excluded_analytics_user(u)}
     ids = list(users)
     telegram_users = {u.telegram_id: u.id for u in users.values() if u.telegram_id is not None}
     trials = list((await session.scalars(select(StudioDraft).where(StudioDraft.owner_id.in_(ids)))).all())
@@ -107,7 +114,8 @@ async def build_product_funnel(session: AsyncSession, *, days: int = 30, now: da
     denominator = len(users)
     return {
         "checked_at": reference,
-        "cohort": {"days": days, "registered_since": since, "users": denominator},
+        "cohort": {"days": days, "registered_since": since, "users": denominator,
+                   "excluded_users": len(candidates) - denominator},
         "stages": [{"key": key, "label": label, "users": len(reached[key]),
                     "percent_of_cohort": round(len(reached[key]) * 100 / denominator, 1) if denominator else 0}
                    for key, label in STAGES],
@@ -117,6 +125,7 @@ async def build_product_funnel(session: AsyncSession, *, days: int = 30, now: da
         "blockers": [{"code": code, "message": blocker_messages[code], "projects": count}
                      for code, count in blocker_counts.most_common()],
         "notes": [
+            "Владелец сервиса и тестовые ID из настройки исключены из этой когорты.",
             "Этапы накопительные: все доли считаются от зарегистрированных пользователей выбранной когорты, порядок действий может различаться.",
             "Для когорты 7 или 30 дней учитываются пользователи, зарегистрированные в этот период, и их действия до момента проверки.",
             "Подключение показывает текущее состояние сохранённых настроек, без сетевой проверки Threads или прокси.",

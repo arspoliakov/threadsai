@@ -1,7 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import "../workspace-refresh.css";
-import { Link, NavLink, useLocation } from "react-router-dom";
-import { getAccounts, getCurrentUser, getProjects } from "../api/client";
+import { Link, NavLink } from "react-router-dom";
 import { AppIcon } from "./AppIcons";
 import { FloatingDock, type FloatingDockItem } from "./FloatingDock";
 import { ProfileMenu } from "./ProfileMenu";
@@ -19,18 +18,6 @@ export function AppShell({
   title?: string;
   children: ReactNode;
 }) {
-  const { pathname } = useLocation();
-  const [showStartHelp, setShowStartHelp] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    setShowStartHelp(false);
-    void Promise.all([getCurrentUser(), getProjects(), getAccounts()])
-      .then(([user, projects, accounts]) => {
-        if (!cancelled) setShowStartHelp(!user.subscription_status && projects.length === 0 && accounts.length === 0);
-      })
-      .catch(() => { /* Keep novice prompts hidden when account data is unavailable. */ });
-    return () => { cancelled = true; };
-  }, [pathname]);
   return (
     <div className="app-refresh workspace-shell min-h-screen bg-[#f6f8f7] text-[#162b25]">
       <a
@@ -76,7 +63,7 @@ export function AppShell({
             className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#67786e] hover:bg-[#f5f8f6]"
           >
             <AppIcon name="spark" />
-            {showStartHelp ? "Как начать" : "Помощь"}
+            Помощь
           </Link>
           <Link
             to="/updates/"
@@ -89,7 +76,7 @@ export function AppShell({
       <div className="lg:pl-60">
         <header className="workspace-topbar sticky top-0 z-30 border-b border-[#e0e8e2] bg-white/95 px-4 py-3 backdrop-blur-xl sm:px-8">
           <div className="mx-auto flex max-w-[1320px] items-center justify-between gap-2 sm:gap-4">
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <Link to="/app" aria-label="Все проекты" className="hidden sm:block lg:hidden">
                 <img
                   src="/threadsgo-logo.png"
@@ -97,8 +84,8 @@ export function AppShell({
                   className="h-9 w-9 object-contain"
                 />
               </Link>
-              <div className="min-w-0">
-                <div className="w-[min(25vw,12rem)] lg:hidden"><ProjectSwitcher /></div>
+              <div className="min-w-0 flex-1">
+                <div className="w-full max-w-64 lg:hidden"><ProjectSwitcher /></div>
                 <p className="hidden text-[10px] font-medium text-[#67786e] sm:block">
                   ThreadsGo / кабинет
                 </p>

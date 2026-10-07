@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient, cancelTask, createManualTask, getApiErrorMessage, getProjectDashboard, getProjectTasks,
-  publishTaskNow, triggerGeneration, updateTask, type PostingTask, type PostingTaskStatus, type ProjectAccountState } from "../../api/client";
+  publishTaskNow, triggerGeneration, updateTask, type PostingTask, type PostingTaskStatus, type ProjectAccountState, type ProjectWorkflow } from "../../api/client";
 import { TaskPlanningControls, TaskRewriteControls, WeekPlanBuilder } from "../../components/ContentStudioControls";
 import { WeekCalendar, getTaskCalendarDate, localDay } from "../../components/WeekCalendar";
 import { PostComposer } from "../../components/PostComposer";
 import { PostEditor } from "../../components/PostEditor";
 import { trackSeoEvent } from "../../components/SeoAnalytics";
+import { AppIcon } from "../../components/AppIcons";
 
 const terminalStatuses: PostingTaskStatus[] = ["success", "partial_success", "failed", "cancelled"];
 const THREADS_POST_CHAR_LIMIT = 500;
@@ -28,8 +29,32 @@ function queryFilter(value: string | null): PostFilter | null {
   if (value === "attention") return "actions";
   return value === "review" || value === "scheduled" || value === "published" || value === "actions" || value === "cancelled" ? value : null;
 }
+function emptyPostState(filter: PostFilter, day: string | null, workflow: ProjectWorkflow | null, mode: "manual" | "review" | "auto", projectId: number): {
+  title: string; description: string; actionLabel?: string; href?: string;
+} {
+  if (day) return { title: "В этот день постов нет", description: "Выберите другой день или нажмите «Все посты», чтобы посмотреть весь список." };
+  if (filter === "actions") return { title: "Всё в порядке", description: "Если для публикации понадобится ваше действие, пост появится здесь." };
+  if (filter === "cancelled") return { title: "Отменённых постов нет", description: "Здесь сохраняются тексты, которые вы убрали из расписания." };
+  const blocker = workflow?.blockers?.[0];
+  if ((filter === "review" || filter === "scheduled") && blocker) return {
+    title: filter === "review" ? "Постов на проверке пока нет" : "Расписание пока пусто", description: blocker.message, actionLabel: blocker.action_label, href: blocker.action_href,
+  };
+  if (filter === "published") return { title: "Публикаций пока нет", description: "После отправки здесь появится готовый пост и ссылка на него в Threads.", actionLabel: "Посмотреть расписание", href: `/app/projects/${projectId}/queue?filter=scheduled` };
+  if (mode === "auto") return {
+    title: filter === "review" ? "Проверять пока нечего" : "Ближайшие посты появятся здесь",
+    description: filter === "review" ? "В автоматическом режиме ИИ публикует по расписанию. Здесь остаются только отдельные тексты, которые вы ещё не запланировали." : "ИИ готовит новые тексты по настройкам проекта и добавляет их в расписание. Частоту и часы публикаций можно изменить в настройках.",
+    actionLabel: filter === "review" ? "Посмотреть расписание" : "Настройки публикаций", href: filter === "review" ? `/app/projects/${projectId}/queue?filter=scheduled` : `/app/projects/${projectId}/settings#publication-mode`,
+  };
+  if (mode === "review") return {
+    title: filter === "review" ? "Новые тексты появятся здесь" : "Пока ничего не запланировано",
+    description: filter === "review" ? "ИИ готовит посты по настройкам проекта. Когда текст будет готов, вы сможете проверить его и выбрать время. Отдельный пост можно подготовить кнопкой «Создать пост»." : "Готовые тексты находятся на проверке. Откройте пост, проверьте факты и выберите время публикации.",
+    actionLabel: filter === "review" ? "Настройки подготовки" : "Открыть посты на проверке", href: filter === "review" ? `/app/projects/${projectId}/settings#publication-mode` : `/app/projects/${projectId}/queue?filter=review`,
+  };
+  return { title: filter === "review" ? "Подготовьте первый пост" : "Пока ничего не запланировано", description: "ИИ поможет написать текст по теме проекта. Проверьте его и выберите время. Готовый собственный текст тоже можно добавить.", actionLabel: "Создать пост" };
+}
 
 export default function ProjectQueuePage() {
+  const navigate = useNavigate();
   const { id } = useParams();
   const projectId = Number(id);
   const [search, setSearch] = useSearchParams();
@@ -47,6 +72,8 @@ export default function ProjectQueuePage() {
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [accountStates, setAccountStates] = useState<ProjectAccountState[]>([]);
+  const [workflow, setWorkflow] = useState<ProjectWorkflow | null>(null);
+  const [publicationMode, setPublicationMode] = useState<"manual" | "review" | "auto">("manual");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const loadSequence = useRef(0);
@@ -66,12 +93,15 @@ export default function ProjectQueuePage() {
       const [items, dashboard] = await Promise.all([getProjectTasks(projectId), getProjectDashboard(projectId)]);
       if (sequence !== loadSequence.current || activeProjectId.current !== projectId) return null;
       setTasks(sortTasks(items)); setAccountStates(dashboard.account_states);
+      setWorkflow(dashboard.workflow || null);
+      const mode = dashboard.workflow?.publication_mode || dashboard.project.publication_mode || (dashboard.project.auto_generate ? "auto" : "manual");
+      setPublicationMode(mode);
       const taskStates = items.map(task => `${task.id}:${task.status}:${Boolean(task.generation_metadata?.publication_confirmation_pending)}`).sort().join("|");
       if (previousTaskStates.current !== null && previousTaskStates.current !== taskStates) window.dispatchEvent(new Event("threadsgo:project-updated"));
       previousTaskStates.current = taskStates;
       if (initialLoad.current) {
         initialLoad.current = false;
-        setFilter(queryFilter(search.get("filter")) || (items.some(task => matchesFilter(task, "scheduled")) ? "scheduled" : items.some(task => matchesFilter(task, "review")) ? "review" : items.some(task => matchesFilter(task, "actions")) ? "actions" : "published"));
+        setFilter(queryFilter(search.get("filter")) || (items.some(task => matchesFilter(task, "scheduled")) ? "scheduled" : items.some(task => matchesFilter(task, "review")) ? "review" : items.some(task => matchesFilter(task, "actions")) ? "actions" : items.some(task => matchesFilter(task, "published")) ? "published" : mode === "auto" ? "scheduled" : "review"));
       }
       return items;
     } catch (error) {
@@ -83,7 +113,7 @@ export default function ProjectQueuePage() {
     } finally { if (sequence === loadSequence.current) setIsLoading(false); }
   }
   useEffect(() => {
-    setTasks([]); setIsLoading(true); setSelectedDay(null); setComposerOpen(false); setComposerDirty(false); setEditorId(null);
+    setTasks([]); setWorkflow(null); setPublicationMode("manual"); setIsLoading(true); setSelectedDay(null); setComposerOpen(false); setComposerDirty(false); setEditorId(null);
     setEditorDirty(false); setEditorControlBusy(false); initialLoad.current = true; previousTaskStates.current = null;
     if (Number.isInteger(projectId) && projectId > 0) void loadTasks({ silent: true });
     else { setLoadError("Проект не найден"); setIsLoading(false); }
@@ -100,10 +130,12 @@ export default function ProjectQueuePage() {
     if (taskId > 0 && tasks.some(task => task.id === taskId) && editorId !== taskId) { setEditorId(taskId); setEditorDirty(false); }
   }, [search, tasks]);
   useEffect(() => {
-    if (!tasks.some(task => task.status === "running" || task.generation_metadata?.publication_confirmation_pending)) return;
-    const timer = window.setInterval(() => void loadTasks({ silent: true }), 15000);
+    const sending = tasks.some(task => task.status === "running" || task.generation_metadata?.publication_confirmation_pending);
+    const awaitingBackground = publicationMode !== "manual" || tasks.some(task => task.status === "queued");
+    if (!sending && !awaitingBackground) return;
+    const timer = window.setInterval(() => { if (!document.hidden) void loadTasks({ silent: true }); }, sending ? 15000 : 30000);
     return () => window.clearInterval(timer);
-  }, [projectId, tasks.some(task => task.status === "running" || task.generation_metadata?.publication_confirmation_pending)]);
+  }, [projectId, publicationMode, tasks.some(task => task.status === "queued"), tasks.some(task => task.status === "running" || task.generation_metadata?.publication_confirmation_pending)]);
 
   function openEditor(taskId: number) {
     setEditorDirty(false); setEditorControlBusy(false); setEditorId(taskId);
@@ -185,10 +217,12 @@ export default function ProjectQueuePage() {
   const visibleTasks = filteredTasks.filter(task => view === "list" || !selectedDay || getTaskCalendarDate(task) && localDay(new Date(getTaskCalendarDate(task)!)) === selectedDay);
   const editedTask = tasks.find(task => task.id === editorId);
   const editorBusy = editorControlBusy || cancellingId !== null || publishingId !== null || savingId !== null;
+  const empty = emptyPostState(filter, selectedDay, workflow, publicationMode, projectId);
   return <section className="workspace-page space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="font-display text-4xl">Посты</h1>
-      <p className="mt-3 text-sm leading-6 text-[var(--workspace-muted)]">Все тексты проекта: от первой идеи до публикации в Threads.</p></div>
-      <button type="button" className="rounded-full bg-[var(--workspace-accent)] px-5 py-3 text-sm text-[var(--workspace-accent-ink)]" onClick={() => { setComposerDirty(false); setComposerOpen(true); }}>Создать пост</button></header>
+      <p className="mt-3 text-sm leading-6 text-[var(--workspace-muted)]">{publicationMode === "auto" ? "ИИ готовит и публикует по расписанию. Здесь можно проверить ближайшие тексты и добавить отдельный пост." : publicationMode === "review" ? "ИИ готовит тексты, вы проверяете и выбираете время публикации." : "Подготовьте текст с ИИ, проверьте его и выберите время публикации."}</p></div>
+      <button type="button" className="inline-flex items-center gap-2 rounded-full bg-[var(--workspace-accent)] px-5 py-3 text-sm text-[var(--workspace-accent-ink)]" onClick={() => { setComposerDirty(false); setComposerOpen(true); }}><AppIcon name="spark" className="h-4 w-4" />Создать пост</button></header>
+    <p className="text-xs text-[var(--workspace-muted)]">Все даты и время показаны в часовом поясе вашего устройства: {Intl.DateTimeFormat().resolvedOptions().timeZone}.</p>
     <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-2" aria-label="Статусы постов">
       {filters.map(item => <button key={item.id} type="button" aria-pressed={filter === item.id} className={`rounded-full border border-[var(--workspace-border)] px-4 py-2 text-sm ${filter === item.id ? "bg-[var(--workspace-accent)] text-[var(--workspace-accent-ink)]" : "bg-[var(--workspace-panel)]"}`}
         onClick={() => { setFilter(item.id); setSelectedDay(null); }}>{item.label} · {tasks.filter(task => matchesFilter(task, item.id)).length}</button>)}</div>
@@ -202,9 +236,8 @@ export default function ProjectQueuePage() {
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--workspace-muted)]"><span>{task.generation_metadata?.publication_confirmation_pending ? "Проверяем результат отправки" : formatStatus(task.status)}</span><span>{task.account_username ? `@${task.account_username}` : "Аккаунт не выбран"}</span></div>
         <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6">{truncate(task.content_text, 180)}</p>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--workspace-muted)]"><span>{formatDate(task.finished_at || task.scheduled_at)}</span><span>Открыть пост →</span></div></button>)}</div> :
-      <EmptyState title={selectedDay ? "В этот день постов нет" : filter === "review" ? "Нет постов на проверке" : filter === "scheduled" ? "Нет запланированных постов" : filter === "published" ? "Публикаций пока нет" : filter === "actions" ? "Всё в порядке" : "Отменённых постов нет"}
-        description={filter === "actions" ? "Если для публикации понадобится ваше действие, пост появится здесь." : "Создайте текст с ИИ или напишите свой. Затем откройте пост и выберите время публикации."}
-        actionLabel={filter === "actions" || selectedDay ? undefined : "Создать пост"} onAction={() => setComposerOpen(true)} />}
+      <EmptyState title={empty.title} description={empty.description} actionLabel={empty.actionLabel}
+        onAction={() => { if (empty.href) navigate(empty.href); else { setComposerDirty(false); setComposerOpen(true); } }} />}
     <details className="rounded-2xl border border-[var(--workspace-border)] bg-[var(--workspace-panel)] p-4"><summary className="cursor-pointer text-sm">Подготовить несколько постов</summary>
       <div className="mt-4"><WeekPlanBuilder key={projectId} projectId={projectId} onCreated={() => { setFilter("review"); setSelectedDay(null); void loadTasks({ silent: true }); }} /></div></details>
     {tasks.some(task => task.status === "cancelled") && <button type="button" className="text-xs text-[var(--workspace-muted)] underline" onClick={() => { setFilter("cancelled"); setSelectedDay(null); }}>Отменённые посты · {tasks.filter(task => matchesFilter(task, "cancelled")).length}</button>}
@@ -304,6 +337,7 @@ function TaskCard({
           <p className="mt-1 text-sm text-[#24231f]">{formatDate(task.finished_at || task.scheduled_at)}</p>
         </div>
       </div>
+      <p className="text-xs leading-5 text-[var(--workspace-muted)]">Время показано в часовом поясе вашего устройства: {Intl.DateTimeFormat().resolvedOptions().timeZone}.</p>
 
       {isEditing ? (
         <div className="mt-5">
@@ -403,8 +437,10 @@ function TaskCard({
         )}
       </div>
       {canChange && (task.status === "draft" || task.status === "queued") && <>
-        <div hidden={isEditing}><TaskRewriteControls task={task} onUpdated={onUpdated} disabled={externalBusy || isEditing || controlBusy !== null && controlBusy !== "rewrite"} onBusyChange={busy => setControlBusy(busy ? "rewrite" : null)} />
-        <TaskPlanningControls task={task} accounts={accounts} onUpdated={onUpdated} disabled={externalBusy || isEditing || controlBusy !== null && controlBusy !== "planning"} onBusyChange={busy => setControlBusy(busy ? "planning" : null)} /></div>
+        <div hidden={isEditing}>
+          <TaskPlanningControls task={task} accounts={accounts} onUpdated={onUpdated} disabled={externalBusy || isEditing || controlBusy !== null && controlBusy !== "planning"} onBusyChange={busy => setControlBusy(busy ? "planning" : null)} />
+          <TaskRewriteControls task={task} onUpdated={onUpdated} disabled={externalBusy || isEditing || controlBusy !== null && controlBusy !== "rewrite"} onBusyChange={busy => setControlBusy(busy ? "rewrite" : null)} />
+        </div>
       </>}
       <TaskRevisionHistory task={task} onUpdated={onUpdated} canRestore={canChange} disabled={externalBusy || isEditing || controlBusy !== null}
         onBusyChange={busy => setControlBusy(busy ? "history" : null)} />
@@ -573,7 +609,7 @@ function EmptyState({
     <div className="overflow-hidden rounded-[24px] border border-dashed border-[#c9c9c3] bg-white/70 shadow-sm">
       <div className="grid items-center gap-5 p-5 text-center sm:p-6 lg:grid-cols-[1fr_20rem] lg:text-left">
         <div>
-          <p className="font-display text-3xl leading-none text-[#151515]">{title}</p>
+          <h2 className="font-display text-3xl leading-none text-[#151515]">{title}</h2>
           <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#66645d] lg:mx-0">{description}</p>
           {actionLabel && onAction ? (
             <button type="button" onClick={onAction} className="mt-5 h-11 rounded-full bg-[#151515] px-5 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e]">

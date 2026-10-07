@@ -128,6 +128,7 @@ export default function InfrastructurePage() {
           <details className="text-sm">
             <summary className="cursor-pointer text-[#66645d]">Другие способы подключения</summary>
             <div className="mt-3 grid gap-2">
+              <p className="text-xs leading-5 text-[var(--workspace-muted)]">У существующего аккаунта сначала проверьте вход в карточке. Для обновления данных откройте его настройки в проекте. Новое подключение создаёт отдельный профиль.</p>
               <button type="button" onClick={() => setIsCreateOpen(true)} className="rounded-2xl border border-[#151515] px-4 py-2 text-left transition hover:bg-[#151515] hover:text-white">
                 Вставить данные входа
               </button>
@@ -282,6 +283,7 @@ function AccountCard({
           <ActionButton onClick={onCheck} disabled={busy}>
             {checking ? "Проверяем..." : account.status === "active" ? "Проверить вход" : "Проверить и возобновить"}
           </ActionButton>
+          {(account.status === "cookies_expired" || account.status === "error" || account.status === "blocked") && account.project_id !== null && <Link to={`/app/projects/${account.project_id}/settings#profiles`} className="inline-flex min-h-11 items-center rounded-xl border border-[var(--workspace-border)] px-3 text-sm">Обновить данные входа</Link>}
           {account.project_id !== null ? (
             <ActionButton onClick={onUnlink} disabled={busy}>
               {unlinking ? "отключаем..." : "Отключить от проекта"}

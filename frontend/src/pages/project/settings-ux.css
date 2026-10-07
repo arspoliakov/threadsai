@@ -1,0 +1,10 @@
+.project-settings-ux [data-settings-pane] { min-width: 0; }
+.project-settings-ux[data-active-pane="content"] [data-settings-pane]:not([data-settings-pane="content"]),
+.project-settings-ux[data-active-pane="publication"] [data-settings-pane]:not([data-settings-pane="publication"]),
+.project-settings-ux[data-active-pane="accounts"] [data-settings-pane]:not([data-settings-pane="accounts"]) { display: none; }
+.settings-sections a { color: var(--workspace-muted); transition: background .18s, color .18s; }
+.settings-sections a[aria-current="page"] { background: var(--workspace-accent); color: var(--workspace-accent-ink); }
+.settings-sections a:hover:not([aria-current="page"]) { background: var(--workspace-soft); color: var(--workspace-ink); }
+.project-settings-ux > .settings-content-grid { grid-template-columns: minmax(0, 1fr); }
+.project-settings-ux #style { grid-column: 1 / -1; }
+@media (prefers-reduced-motion: reduce) { .settings-sections a { transition: none; } }

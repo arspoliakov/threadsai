@@ -51,6 +51,7 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="ADMIN_TG_ID",
     )
+    analytics_excluded_user_ids: list[int] = Field(default_factory=list, validation_alias="ANALYTICS_EXCLUDED_USER_IDS")
     queue_alert_delay_minutes: int = Field(
         default=30,
         validation_alias="QUEUE_ALERT_DELAY_MINUTES",

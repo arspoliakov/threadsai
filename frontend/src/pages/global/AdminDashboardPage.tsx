@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient, getApiErrorMessage } from '../../api/client';
 
+import ProductAnalyticsPanel from "../../components/ProductAnalyticsPanel";
+
 type Overview = {
   checked_at: string;
   counts: Record<string, number>;
@@ -16,7 +18,7 @@ type Overview = {
 type CohortDays = 0 | 7 | 30;
 type ProductFunnel = {
   checked_at: string;
-  cohort: { days: CohortDays; registered_since: string | null; users: number };
+  cohort: { days: CohortDays; registered_since: string | null; users: number; excluded_users: number };
   stages: Array<{ key: string; label: string; users: number; percent_of_cohort: number }>;
   timings: {
     registration_to_trial_median_hours: number | null;
@@ -124,7 +126,7 @@ export default function AdminDashboardPage() {
         {funnelBusy && <p className={muted} role="status">Собираем данные…</p>}
         {funnelError && <p role="alert" className="rounded-xl border border-[var(--workspace-border)] p-4">{funnelError}</p>}
         {funnel && <>
-          <p className={muted}>В выбранной группе: <strong className="text-[var(--workspace-ink)]">{funnel.cohort.users}</strong> пользователей. Этапы накопительные: человек может оплатить до подключения аккаунта. Проценты считаются от всей выбранной группы.</p>
+          <p className={muted}>В выбранной группе: <strong className="text-[var(--workspace-ink)]">{funnel.cohort.users}</strong> пользователей. Владелец и тестовые аккаунты исключены{typeof funnel.cohort.excluded_users === "number" ? `: ${funnel.cohort.excluded_users}` : ""}. Этапы накопительные: человек может оплатить до подключения аккаунта. Проценты считаются от всей выбранной группы.</p>
           {funnel.cohort.users === 0 ? <p className="py-3">За этот период пока никто не зарегистрировался.</p> : (
             <ol className="space-y-4">
               {funnel.stages.map((stage) => (
@@ -173,6 +175,8 @@ export default function AdminDashboardPage() {
           <p className={muted}>Проверено: {new Date(funnel.checked_at).toLocaleString('ru-RU')}</p>
         </>}
       </section>
+
+      <ProductAnalyticsPanel days={days} refresh={refresh} />
 
       {overviewError && <p role="alert" className={panel}>{overviewError}</p>}
       {overview && <>

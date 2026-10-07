@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { apiClient, getApiErrorMessage, getCurrentUser, type CurrentUser } from "../api/client";
 import { logout } from "../auth";
 import { AppIcon } from "./AppIcons";
-import { RESTART_ONBOARDING_EVENT } from "./OnboardingTour";
 
 export function ProfileMenu() {
   const navigate = useNavigate();
@@ -77,7 +76,7 @@ export function ProfileMenu() {
 
   function handleRestartOnboarding() {
     setIsOpen(false);
-    window.dispatchEvent(new Event(RESTART_ONBOARDING_EVENT));
+    navigate("/app/how-it-works");
   }
 
   function handleBillingClick() {
@@ -96,7 +95,7 @@ export function ProfileMenu() {
       <button
         type="button"
         onClick={() => setIsOpen((value) => !value)}
-        className="group flex h-12 items-center gap-3 rounded-full border border-[#d6ddd2] bg-white p-1.5 pr-4 text-[#111] shadow-sm transition hover:border-[#141815] hover:shadow-md"
+        className="group flex h-12 items-center gap-3 rounded-full border border-[#d6ddd2] bg-white p-1.5 sm:pr-4 text-[#111] shadow-sm transition hover:border-[#141815] hover:shadow-md"
         aria-label="Открыть профиль"
         aria-expanded={isOpen}
       >
@@ -105,13 +104,9 @@ export function ProfileMenu() {
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50 max-h-[calc(100dvh-6rem)] w-[min(21rem,calc(100vw-2rem))] overflow-y-auto rounded-[1.8rem] border border-[#dfe4dc] bg-[#fbfcf7] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
+        <div role="dialog" aria-label="Профиль и настройки" className="absolute right-0 top-[calc(100%+0.75rem)] z-50 max-h-[calc(100dvh-6rem)] w-[min(21rem,calc(100vw-2rem))] overflow-y-auto rounded-[1.8rem] border border-[#dfe4dc] bg-[#fbfcf7] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
           <div className="relative overflow-hidden rounded-[1.35rem] bg-[#07100e] p-3 text-white">
-            <img
-              src="/interface/profile-orb.webp"
-              alt=""
-              className="absolute -right-8 -top-10 h-32 w-32 object-cover opacity-45 mix-blend-screen"
-            />
+            <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full border border-white/20 bg-gradient-to-br from-[#70ff35]/20 to-[#0076ff]/15" />
             <div className="relative flex items-center gap-3">
               <Avatar user={user} sizeClass="h-12 w-12" />
               <div className="min-w-0">
@@ -134,13 +129,13 @@ export function ProfileMenu() {
             </div>
           </button>
 
-          <button type="button" onClick={() => setMessagesOpen(v=>!v)} aria-expanded={messagesOpen} className="mt-3 flex h-12 w-full items-center justify-center rounded-full border bg-white text-sm">Настройки сообщений</button>
+          <button type="button" onClick={() => setMessagesOpen(v=>!v)} aria-expanded={messagesOpen} className="mt-3 flex h-12 w-full items-center justify-between rounded-xl border border-[var(--workspace-border)] bg-[var(--workspace-panel)] px-4 text-sm"><span>Сообщения от ThreadsGo</span><span aria-hidden="true">{messagesOpen ? "−" : "+"}</span></button>
           {messagesOpen && <div className="mt-3 space-y-3 rounded-2xl border border-[var(--workspace-border)] bg-[var(--workspace-panel)] p-4 text-sm text-[var(--workspace-ink)]">
             <p className="text-xs text-[var(--workspace-muted)]">Изменения сохраняются сразу. Отписаться также можно кнопкой в сообщении бота.</p>
             {messageError && <p role="alert">{messageError}</p>}
             {!messagePrefs ? (messageError ? <button type="button" className="underline" onClick={()=>setMessageRetry(value=>value+1)}>Попробовать снова</button> : <p>Загружаем…</p>) : <>
-              <label className="flex items-start gap-3"><input type="checkbox" checked={messagePrefs.onboarding_consent} disabled={savingMessages} onChange={e=>void updateMessages("onboarding_consent",e.target.checked)}/><span>Помощь с началом работы</span></label>
-              <label className="flex items-start gap-3"><input type="checkbox" checked={messagePrefs.marketing_consent} disabled={savingMessages} onChange={e=>void updateMessages("marketing_consent",e.target.checked)}/><span>Новости и рекламные предложения</span></label>
+              <label className="flex min-h-11 items-start gap-3 rounded-xl bg-[var(--workspace-soft)] p-3"><input className="mt-1 h-4 w-4 shrink-0 accent-[var(--workspace-accent)]" type="checkbox" checked={messagePrefs.onboarding_consent} disabled={savingMessages} onChange={e=>void updateMessages("onboarding_consent",e.target.checked)}/><span>Помощь с началом работы</span></label>
+              <label className="flex min-h-11 items-start gap-3 rounded-xl bg-[var(--workspace-soft)] p-3"><input className="mt-1 h-4 w-4 shrink-0 accent-[var(--workspace-accent)]" type="checkbox" checked={messagePrefs.marketing_consent} disabled={savingMessages} onChange={e=>void updateMessages("marketing_consent",e.target.checked)}/><span>Новости и рекламные предложения</span></label>
             </>}
           </div>}
 

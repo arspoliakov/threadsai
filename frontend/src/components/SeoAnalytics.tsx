@@ -17,6 +17,9 @@ const YANDEX_METRIKA_ID = import.meta.env.VITE_YANDEX_METRIKA_ID as
 let analyticsScriptsMounted = false;
 let previousPageUrl = "";
 let cachedClientId: string | undefined;
+let activeUserId: number | undefined;
+let internalTraffic = false;
+let lastSentIdentity = "";
 const memoryStorage = new Map<string, string>();
 function readStorage(key: string) {
   try {
@@ -38,7 +41,7 @@ export function trackSeoEvent(
   event: string,
   payload: Record<string, unknown> = {},
 ) {
-  if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
+  if (typeof window === "undefined" || !hasAnalyticsConsent() || internalTraffic) return;
   window.dataLayer = window.dataLayer ?? [];
   window.dataLayer.push({ event, ...payload });
   const counterId = getYandexCounterId();
@@ -54,7 +57,7 @@ export function trackSeoEventOnce(
   event: string,
   payload: Record<string, unknown> = {},
 ) {
-  if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
+  if (typeof window === "undefined" || !hasAnalyticsConsent() || internalTraffic) return;
   const scope = readStorage("threadsgo.analytics_user") || "anonymous";
   const storageKey = `threadsgo.analytics.${scope}.${event}`;
   if (readStorage(storageKey)) return;
@@ -133,6 +136,7 @@ export default function SeoAnalytics() {
       analyticsScriptsMounted = false;
       previousPageUrl = "";
       cachedClientId = undefined;
+      lastSentIdentity = "";
       memoryStorage.clear();
       try {
         for (const name of [
@@ -195,8 +199,7 @@ export default function SeoAnalytics() {
           label: link.textContent?.trim(),
         });
         if (
-          link.getAttribute("data-analytics-cta") === "start_trial" ||
-          href?.includes("intent=start")
+          href?.split("?")[0] === "/register"
         ) {
           trackSeoEvent("registration_start", { path: location.pathname });
         }
@@ -212,7 +215,7 @@ export default function SeoAnalytics() {
 function safeReferrer(value: string) {
   try {
     const url = new URL(value);
-    return `${url.origin}${url.pathname}`;
+    return url.origin === window.location.origin ? `${url.origin}${url.pathname}` : url.origin;
   } catch {
     return "";
   }
@@ -233,7 +236,7 @@ function campaignParams(search: string) {
     "fbclid",
   ]) {
     const value = input.get(key);
-    if (value && /^[a-zA-Z0-9_.:-]{1,256}$/.test(value)) result.set(key, value);
+    if (value && /^[\p{L}\p{N}_.: -]{1,256}$/u.test(value)) result.set(key, value);
   }
   return result;
 }
@@ -275,8 +278,9 @@ function mountYandexMetrika() {
     url: `${window.location.origin}${analyticsPath(window.location.pathname, window.location.search)}`,
     trackLinks: true,
     accurateTrackBounce: true,
-    webvisor: false,
+    webvisor: true,
   });
+  if (activeUserId) syncAnalyticsIdentity();
 
   const script = document.createElement("script");
   script.async = true;
@@ -359,7 +363,31 @@ export async function getSeoAttributionForLogin() {
   }
   return getSeoAttribution();
 }
-export function setAnalyticsUser(userId: number) {
-  if (!hasAnalyticsConsent()) return;
-  writeStorage("threadsgo.analytics_user", String(userId));
+function syncAnalyticsIdentity() {
+  if (!activeUserId || !hasAnalyticsConsent()) return;
+  writeStorage("threadsgo.analytics_user", String(activeUserId));
+  const counterId = getYandexCounterId();
+  const identity = `${activeUserId}:${internalTraffic}`;
+  if (identity === lastSentIdentity) return;
+  try {
+    if (counterId && window.ym) {
+      window.ym(counterId, "setUserID", `u${activeUserId}`);
+      window.ym(counterId, "params", { traffic_type: internalTraffic ? "internal" : "customer" });
+      lastSentIdentity = identity;
+    }
+  } catch { /* Optional analytics cannot interrupt authentication. */ }
+}
+export function setAnalyticsUser(userId: number, isOperator?: boolean) {
+  if (typeof window === "undefined" || !Number.isSafeInteger(userId) || userId <= 0) return;
+  if (activeUserId !== userId) internalTraffic = false;
+  activeUserId = userId;
+  if (isOperator !== undefined) internalTraffic = isOperator;
+  syncAnalyticsIdentity();
+}
+export function clearAnalyticsUser() {
+  activeUserId = undefined;
+  internalTraffic = false;
+  lastSentIdentity = "";
+  memoryStorage.delete("threadsgo.analytics_user");
+  try { window.localStorage.removeItem("threadsgo.analytics_user"); } catch { /* Storage may be unavailable. */ }
 }

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { toast } from "sonner";
-import { setAnalyticsUser } from "../components/SeoAnalytics";
+import { clearAnalyticsUser, setAnalyticsUser } from "../components/SeoAnalytics";
 import { invalidateWorkspaceData, workspaceRead } from "./workspaceCache";
 export { invalidateWorkspaceData } from "./workspaceCache";
 
@@ -23,6 +23,7 @@ export function setStoredAuthToken(token: string) {
 
 export function clearStoredAuthToken() {
   invalidateWorkspaceData();
+  clearAnalyticsUser();
   window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
@@ -658,7 +659,7 @@ export async function loginWithTelegramWebApp(
 
 export async function getCurrentUser(): Promise<CurrentUser> {
   const user = await workspaceRead("user", getStoredAuthToken(), async () => (await apiClient.get<CurrentUser>("/api/v1/auth/me")).data);
-  setAnalyticsUser(user.id);
+  setAnalyticsUser(user.id, user.is_operator);
   return user;
 }
 

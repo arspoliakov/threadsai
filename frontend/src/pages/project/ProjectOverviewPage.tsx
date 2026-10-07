@@ -12,6 +12,7 @@ import {
   type ProjectOperation,
 } from "../../api/client";
 import { JourneyNextStep } from "../../components/JourneyNextStep";
+import { AppIcon } from "../../components/AppIcons";
 
 export default function ProjectOverviewPage() {
   const { id } = useParams();
@@ -116,6 +117,7 @@ export default function ProjectOverviewPage() {
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
             Тема, стиль и расписание — в настройках. Готовые тексты и время их выхода — в разделе «Посты».
           </p>
+          <p className="mt-2 text-xs text-[var(--workspace-muted)]">Время показано в часовом поясе вашего устройства: {Intl.DateTimeFormat().resolvedOptions().timeZone}.</p>
         </div>
       </header>
 
@@ -124,8 +126,8 @@ export default function ProjectOverviewPage() {
       ) : null}
 
       {dashboard && <div className="grid gap-3 sm:grid-cols-2">
-        <Link className="rounded-2xl border border-[#dfe4dc] bg-white p-5 text-sm" to={`/app/projects/${projectId}/queue?create=1`}><strong>Создать отдельный пост →</strong><span className="mt-2 block text-[#66645d]">С помощью ИИ или собственным текстом.</span></Link>
-        <Link className="rounded-2xl border border-[#dfe4dc] bg-white p-5 text-sm" to={`/app/projects/${projectId}/settings#content`}><strong>Тема и стиль →</strong><span className="mt-2 block text-[#66645d]">Изменения относятся только к этому проекту.</span></Link>
+        <Link className="rounded-2xl border border-[#dfe4dc] bg-white p-5 text-sm" to={`/app/projects/${projectId}/queue?create=1`}><strong className="inline-flex items-center gap-2"><AppIcon name="spark" className="h-4 w-4" />Создать отдельный пост →</strong><span className="mt-2 block text-[#66645d]">ИИ поможет написать текст; готовый собственный текст тоже можно добавить.</span></Link>
+        <Link className="rounded-2xl border border-[#dfe4dc] bg-white p-5 text-sm" to={`/app/projects/${projectId}/settings#content`}><strong className="inline-flex items-center gap-2"><AppIcon name="style" className="h-4 w-4" />Тема и стиль →</strong><span className="mt-2 block text-[#66645d]">Изменения относятся только к этому проекту.</span></Link>
       </div>}
 
       {dashboard ? (
@@ -142,6 +144,7 @@ export default function ProjectOverviewPage() {
       ) : null}
       {statusMessage ? <Notice tone="neutral">{statusMessage}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
+      {error && !dashboard && !isLoading ? <button type="button" className="rounded-full bg-[var(--workspace-accent)] px-5 py-3 text-sm text-[var(--workspace-accent-ink)]" onClick={() => void loadDashboard()}>Попробовать снова</button> : null}
 
       <details className="overflow-hidden rounded-2xl border border-[#dfe4dc] bg-white shadow-sm">
         <summary className="cursor-pointer px-5 py-5 text-sm font-medium">История работы и ошибки</summary>
@@ -170,7 +173,7 @@ function ProjectNextStep({ dashboard }: { dashboard: ProjectDashboard }) {
   if (first) return <JourneyNextStep title="Нужно ваше действие" description={first.message} action={first.action_label} to={first.action_href} />;
   const action = workflow.next_action;
   if (!action) return null;
-  const title = workflow.review_count > 0 ? `${workflow.review_count} постов ждут проверки`
+  const title = workflow.review_count > 0 ? `${workflow.review_count} ${postWord(workflow.review_count)} ${workflow.review_count % 10 === 1 && workflow.review_count % 100 !== 11 ? "ждёт" : "ждут"} проверки`
     : workflow.running_jobs > 0 ? "Задания в работе"
     : workflow.publication_mode === "auto" ? "Автоматическая публикация включена"
     : workflow.publication_mode === "review" ? "ИИ готовит посты для вашей проверки" : "Создайте пост в удобном редакторе";
@@ -332,6 +335,7 @@ function formatTaskStatuses(statuses: Record<string, number>) {
     running: "публикуется",
     success: "опубликовано",
     failed: "не опубликовано",
+    partial_success: "частично опубликовано",
     cancelled: "отменена",
     draft: "черновик",
   };
@@ -345,30 +349,18 @@ function formatOperation(operation: ProjectOperation | null) {
   }
 
   const started = new Date(operation.started_at).toLocaleString("ru-RU", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-  const finished = operation.finished_at ? new Date(operation.finished_at).toLocaleString("ru-RU", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "в процессе";
+  const finished = operation.finished_at ? new Date(operation.finished_at).toLocaleString("ru-RU", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : null;
   const collected = operation.result_json?.collected_posts_count;
   const saved = operation.result_json?.saved_trends_count;
-  const status =
-    operation.status === "running"
-      ? "идет сбор"
-      : operation.status === "success"
-        ? "завершено"
-        : "ошибка";
+  if (operation.status === "queued") return `Ждёт своей очереди. Добавлено ${started}.`;
+  if (operation.status === "running") return `${operation.action_type === "scraping" ? "Читаем ленту и собираем идеи" : "ИИ готовит текст"}. Можно закрыть страницу — работа продолжится.`;
+  if (operation.status === "failed") return formatUserFacingError(operation.message || "Не удалось завершить работу");
   const result =
     typeof saved === "number" || typeof collected === "number"
       ? `Найдено постов: ${String(collected ?? "неизвестно")}. Новых идей сохранено: ${String(saved ?? 0)}.`
       : "";
 
-  let message = operation.message || "";
-  if (message.startsWith("Trend analysis completed")) {
-    message = "";
-  } else if (message.startsWith("Trend scraping is running")) {
-    message = "Сбор идей запущен.";
-  } else if (message.startsWith("Trend analysis failed:")) {
-    message = message.replace("Trend analysis failed:", "Ошибка сбора идей:");
-  }
-
-  return `${status}; старт: ${started}; финиш: ${finished}. ${result} ${formatUserFacingError(message)}`.trim();
+  return `${operation.action_type === "scraping" ? "Подборка идей обновлена" : "Текст подготовлен"}${finished ? ` ${finished}` : ""}. ${result}`.trim();
 }
 
 function hasActiveAccount(dashboard: ProjectDashboard | null) {
@@ -394,7 +386,13 @@ function formatUserFacingError(message: string) {
     return "Браузер не завершил работу. Откройте пост и проверьте результат отправки.";
   }
 
-  return "Операция не завершилась. Подробности уже отправлены команде, повторять действие прямо сейчас не нужно.";
+  return "Не удалось завершить работу. Проверьте состояние аккаунта и результат в разделе «Посты». Если нужна помощь, обратитесь в поддержку.";
+}
+
+function postWord(count: number) {
+  if (count % 100 >= 11 && count % 100 <= 14) return "постов";
+  if (count % 10 === 1) return "пост";
+  return count % 10 >= 2 && count % 10 <= 4 ? "поста" : "постов";
 }
 
 function formatDate(value: string | null) {

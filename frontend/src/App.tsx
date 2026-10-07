@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
+import { useLocation } from "react-router-dom";
 
 import CookieNotice from "./components/CookieNotice";
 import SeoAnalytics from "./components/SeoAnalytics";
@@ -52,10 +53,10 @@ export default function App() {
         duration={4500}
         toastOptions={{
           className:
-            "rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] text-[#151515] shadow-sm",
+            "ym-hide-content rounded-2xl border border-[#d8d8d2] bg-[#fbfaf5] text-[#151515] shadow-sm",
         }}
       />
-      <Suspense fallback={<div className="min-h-screen bg-[#f5f6f1]" />}>
+      <ReplayPrivacyBoundary><Suspense fallback={<div className="min-h-screen bg-[#f5f6f1]" />}>
         <Routes>
         <Route index element={<LandingPage />} />
         <Route path="login" element={<LoginPage key="login" />} />
@@ -102,7 +103,14 @@ export default function App() {
         <Route path="projects/:id/*" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<NotFoundPage />} />
         </Routes>
-      </Suspense>
+      </Suspense></ReplayPrivacyBoundary>
     </>
   );
+}
+
+function ReplayPrivacyBoundary({ children }: { children: import("react").ReactNode }) {
+  const { pathname } = useLocation();
+  const privatePage = /^\/(app(?:\/|$)|login(?:\/|$)|register(?:\/|$))/.test(pathname);
+  // Applied at render time, before the counter can observe private page contents.
+  return privatePage ? <div className="ym-hide-content">{children}</div> : <>{children}</>;
 }

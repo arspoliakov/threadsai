@@ -54,12 +54,17 @@ function getAppPageMeta(pathname: string) {
 
   const projectSection = pathname.match(/^\/app\/projects\/[^/]+(?:\/(queue|trends|settings))?\/?$/)?.[1];
   const titles: Record<string, string> = {
+    "/app/setup": "Первый запуск | ThreadsGo",
+    "/app/admin": "Дашборд администратора | ThreadsGo",
+    "/app/admin/users": "Пользователи и подписки | ThreadsGo",
+    "/app/admin/proxies": "Прокси и хранилище | ThreadsGo",
+    "/app/admin/retention": "Рассылки | ThreadsGo",
     "/app": "Проекты | ThreadsGo",
     "/app/": "Проекты | ThreadsGo",
     "/app/infrastructure": "Профили Threads | ThreadsGo",
     "/app/infrastructure/": "Профили Threads | ThreadsGo",
-    "/app/settings": "Настройки стиля | ThreadsGo",
-    "/app/settings/": "Настройки стиля | ThreadsGo",
+    "/app/settings": "Шаблон стиля | ThreadsGo",
+    "/app/settings/": "Шаблон стиля | ThreadsGo",
     "/app/billing": "Тариф и подписка | ThreadsGo",
     "/app/billing/": "Тариф и подписка | ThreadsGo",
     "/app/studio": "Пробные черновики | ThreadsGo",
@@ -68,15 +73,15 @@ function getAppPageMeta(pathname: string) {
     "/app/how-it-works/": "Как работает ThreadsGo",
   };
   const projectTitles: Record<string, string> = {
-    queue: "Черновики и календарь | ThreadsGo",
-    trends: "Свежие темы | ThreadsGo",
+    queue: "Посты | ThreadsGo",
+    trends: "Источники вдохновения | ThreadsGo",
     settings: "Настройки проекта | ThreadsGo",
   };
   const title = projectSection
     ? projectTitles[projectSection]
     : /^\/app\/projects\/[^/]+\/?$/.test(pathname)
       ? "Проект | ThreadsGo"
-      : titles[pathname];
+      : titles[pathname.replace(/\/$/, "")] ?? "Кабинет | ThreadsGo";
 
   if (!title) {
     return undefined;

@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient, createProject, getAccounts, getApiErrorMessage, getCurrentUser, getProjectDashboard, getStudioTrial, generateStudioTrial, importStudioDraft, refreshBillingStatus, updateAccount, updateProject, type Account, type ProjectDashboard, type StudioDraft, type StudioTrial } from "../api/client";
 
+import { trackSeoEvent } from "../components/SeoAnalytics";
+import { AppIcon } from "../components/AppIcons";
 import { StyleTemplatePicker } from "../components/StyleTemplatePicker";
 
 type SetupAnswers = { name?: string; topic?: string; audience?: string; facts?: string; tone?: string; style_body?: string; mode?: "review" | "auto"; posts_per_day?: number; active_hours_start?: string; active_hours_end?: string; timezone?: string };
@@ -56,8 +58,9 @@ export default function SetupPage() {
   async function advance(step: number) {
     if (!current.current) return;
     const scope = setupScope.current;
+    const previousStep = current.current.step;
     setBusy(true);
-    try { const next = { ...current.current, step }; await persist(next); if (!mounted.current || scope !== setupScope.current) return; current.current = next; setProgress(next); setSaved(true); }
+    try { const next = { ...current.current, step }; await persist(next); if (!mounted.current || scope !== setupScope.current) return; current.current = next; setProgress(next); setSaved(true); if (step > previousStep) trackSeoEvent("setup_step_completed", { step: previousStep }); }
     catch (cause) { if (mounted.current && scope === setupScope.current) setError(getApiErrorMessage(cause, "Не удалось сохранить шаг. Ответы остались в форме.")); }
     finally { setBusy(false); }
   }
@@ -116,6 +119,7 @@ export default function SetupPage() {
       const draft = await generateStudioTrial({ topic: answers.topic || "", context, tone: answers.tone || "friendly" }, requestKey.current);
       requestKey.current = null;
       if (!mounted.current || scope !== setupScope.current) return;
+      trackSeoEvent("trial_draft_created", { source: "setup" });
       const next = { ...current.current, preview: draft };
       current.current = next; setProgress(next); await persist(next); setSaved(true);
       setTrial(await getStudioTrial());
@@ -132,6 +136,7 @@ export default function SetupPage() {
         const answers = state.answers;
         const project = await createProject({ onboarding_request_key: projectRequestKey.current, name: answers.name?.trim() || answers.topic?.slice(0, 80) || "Мой проект", slug: `project-${projectRequestKey.current.slice(0, 12)}`, description: answers.topic || null, global_context: [answers.topic, answers.facts].filter(Boolean).join("\n"), target_audience: answers.audience || null, style_body: answers.style_body || `Тон: ${answers.tone || "friendly"}. Короткие понятные тексты.`, publication_mode: "manual", is_active: true });
         if (!mounted.current || scope !== setupScope.current) return;
+        trackSeoEvent("project_created", { project_id: project.id, source: "setup" });
         state = { ...state, project_id: project.id };
         current.current = state; setProgress(state); await persist(state);
         window.dispatchEvent(new Event("threadsgo:project-updated"));
@@ -169,7 +174,10 @@ export default function SetupPage() {
       if (!mounted.current || scope !== setupScope.current) return;
       await updateProject(state.project_id!, { name: answers.name?.trim() || dashboard?.project.name || "Мой проект", description: answers.topic || null, global_context: [answers.topic, answers.facts].filter(Boolean).join("\n"), target_audience: answers.audience || null, style_body: answers.style_body || `Тон: ${answers.tone || "friendly"}. Короткие понятные тексты.`, publication_mode: answers.mode || "review", posts_per_day: Math.max(1, Math.min(postsLimit, answers.posts_per_day || 1)), active_hours_start: answers.active_hours_start || "09:00", active_hours_end: answers.active_hours_end || "21:00", timezone: answers.timezone || "Europe/Moscow" });
       if (!mounted.current || scope !== setupScope.current) return;
-      const next = { ...state, completed: true }; current.current = next; setProgress(next); await persist(next);
+      const next = { ...state, completed: true }; await persist(next);
+      if (!mounted.current || scope !== setupScope.current) return;
+      current.current = next; setProgress(next); setSaved(true);
+      trackSeoEvent("setup_completed", { project_id: state.project_id!, mode: answers.mode || "review" });
       window.dispatchEvent(new Event("threadsgo:project-updated"));
       navigate(`/app/projects/${state.project_id}`);
     } catch (cause) {
@@ -181,6 +189,21 @@ export default function SetupPage() {
     finally { setBusy(false); }
   }
   if (!progress) return <section><h1 className="font-display text-4xl">Настроим ваши публикации</h1><p className="mt-4" role={error ? "alert" : "status"}>{error || "Загружаем сохранённые ответы…"}</p></section>;
+  if (progress.completed && progress.project_id) {
+    const mode = dashboard?.project.publication_mode || progress.answers.mode || "review";
+    return <section className="mx-auto max-w-3xl space-y-5">
+      <div className="relative overflow-hidden rounded-[2rem] border border-[var(--workspace-border)] bg-[var(--workspace-panel)] p-6 sm:p-9">
+        <div aria-hidden="true" className="absolute -right-12 -top-12 h-52 w-52 rounded-full bg-[var(--workspace-soft)]" />
+        <div className="relative"><span className="mb-5 inline-grid h-14 w-14 place-items-center rounded-2xl bg-[var(--workspace-accent)] text-[var(--workspace-accent-ink)]"><AppIcon name="spark" className="h-7 w-7" /></span>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--workspace-muted)]">Ваш проект</p><h1 className="mt-2 font-display text-4xl leading-tight">Настройка завершена</h1>
+          <p className="mt-3 text-sm leading-7 text-[var(--workspace-muted)]">Тема, стиль и расписание сохранены. Продолжайте работу в проекте — проходить мастер ещё раз не нужно.</p>
+          <div className="mt-5 rounded-2xl border border-[var(--workspace-border)] bg-[var(--workspace-soft)] p-4"><strong className="block break-words">{dashboard?.project.name || progress.answers.name || "Мой проект"}</strong><p className="mt-1 text-sm text-[var(--workspace-muted)]">Режим: {mode === "auto" ? "Автоматически" : mode === "review" ? "С моей проверкой" : "По моему запросу"}</p></div>
+          <div className="mt-6 flex flex-wrap gap-3"><Link to={`/app/projects/${progress.project_id}`} className="inline-flex min-h-11 items-center rounded-full bg-[var(--workspace-accent)] px-5 text-sm font-semibold text-[var(--workspace-accent-ink)]">Открыть проект</Link><Link to={`/app/projects/${progress.project_id}/settings`} className="inline-flex min-h-11 items-center rounded-full border border-[var(--workspace-border)] px-5 text-sm">Изменить настройки</Link></div>
+        </div>
+      </div>
+      {dashboard?.workflow?.blockers?.map(blocker => <div key={blocker.code} className="rounded-2xl border border-[var(--workspace-warning-border)] bg-[var(--workspace-warning-bg)] p-4 text-sm text-[var(--workspace-warning-ink)]"><p>{blocker.message}</p><Link to={blocker.action_href} className="mt-2 inline-flex min-h-11 items-center underline">{blocker.action_label}</Link></div>)}
+    </section>;
+  }
   const answers = progress.answers;
   const freeAccounts = accounts.filter(account => account.project_id === null || account.project_id === progress.project_id);
   const enoughContext = [answers.audience, answers.facts, answers.style_body].filter(Boolean).join("\n").length >= 20;

@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.db.models import User, Project, Account, PostingTask, PostingTaskStatus, ProjectOperation, TributeWebhookEvent
 from app.services.subscriptions import has_current_subscription_access
 from app.services.product_funnel import build_product_funnel
+from app.services.product_analytics import build_product_analytics
 
 router = APIRouter(prefix='/admin', tags=['operator dashboard'], dependencies=[Depends(require_operator)])
 
@@ -16,6 +17,12 @@ async def product_funnel(days: int = Query(default=30, ge=0, le=30), db: AsyncSe
     if days not in {0, 7, 30}:
         raise HTTPException(422, "Выберите когорту 7, 30 дней или весь период (0).")
     return await build_product_funnel(db, days=days)
+
+@router.get('/product-analytics')
+async def product_analytics(days: int = Query(default=30, ge=0, le=30), db: AsyncSession = Depends(get_db)):
+    if days not in {0, 7, 30}:
+        raise HTTPException(422, "Выберите когорту 7, 30 дней или весь период (0).")
+    return await build_product_analytics(db, days=days)
 
 async def grouped(db, model, column):
     return {str(getattr(key, 'value', key)): count for key, count in (await db.execute(select(column, func.count()).select_from(model).group_by(column))).all()}

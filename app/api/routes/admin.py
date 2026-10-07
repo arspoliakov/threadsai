@@ -1,14 +1,21 @@
 """Profile-bound operator overview. Never return account credentials or browser data."""
 from datetime import UTC, datetime, timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, require_operator
 from app.core.config import settings
 from app.db.models import User, Project, Account, PostingTask, PostingTaskStatus, ProjectOperation, TributeWebhookEvent
 from app.services.subscriptions import has_current_subscription_access
+from app.services.product_funnel import build_product_funnel
 
 router = APIRouter(prefix='/admin', tags=['operator dashboard'], dependencies=[Depends(require_operator)])
+
+@router.get('/product-funnel')
+async def product_funnel(days: int = Query(default=30, ge=0, le=30), db: AsyncSession = Depends(get_db)):
+    if days not in {0, 7, 30}:
+        raise HTTPException(422, "Выберите когорту 7, 30 дней или весь период (0).")
+    return await build_product_funnel(db, days=days)
 
 async def grouped(db, model, column):
     return {str(getattr(key, 'value', key)): count for key, count in (await db.execute(select(column, func.count()).select_from(model).group_by(column))).all()}

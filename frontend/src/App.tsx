@@ -22,6 +22,7 @@ const ArticlePage = lazy(() => import("./pages/seo/ArticlePage"));
 const ResourcesPage = lazy(() => import("./pages/seo/ResourcesPage"));
 const GlobalLayout = lazy(() => import("./layouts/GlobalLayout"));
 const ProjectLayout = lazy(() => import("./layouts/ProjectLayout"));
+const SetupPage = lazy(() => import("./pages/SetupPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const StudioPage = lazy(() => import("./pages/StudioPage"));
 const ProxyAdminPage = lazy(() => import("./pages/global/ProxyAdminPage"));
@@ -73,6 +74,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="app" element={<GlobalLayout />}>
             <Route index element={<Dashboard />} />
+            <Route path="setup" element={<SetupPage />} />
             <Route path="billing" element={<BillingPage />} />
             <Route path="studio" element={<StudioPage />} />
             <Route path="how-it-works" element={<HowItWorksPage />} />

@@ -1,6 +1,8 @@
 import axios from "axios";
 import { toast } from "sonner";
 import { setAnalyticsUser } from "../components/SeoAnalytics";
+import { invalidateWorkspaceData, workspaceRead } from "./workspaceCache";
+export { invalidateWorkspaceData } from "./workspaceCache";
 
 export const AUTH_TOKEN_STORAGE_KEY = "threadsbot.admin_token";
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
@@ -15,10 +17,12 @@ export function getStoredAuthToken() {
 }
 
 export function setStoredAuthToken(token: string) {
+  invalidateWorkspaceData();
   window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
 }
 
 export function clearStoredAuthToken() {
+  invalidateWorkspaceData();
   window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
@@ -35,8 +39,9 @@ apiClient.interceptors.request.use((config) => {
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => { if (response.config.method?.toLowerCase() !== "get") invalidateWorkspaceData(); return response; },
   (error) => {
+    if (error?.config?.method?.toLowerCase() !== "get") invalidateWorkspaceData();
     if (error?.response?.status === 401) {
       clearStoredAuthToken();
       window.localStorage.removeItem("threadsbot.authenticated");
@@ -269,6 +274,8 @@ export type Project = {
   timezone: string;
   is_active: boolean;
   auto_generate: boolean;
+  publication_mode: "manual" | "review" | "auto";
+  style_body: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -276,6 +283,9 @@ export type Project = {
 export type ConversionMode = "bio_link" | "pinned_post" | "none";
 
 export type ProjectCreatePayload = {
+  publication_mode?: "manual" | "review" | "auto";
+  style_body?: string | null;
+  onboarding_request_key?: string;
   auto_generate?: boolean;
   global_style_body?: string;
   target_audience?: string | null;
@@ -305,6 +315,7 @@ export type ProjectUpdatePayload = Partial<Omit<ProjectCreatePayload, "global_st
 };
 
 export type ProjectDashboard = {
+  workflow?: ProjectWorkflow;
   project: Project;
   accounts_count: number;
   saved_trends_count: number;
@@ -312,6 +323,16 @@ export type ProjectDashboard = {
   recent_errors: string[];
   account_states: ProjectAccountState[];
   last_generation_at: string | null;
+};
+
+export type ProjectWorkflow = {
+  ready: boolean;
+  blockers: {code: string; message: string; action_label: string; action_href: string}[];
+  next_action: {code: string; label: string; href: string} | null;
+  next_post_at: string | null;
+  publication_mode: "manual" | "review" | "auto";
+  review_count: number;
+  running_jobs: number;
 };
 
 export type DashboardProjectSummary = {
@@ -636,9 +657,9 @@ export async function loginWithTelegramWebApp(
 }
 
 export async function getCurrentUser(): Promise<CurrentUser> {
-  const response = await apiClient.get<CurrentUser>("/api/v1/auth/me");
-  setAnalyticsUser(response.data.id);
-  return response.data;
+  const user = await workspaceRead("user", getStoredAuthToken(), async () => (await apiClient.get<CurrentUser>("/api/v1/auth/me")).data);
+  setAnalyticsUser(user.id);
+  return user;
 }
 
 export async function getBillingStatus(): Promise<BillingStatus> {
@@ -728,8 +749,7 @@ export async function refreshBillingStatus(): Promise<BillingStatus> {
 }
 
 export async function getProjects(): Promise<Project[]> {
-  const response = await apiClient.get<Project[]>("/api/v1/projects/");
-  return response.data;
+  return workspaceRead("projects", getStoredAuthToken(), async () => (await apiClient.get<Project[]>("/api/v1/projects/")).data);
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
@@ -743,7 +763,7 @@ export async function createProject(data: ProjectCreatePayload): Promise<Project
 }
 
 export async function updateProject(id: number, data: ProjectUpdatePayload): Promise<Project> {
-  const response = await apiClient.put<Project>(`/api/v1/projects/${id}`, data);
+  const response = await apiClient.patch<Project>(`/api/v1/projects/${id}`, data);
   return response.data;
 }
 
@@ -752,8 +772,7 @@ export async function deleteProject(id: number): Promise<void> {
 }
 
 export async function getProjectDashboard(id: number): Promise<ProjectDashboard> {
-  const response = await apiClient.get<ProjectDashboard>(`/api/v1/projects/${id}/dashboard`);
-  return response.data;
+  return workspaceRead(`project:${id}`, getStoredAuthToken(), async () => (await apiClient.get<ProjectDashboard>(`/api/v1/projects/${id}/dashboard`)).data);
 }
 
 export type StyleAnswers = {
@@ -836,8 +855,7 @@ export async function triggerGeneration(projectId: number): Promise<TriggerGener
 }
 
 export async function getAccounts(): Promise<Account[]> {
-  const response = await apiClient.get<Account[]>("/api/v1/accounts/");
-  return response.data;
+  return workspaceRead("accounts", getStoredAuthToken(), async () => (await apiClient.get<Account[]>("/api/v1/accounts/")).data);
 }
 
 export async function createAccount(data: AccountCreatePayload): Promise<Account> {

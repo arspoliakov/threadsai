@@ -1,43 +1,33 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
   getApiErrorMessage,
-  getCurrentUser,
   getLatestProjectOperation,
   getProjectDashboard,
   getProjectOperations,
-  triggerGeneration,
-  triggerScraping,
-  updateProject,
-  type Project,
   type ProjectAccountState,
   type ProjectDashboard,
   type ProjectOperation,
 } from "../../api/client";
-import { trackSeoEvent, trackSeoEventOnce } from "../../components/SeoAnalytics";
 import { JourneyNextStep } from "../../components/JourneyNextStep";
-
-type RunningAction = "scraping" | "generation" | null;
-
-const DESCRIPTION_HINT =
-  "Расскажите, о чём ваш проект, для кого вы пишете и как хотите звучать. Чем понятнее описание, тем точнее ИИ попадёт в ваш стиль.";
 
 export default function ProjectOverviewPage() {
   const { id } = useParams();
   const projectId = Number(id);
+  const activeProject = useRef(projectId);
+  activeProject.current = projectId;
+  const loadSequence = useRef(0);
   const [dashboard, setDashboard] = useState<ProjectDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [runningAction, setRunningAction] = useState<RunningAction>(null);
   const [latestScrapingOperation, setLatestScrapingOperation] = useState<ProjectOperation | null>(null);
   const [operations, setOperations] = useState<ProjectOperation[]>([]);
-  const [subscriptionActive, setSubscriptionActive] = useState<boolean | null>(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function loadDashboard() {
+    const sequence = ++loadSequence.current;
     setIsLoading(true);
     setError(null);
 
@@ -46,30 +36,31 @@ export default function ProjectOverviewPage() {
         getProjectDashboard(projectId),
         getProjectOperations(projectId, 12),
       ]);
+      if (activeProject.current !== projectId || sequence !== loadSequence.current) return;
       setDashboard(dashboardResult);
       setOperations(operationsResult);
     } catch (loadError) {
+      if (activeProject.current !== projectId || sequence !== loadSequence.current) return;
       const message = getApiErrorMessage(loadError, "Не удалось загрузить проект. Попробуйте ещё раз.");
       toast.error(message);
       setError(message);
     } finally {
-      setIsLoading(false);
+      if (activeProject.current === projectId && sequence === loadSequence.current) setIsLoading(false);
     }
   }
 
   async function refreshScrapingOperation() {
     const operation = await getLatestProjectOperation(projectId, "scraping");
+    if (activeProject.current !== projectId) return null;
     setLatestScrapingOperation(operation);
-    void getProjectOperations(projectId, 12).then(setOperations).catch(() => undefined);
+    void getProjectOperations(projectId, 12).then(items => { if (activeProject.current === projectId) setOperations(items); }).catch(() => undefined);
 
     if (operation?.status === "queued" || operation?.status === "running") {
-      setRunningAction("scraping");
       setError(null);
       setStatusMessage(null);
       return operation;
     }
 
-    setRunningAction((current) => (current === "scraping" ? null : current));
 
     if (operation?.status === "success") {
       const saved = operation.result_json?.saved_trends_count;
@@ -93,11 +84,10 @@ export default function ProjectOverviewPage() {
       return;
     }
 
+    setDashboard(null); setOperations([]); setLatestScrapingOperation(null); setStatusMessage(null);
     void loadDashboard();
-    void refreshScrapingOperation();
-    let active = true;
-    void getCurrentUser().then(user => { if (active) setSubscriptionActive(user.subscription_status); }).catch(() => undefined);
-    return () => { active = false; };
+    void refreshScrapingOperation().catch(() => undefined);
+    return () => { loadSequence.current++; };
   }, [projectId]);
 
   useEffect(() => {
@@ -110,69 +100,11 @@ export default function ProjectOverviewPage() {
         if (operation?.status !== "running" && operation?.status !== "queued") {
           void loadDashboard();
         }
-      });
+      }).catch(() => undefined);
     }, 3500);
 
     return () => window.clearInterval(intervalId);
   }, [latestScrapingOperation?.status, projectId]);
-
-  async function handleTriggerScraping() {
-    if (!hasActiveAccount(dashboard)) {
-      toast.error("Подключите рабочий профиль Threads в настройках проекта.");
-      return;
-    }
-    setRunningAction("scraping");
-    setStatusMessage(null);
-    setError(null);
-
-    try {
-      const result = await triggerScraping(projectId);
-      trackSeoEvent("trend_collection_started", {
-        action: "scraping",
-        project_id: projectId,
-        source: "project_overview",
-      });
-      setStatusMessage(result.message || "Сбор идей добавлен в очередь.");
-      toast.success("Сбор идей добавлен в очередь");
-      await refreshScrapingOperation();
-      await loadDashboard();
-    } catch (scrapingError) {
-      const message = getApiErrorMessage(scrapingError, "Не удалось запустить сбор идей.");
-      toast.error(message);
-      setError(message);
-      setRunningAction(null);
-    }
-  }
-
-  async function handleTriggerGeneration() {
-    setRunningAction("generation");
-    setStatusMessage(null);
-    setError(null);
-
-    try {
-      trackSeoEvent("first_generation_started", {
-        action: "generation",
-        project_id: projectId,
-        source: "project_overview",
-      });
-      const result = await triggerGeneration(projectId);
-      trackSeoEvent("draft_created", { project_id: projectId, task_id: result.task_id });
-      const queued = result.status === "queued" && Boolean(result.scheduled_at);
-      if (queued) trackSeoEventOnce("first_post_queued", {
-        project_id: projectId, task_id: result.task_id, source: "project_overview",
-      });
-      const message = queued ? `Пост добавлен в расписание: #${result.task_id}` : `Черновик готов: #${result.task_id}. Проверьте текст и добавьте его в расписание.`;
-      setStatusMessage(message);
-      toast.success(message);
-      await loadDashboard();
-    } catch (generationError) {
-      const message = getApiErrorMessage(generationError, "Не удалось подготовить пост.");
-      toast.error(message);
-      setError(message);
-    } finally {
-      setRunningAction(null);
-    }
-  }
 
   return (
     <section className="workspace-page space-y-5">
@@ -185,64 +117,21 @@ export default function ProjectOverviewPage() {
             Тема, стиль и расписание — в настройках. Готовые тексты и время их выхода — в разделе «Посты».
           </p>
         </div>
-        {dashboard ? (
-          <button
-            type="button"
-            onClick={() => setIsEditOpen(true)}
-            className="h-11 self-end rounded-full border border-[#151515] px-5 text-sm transition hover:bg-[#151515] hover:text-white"
-          >
-            Редактировать проект
-          </button>
-        ) : null}
       </header>
 
       {dashboard && !isLoading ? (
-        <ProjectNextStep dashboard={dashboard} projectId={projectId} runningAction={runningAction}
-          subscriptionActive={subscriptionActive} onGenerate={() => void handleTriggerGeneration()} />
+        <ProjectNextStep dashboard={dashboard} />
       ) : null}
 
-      {dashboard ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dfe4dc] bg-white px-5 py-4 text-sm">
-          <span>Режим: <strong>{dashboard.project.auto_generate ? "ИИ пишет и публикует сам" : "Вы проверяете и планируете посты"}</strong></span>
-          <Link className="underline underline-offset-4" to={`/app/projects/${projectId}/settings#publication-mode`}>Изменить режим</Link>
-        </div>
-      ) : null}
-
-      <details className="rounded-2xl border border-[#dfe4dc] bg-white p-5">
-        <summary className="cursor-pointer text-sm font-medium">Дополнительно: отдельный пост и идеи из ленты</summary>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <ActionPanel
-          title="Обновить идеи для постов"
-          description="Дополнительно: найдём удачные приёмы в ленте вашего аккаунта. ИИ умеет писать и без этой подборки."
-          buttonText="Обновить идеи для постов"
-          isLoading={runningAction === "scraping"}
-          isDisabled={runningAction !== null || isLoading || !hasActiveAccount(dashboard)}
-          disabledReason={!hasActiveAccount(dashboard) ? "Сначала подключите рабочий аккаунт Threads" : undefined}
-          onClick={() => void handleTriggerScraping()}
-        />
-        <ActionPanel
-          title="Отдельный пост с ИИ"
-          description="Подготовим один текст по теме проекта. Он останется черновиком, пока вы не выберете время публикации."
-          buttonText="Подготовить текст"
-          isLoading={runningAction === "generation"}
-          isDisabled={runningAction !== null || isLoading}
-          disabledReason={undefined}
-          onClick={() => void handleTriggerGeneration()}
-        />
-      </div>
-      </details>
+      {dashboard && <div className="grid gap-3 sm:grid-cols-2">
+        <Link className="rounded-2xl border border-[#dfe4dc] bg-white p-5 text-sm" to={`/app/projects/${projectId}/queue?create=1`}><strong>Создать отдельный пост →</strong><span className="mt-2 block text-[#66645d]">С помощью ИИ или собственным текстом.</span></Link>
+        <Link className="rounded-2xl border border-[#dfe4dc] bg-white p-5 text-sm" to={`/app/projects/${projectId}/settings#content`}><strong>Тема и стиль →</strong><span className="mt-2 block text-[#66645d]">Изменения относятся только к этому проекту.</span></Link>
+      </div>}
 
       {dashboard ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
-          <SystemStatusCard
-            dashboard={dashboard}
-            operations={operations}
-            latestScrapingOperation={latestScrapingOperation}
-          />
-          <ReadinessChecklist
-            dashboard={dashboard}
-            projectId={projectId}
-          />
+        <div className={`grid gap-4 ${dashboard.workflow && dashboard.workflow.blockers.length > 1 ? "xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start" : ""}`}>
+          <WorkflowStatusCard dashboard={dashboard} />
+          {dashboard.workflow && dashboard.workflow.blockers.length > 1 && <section className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-semibold">Что ещё нужно сделать</h2><div className="mt-3 space-y-3">{dashboard.workflow.blockers.slice(1).map(item=><Link className="block rounded-xl border p-3 text-sm" to={item.action_href} key={item.code}>{item.message}<span className="mt-1 block underline">{item.action_label}</span></Link>)}</div></section>}
         </div>
       ) : null}
 
@@ -266,183 +155,42 @@ export default function ProjectOverviewPage() {
         )}
       </details>
 
-      {isEditOpen && dashboard ? (
-        <EditProjectPanel
-          project={dashboard.project}
-          onClose={() => setIsEditOpen(false)}
-          onSaved={async () => {
-            setIsEditOpen(false);
-            await loadDashboard();
-          }}
-        />
-      ) : null}
     </section>
   );
 }
 
-function ProjectNextStep({ dashboard, projectId, runningAction, onGenerate, subscriptionActive = null }: {
-  dashboard: ProjectDashboard; projectId: number; runningAction: RunningAction;
-  onGenerate: () => void;
-  subscriptionActive?: boolean | null;
-}) {
-  if (subscriptionActive === false) {
-    return <JourneyNextStep title="Для публикаций нужна подписка" description="Проект и тексты сохранены. Посмотрите тарифы или проверьте уже оплаченную подписку."
-      action="Проверить подписку" to="/app/billing" />;
-  }
-  if (dashboard.project.is_active === false) {
-    return <JourneyNextStep title="Проект на паузе" description="Новые автоматические посты сейчас не готовятся. Настройки и тексты сохранены."
-      action="Открыть настройки" to={`/app/projects/${projectId}/settings`} />;
-  }
-  if (!(dashboard.project.global_context || dashboard.project.description || "").trim()) {
-    return <JourneyNextStep title="Расскажите, о чём писать" description="Опишите вашу тему, аудиторию и пользу. Это основа текстов; остальные настройки можно уточнить позже."
-      action="Описать проект" to={`/app/projects/${projectId}/settings`} />;
-  }
-  const queued = dashboard.posting_tasks_by_status.queued ?? 0;
-  const drafts = dashboard.posting_tasks_by_status.draft ?? 0;
-  if (dashboard.project.auto_generate && !hasActiveAccount(dashboard)) {
-    return <JourneyNextStep title="Подключите аккаунт для автоматических постов" description="Сейчас ИИ не может публиковать. Добавьте аккаунт Threads в проект или проверьте его вход."
-      action="Проверить аккаунты" to={`/app/projects/${projectId}/settings#profiles`} />;
-  }
-  if (dashboard.project.auto_generate && hasActiveAccount(dashboard)) {
-    return <JourneyNextStep title="Автоматическая публикация включена"
-      description={queued > 0 ? "Посты уже в календаре. Они отправятся по расписанию при действующей подписке и рабочем аккаунте. Текст и время можно изменить." : "ИИ будет готовить новые посты по расписанию при действующей подписке и рабочем аккаунте. Отдельный черновик создавать не обязательно."}
-      action="Открыть календарь" to={`/app/projects/${projectId}/queue`} />;
-  }
-  if (queued > 0 || drafts > 0) {
-    return <JourneyNextStep title={queued > 0 ? "Проверьте текст до публикации" : "Посмотрите подготовленный черновик"}
-      description={queued > 0 ? "В расписании уже есть посты. Откройте ближайший: проверьте текст, профиль и время. Ненужный пост можно отменить до отправки." : "Черновик сохранён, но пока не запланирован. Откройте редактор, проверьте текст и назначьте время. Для публикации понадобится подключённый профиль. Отправка не начнётся сама."}
-      action="Открыть черновики и календарь" to={`/app/projects/${projectId}/queue`} />;
-  }
-  return <JourneyNextStep title="Подготовьте первый черновик" description="Создайте текст по описанию проекта и вашему стилю. Профиль и идеи из ленты не обязательны. Затем откройте черновики: проверьте текст и выберите время публикации."
-    action={runningAction === "generation" ? "Готовим текст…" : "Создать черновик"} onAction={onGenerate} disabled={runningAction !== null} />;
+function modeLabel(mode: string) {
+  return mode === "auto" ? "ИИ пишет и публикует сам" : mode === "review" ? "ИИ готовит, вы проверяете" : "Пишу и планирую вручную";
 }
 
-function SystemStatusCard({
-  dashboard,
-  operations,
-  latestScrapingOperation,
-}: {
-  dashboard: ProjectDashboard;
-  operations: ProjectOperation[];
-  latestScrapingOperation: ProjectOperation | null;
-}) {
-  const activeAccounts = dashboard.account_states.filter((account) => account.ready_for_ideas === true).length;
-  const failedAccounts = dashboard.account_states.filter(
-    (account) => account.status === "cookies_expired" || account.status === "blocked" || account.status === "error" || account.status === "proxy_error",
-  ).length;
-  const runningOperation =
-    operations.find((operation) => operation.status === "running" || operation.status === "queued")
-    || latestScrapingOperation;
-  const queuedCount = dashboard.posting_tasks_by_status.queued ?? 0;
-  const status = getProjectSystemStatus({
-    runningOperation,
-    activeAccounts,
-    failedAccounts,
-    queuedCount,
-    autoGenerate: dashboard.project.auto_generate,
-    projectActive: dashboard.project.is_active,
-  });
-
-  return (
-    <section className="relative overflow-hidden rounded-[24px] border border-[#dfe4dc] bg-[#07100e] p-5 text-white shadow-sm">
-      <div className="absolute right-[-6rem] top-[-7rem] h-64 w-64 rounded-full bg-[#70ff35]/18 blur-[80px]" />
-      <div className="absolute bottom-[-8rem] left-[10%] h-64 w-64 rounded-full bg-[#0076ff]/18 blur-[90px]" />
-      <div className="relative">
-        <div className="flex items-center gap-3">
-          <span className={`relative flex h-3 w-3 ${status.pulse ? "" : "opacity-90"}`}>
-            {status.pulse ? <span className={`absolute h-full w-full animate-ping rounded-full ${status.dotClass} opacity-60`} /> : null}
-            <span className={`relative h-3 w-3 rounded-full ${status.dotClass}`} />
-          </span>
-          <p className="text-sm font-medium text-white/80">Сейчас система</p>
-        </div>
-        <h2 className="mt-4 font-display text-2xl leading-tight">
-          {status.title}
-        </h2>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-white/58">{status.description}</p>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <MiniMetric label="Готовые аккаунты" value={String(activeAccounts)} />
-          <MiniMetric label="Идеи" value={String(dashboard.saved_trends_count)} />
-          <MiniMetric label="В плане" value={String(queuedCount)} />
-        </div>
-      </div>
-    </section>
-  );
+function ProjectNextStep({ dashboard }: { dashboard: ProjectDashboard }) {
+  const workflow = dashboard.workflow;
+  if (!workflow) return null;
+  const first = workflow.blockers[0];
+  if (first) return <JourneyNextStep title="Нужно ваше действие" description={first.message} action={first.action_label} to={first.action_href} />;
+  const action = workflow.next_action;
+  if (!action) return null;
+  const title = workflow.review_count > 0 ? `${workflow.review_count} постов ждут проверки`
+    : workflow.running_jobs > 0 ? "Задания в работе"
+    : workflow.publication_mode === "auto" ? "Автоматическая публикация включена"
+    : workflow.publication_mode === "review" ? "ИИ готовит посты для вашей проверки" : "Создайте пост в удобном редакторе";
+  const description = workflow.review_count > 0 ? "Откройте тексты, при необходимости поправьте их и выберите время. Без вашего решения черновики не отправятся."
+    : workflow.running_jobs > 0 ? "Можно перейти в другой раздел. Статус обновится после завершения задания."
+    : workflow.publication_mode === "auto" ? "Новые посты готовятся и выходят по расписанию. Отдельный текст можно добавить в разделе «Посты»."
+    : workflow.publication_mode === "review" ? "Новые тексты появятся в разделе «На проверке». Вы решаете, какие опубликовать и когда."
+    : "ИИ поможет написать текст или вы можете вставить свой. Сначала он сохранится черновиком.";
+  return <JourneyNextStep title={title} description={description} action={action.label} to={action.href} />;
 }
 
-function ReadinessChecklist({
-  dashboard,
-  projectId,
-}: {
-  dashboard: ProjectDashboard;
-  projectId: number;
-}) {
-  const activeAccounts = dashboard.account_states.filter((account) => account.ready_for_ideas === true).length;
-  const checklist = [
-    {
-      title: "Опишите проект",
-      done: Boolean((dashboard.project.global_context || dashboard.project.description || "").trim()),
-      hint: "Что предлагаете, кому это нужно и какие темы раскрывать.",
-      to: `/app/projects/${projectId}/settings`,
-    },
-    {
-      title: "Подключите аккаунт Threads",
-      done: activeAccounts > 0,
-      hint: "Нужен для публикации и сбора ленты. Черновики можно готовить до подключения.",
-      to: `/app/projects/${projectId}/settings#profiles`,
-    },
-    {
-      title: "Настройте расписание",
-      done: Boolean(dashboard.project.posts_per_day && dashboard.project.active_hours_start && dashboard.project.active_hours_end),
-      hint: "Сколько постов в день выпускать с каждого аккаунта и в какие часы.",
-      to: `/app/projects/${projectId}/settings`,
-    },
-  ];
-  const completed = checklist.filter((item) => item.done).length;
-
-  if (completed === checklist.length) {
-    return null;
-  }
-
-  return (
-    <section className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm xl:sticky xl:top-28">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#77766f]">Готовность</p>
-          <h2 className="mt-2 font-display text-3xl">Настройка проекта</h2>
-        </div>
-        <span className="rounded-full bg-[#eef4ec] px-4 py-2 text-sm text-[#4f584f]">
-          {completed}/{checklist.length} готово
-        </span>
-      </div>
-      <p className="mt-3 text-xs leading-5 text-[#687168]">
-        Это основные настройки для публикаций. Стиль и идеи из ленты можно уточнить позже.
-      </p>
-
-      <div className="mt-5 grid gap-2">
-        {checklist.map((item) => (
-          <Link
-            key={item.title}
-            to={item.to}
-            className="flex items-start gap-3 rounded-2xl border border-[#e3e7df] bg-[#fbfcf7] p-4 transition hover:border-[#07100e] hover:bg-white"
-          >
-            <span
-              className={[
-                "mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs",
-                item.done ? "bg-[#70ff35] text-[#07100e]" : "bg-[#eef0ea] text-[#687168]",
-              ].join(" ")}
-            >
-              {item.done ? "✓" : "•"}
-            </span>
-            <span>
-              <span className="block text-sm font-medium text-[#07100e]">{item.title}</span>
-              <span className="mt-1 block text-xs leading-5 text-[#687168]">{item.hint}</span>
-            </span>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
+function WorkflowStatusCard({ dashboard }: { dashboard: ProjectDashboard }) {
+  const workflow = dashboard.workflow;
+  if (!workflow) return null;
+  return <section className="rounded-2xl border border-[#dfe4dc] bg-[#07100e] p-5 text-white">
+    <p className="text-sm text-white/70">{workflow.ready ? "Проект настроен" : "Требуется действие"}</p>
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><h2 className="font-display text-2xl">Публикации проекта</h2><Link className="text-sm underline" to={`/app/projects/${dashboard.project.id}/settings#publication-mode`}>Изменить режим</Link></div><p className="mt-3 text-sm">{modeLabel(workflow.publication_mode)}</p>
+    <p className="mt-3 text-sm text-white/70">Ближайший пост: {workflow.next_post_at ? formatDate(workflow.next_post_at) : "пока не запланирован"}</p>
+    <div className="mt-5 grid grid-cols-3 gap-3"><MiniMetric label="На проверке" value={String(workflow.review_count)} /><MiniMetric label="В расписании" value={String(dashboard.posting_tasks_by_status.queued || 0)} /><MiniMetric label="Опубликовано" value={String((dashboard.posting_tasks_by_status.success || 0) + (dashboard.posting_tasks_by_status.partial_success || 0))} /></div>
+  </section>;
 }
 
 function ActivityLog({
@@ -513,134 +261,6 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ActionPanel({
-  title,
-  description,
-  buttonText,
-  isLoading,
-  isDisabled,
-  disabledReason,
-  onClick,
-}: {
-  title: string;
-  description: string;
-  buttonText: string;
-  isLoading: boolean;
-  isDisabled: boolean;
-  disabledReason?: string;
-  onClick: () => void;
-}) {
-  return (
-    <article className="rounded-[24px] border border-[#dfe4dc] bg-white p-5 shadow-sm sm:p-6">
-      <h2 className="font-display text-3xl">{title}</h2>
-      <p className="mt-3 text-sm leading-6 text-[#66645d]">{description}</p>
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={isDisabled}
-        className="mt-5 flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-[#151515] bg-[#151515] px-5 py-3 text-sm text-white transition-all duration-200 ease-in-out hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {isLoading ? <Spinner /> : null}
-        {isLoading ? "Идет" : buttonText}
-      </button>
-      {disabledReason ? (
-        <p className="mt-3 text-center text-xs leading-5 text-[#7a8179]">{disabledReason}</p>
-      ) : null}
-    </article>
-  );
-}
-
-function EditProjectPanel({
-  project,
-  onClose,
-  onSaved,
-}: {
-  project: Project;
-  onClose: () => void;
-  onSaved: () => Promise<void>;
-}) {
-  const [name, setName] = useState(project.name);
-  const [description, setDescription] = useState(project.description ?? "");
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsSaving(true);
-    setError(null);
-
-    try {
-      await updateProject(project.id, {
-        name,
-        description: description || null,
-      });
-      toast.success("Проект сохранен");
-      await onSaved();
-    } catch (saveError) {
-      const message = getApiErrorMessage(saveError, "Не удалось сохранить проект.");
-      toast.error(message);
-      setError(message);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm">
-      <aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-[#dfe4dc] bg-[#f6f6f2] shadow-[0_0_80px_rgba(0,0,0,0.22)]">
-        <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
-          <div>
-            <h2 className="font-display text-3xl">Редактировать проект</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-[#151515] px-4 py-2 text-xs transition hover:bg-[#151515] hover:text-white"
-          >
-            Закрыть
-          </button>
-        </header>
-
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col px-7 py-8">
-          <label className="grid gap-2">
-            <span className="field-label">Название</span>
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-              className="border-0 border-b border-[#151515] bg-transparent px-0 py-3 text-lg outline-none focus:border-[#77766f]"
-            />
-          </label>
-
-          <label className="mt-8 grid gap-2">
-            <span className="field-label">Описание</span>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={6}
-              className="resize-none border border-[#c9c9c3] bg-transparent p-3 outline-none focus:border-[#151515]"
-            />
-            <span className="text-xs leading-5 text-[#77766f]">{DESCRIPTION_HINT}</span>
-          </label>
-
-          {error ? <div className="mt-6 border-l-2 border-[#b42318] px-4 py-3 text-sm text-[#61140e]">{error}</div> : null}
-
-          <div className="mt-auto border-t border-[#d4d4ce] pt-6">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex w-full items-center justify-center gap-3 rounded-full border border-[#151515] bg-[#151515] px-5 py-4 text-sm text-white transition-all duration-200 ease-in-out hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {isSaving ? <Spinner /> : null}
-              {isSaving ? "Сохранение" : "Сохранить"}
-            </button>
-          </div>
-        </form>
-      </aside>
-    </div>
-  );
-}
-
 function LogRow({
   label,
   value,
@@ -677,10 +297,6 @@ function EmptyLine({ text }: { text: string }) {
       {text}
     </div>
   );
-}
-
-function Spinner() {
-  return <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />;
 }
 
 function formatAccountStates(accounts: ProjectAccountState[]) {
@@ -766,16 +382,16 @@ function formatUserFacingError(message: string) {
 
   const normalized = message.toLowerCase();
   if (normalized.includes("proxy") || normalized.includes("ip polling") || normalized.includes("exit node")) {
-    return "Подключение временно недоступно. Система проверит его снова автоматически.";
+    return "Подключение недоступно. Проверьте статус аккаунта в настройках проекта.";
   }
   if (normalized.includes("cookie") || normalized.includes("session")) {
     return "Доступ к профилю нужно обновить в настройках проекта.";
   }
   if (normalized.includes("timeout") || normalized.includes("timed out")) {
-    return "Операция заняла слишком много времени. Система попробует снова.";
+    return "Операция заняла слишком много времени. Проверьте результат в разделе «Посты» перед повторной отправкой.";
   }
   if (normalized.includes("selenium") || normalized.includes("webdriver") || normalized.includes("chrome")) {
-    return "Публикация временно не прошла. Система попробует снова.";
+    return "Браузер не завершил работу. Откройте пост и проверьте результат отправки.";
   }
 
   return "Операция не завершилась. Подробности уже отправлены команде, повторять действие прямо сейчас не нужно.";
@@ -793,86 +409,4 @@ function formatDate(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function getProjectSystemStatus({
-  runningOperation,
-  activeAccounts,
-  failedAccounts,
-  queuedCount,
-  autoGenerate,
-  projectActive,
-}: {
-  runningOperation: ProjectOperation | null;
-  activeAccounts: number;
-  failedAccounts: number;
-  queuedCount: number;
-  autoGenerate: boolean;
-  projectActive: boolean;
-}) {
-  if (activeAccounts === 0 && runningOperation?.action_type === "scraping" && ["queued", "running"].includes(runningOperation.status)) {
-    return { title: "нужен профиль для сбора идей", description: "Рабочий профиль не подключён. Лента не читается; можно подготовить текст по описанию проекта.", dotClass: "bg-[#9aa39a]", pulse: false };
-  }
-  if (runningOperation?.status === "queued") {
-    return {
-      title: "ждет своей очереди",
-      description: "Система запустит действие автоматически, когда профиль будет свободен.",
-      dotClass: "bg-[#ffcb45]",
-      pulse: true,
-    };
-  }
-
-  if (runningOperation?.status === "running") {
-    return {
-      title: runningOperation.action_type === "scraping" ? "обновляет идеи" : "готовит пост",
-      description:
-        runningOperation.action_type === "scraping"
-          ? "Читаем ленту Threads и сохраняем удачные приёмы для ваших постов."
-          : "Система берет описание проекта, стиль и актуальные идеи, чтобы подготовить новый пост.",
-      dotClass: "bg-[#70ff35]",
-      pulse: true,
-    };
-  }
-
-  if (failedAccounts > 0) {
-    return {
-      title: "нужно проверить профиль",
-      description:
-        "Откройте настройки проекта и посмотрите статус профиля. Если нужен повторный вход — обновите данные доступа. После сетевой автопаузы система попробует вернуть профиль сама.",
-      dotClass: "bg-[#ffb020]",
-      pulse: true,
-    };
-  }
-
-  if (activeAccounts === 0) {
-    return {
-      title: "нет рабочего аккаунта",
-      description: "Публикация пока недоступна. Существующие тексты сохранены в разделе «Посты».",
-      dotClass: "bg-[#9aa39a]",
-      pulse: false,
-    };
-  }
-
-  if (queuedCount > 0) {
-    return {
-      title: "расписание постов готово",
-      description: "В расписании есть посты. Проверьте их тексты, профиль и время в календаре.",
-      dotClass: "bg-[#70ff35]",
-      pulse: true,
-    };
-  }
-
-  if (!projectActive) {
-    return { title: "проект на паузе", description: "Новые автоматические посты не готовятся. Тексты сохранены в разделе «Посты».", dotClass: "bg-[#9aa39a]", pulse: false };
-  }
-  if (autoGenerate) {
-    return { title: "автоматический режим включён", description: "ИИ готовит посты по расписанию при действующей подписке и рабочем аккаунте. Сбор идей из ленты необязателен.", dotClass: "bg-[#70ff35]", pulse: false };
-  }
-
-  return {
-    title: "готов к работе",
-    description: "Подготовьте текст с ИИ или напишите свой в разделе «Посты». Для отправки выберите аккаунт и время.",
-    dotClass: "bg-[#70ff35]",
-    pulse: false,
-  };
 }

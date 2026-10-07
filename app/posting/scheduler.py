@@ -30,6 +30,7 @@ from app.db.session import AsyncSessionLocal
 from app.services.admin_notifier import send_admin_alert
 from app.services.proxy_pool import build_threads_proxy_url_for_account
 from app.services.subscriptions import has_current_subscription_access
+from app.services.publication_mode import publication_mode
 from app.telegram.notifications import send_admin_notification
 
 
@@ -449,6 +450,7 @@ async def _ensure_account_queue_for_project(
     if (
         not project.is_active
         or not project.auto_generate
+        or not (project.global_context or project.description or "").strip()
         or account.project_id != project.id
         or account.status != AccountStatus.ACTIVE
         or account.platform != Platform.THREADS
@@ -461,11 +463,28 @@ async def _ensure_account_queue_for_project(
     account_posts_limit = _project_posts_per_day(project, owner.tariff_posts_per_day)
     account_queue_limit = account_posts_limit * queue_days
     account_upcoming_tasks = await _count_account_upcoming_tasks(project, account.id, session, queue_days=queue_days)
+    review_mode = publication_mode(project) == "review"
+    review_drafts = []
+    if review_mode:
+        # Stop filling while previous drafts await approval. The limit is per
+        # account and includes scheduled posts, so periodic runs cannot grow
+        # an unbounded backlog while the owner is away.
+        review_drafts = list((await session.scalars(select(PostingTask).where(
+            PostingTask.project_id == project.id, PostingTask.account_id == account.id,
+            PostingTask.status == PostingTaskStatus.DRAFT,
+            PostingTask.generation_metadata["auto_generated"].as_boolean().is_(True)))).all())
+        account_upcoming_tasks += len(review_drafts)
+        account_queue_limit = account_posts_limit * min(queue_days, 2)
     if account_upcoming_tasks >= account_queue_limit:
         return 0
 
     generated_count = 0
     reserved_slots: list[datetime] = []
+    for draft in review_drafts:
+        try:
+            reserved_slots.append(datetime.fromisoformat(draft.generation_metadata["suggested_scheduled_at"]))
+        except (KeyError, TypeError, ValueError):
+            pass
     missing_count = min(
         account_queue_limit - account_upcoming_tasks,
         remaining_generation_budget,
@@ -518,8 +537,15 @@ async def _ensure_account_queue_for_project(
                 return generated_count
             automatic = (mode.rowcount == 1 and working_account.rowcount == 1
                          and subscription.rowcount == 1)
-            task.generation_metadata = {**(task.generation_metadata or {}), "auto_generated": True}
-            if not automatic:
+            current_mode = await session.scalar(select(Project.publication_mode).where(Project.id == project_id))
+            task.generation_metadata = {**(task.generation_metadata or {}), "auto_generated": True,
+                                       "preparation_mode": current_mode,
+                                       "suggested_scheduled_at": scheduled_at.isoformat()}
+            if automatic and current_mode == "review":
+                task.status = PostingTaskStatus.DRAFT
+                task.scheduled_at = None
+                task.error_message = None
+            elif not automatic or current_mode != "auto":
                 task.status = PostingTaskStatus.DRAFT
                 task.scheduled_at = None
                 task.account_id = None
@@ -534,7 +560,7 @@ async def _ensure_account_queue_for_project(
                 account.username,
                 task.scheduled_at,
             )
-            if not automatic:
+            if not automatic or current_mode not in {"auto", "review"}:
                 break
         except Exception:
             await session.rollback()

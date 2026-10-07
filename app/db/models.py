@@ -102,6 +102,8 @@ class Project(Base, TimestampMixin):
     timezone: Mapped[str] = mapped_column(String(64), default="Europe/Moscow", nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     auto_generate: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False)
+    publication_mode: Mapped[str] = mapped_column(String(16), default="auto", server_default="auto", nullable=False)
+    style_body: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     accounts: Mapped[list[Account]] = relationship(
         back_populates="project",
@@ -148,6 +150,7 @@ class User(Base, TimestampMixin):
     first_utm_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     registration_consents_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     first_analytics_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    onboarding_state: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     subscription_status: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     subscription_phase: Mapped[str] = mapped_column(String(32), default="none", nullable=False)
     subscription_trial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -364,6 +367,17 @@ class PostingTask(Base, TimestampMixin):
     @property
     def account_username(self) -> str | None:
         return self.account.username if self.account is not None else None
+
+
+class PostingTaskRevision(Base):
+    __tablename__ = "posting_task_revisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("posting_tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    posts_chain: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    reason: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class SavedTrend(Base, TimestampMixin):

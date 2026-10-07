@@ -1,4 +1,5 @@
 from datetime import datetime, time
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -24,6 +25,8 @@ class ProjectBase(BaseModel):
     timezone: str = Field(default="Europe/Moscow", min_length=1, max_length=64)
     is_active: bool = True
     auto_generate: bool = True
+    publication_mode: Literal["manual", "review", "auto"] = "auto"
+    style_body: str | None = Field(default=None, max_length=12000)
 
     @field_validator("timezone")
     @classmethod
@@ -37,9 +40,11 @@ class ProjectBase(BaseModel):
 
 
 class ProjectCreate(ProjectBase):
-    auto_generate: bool = False
+    auto_generate: bool = True
+    publication_mode: Literal["manual", "review", "auto"] = "review"
     slug: str | None = Field(default=None, max_length=120)
     global_style_body: str | None = Field(default=None, min_length=10, max_length=6000)
+    onboarding_request_key: str | None = Field(default=None, min_length=8, max_length=64)
 
     @field_validator("global_style_body", mode="before")
     @classmethod
@@ -73,6 +78,8 @@ class ProjectUpdate(BaseModel):
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     is_active: bool | None = None
     auto_generate: bool | None = None
+    publication_mode: Literal["manual", "review", "auto"] | None = None
+    style_body: str | None = Field(default=None, max_length=12000)
 
     @field_validator("timezone")
     @classmethod

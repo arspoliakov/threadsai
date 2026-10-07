@@ -1,11 +1,12 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import GlobalPrompt, Project, ProjectPrompt
+from app.db.models import GlobalPrompt, Project, ProjectPrompt, PromptType
 
 
 async def build_system_prompt(project_id: int, session: AsyncSession) -> str:
-    owner_id = await session.scalar(select(Project.owner_id).where(Project.id == project_id))
+    project = await session.get(Project, project_id)
+    owner_id = project.owner_id if project else None
     global_prompts_stmt = (
         select(GlobalPrompt)
         .where(
@@ -24,6 +25,8 @@ async def build_system_prompt(project_id: int, session: AsyncSession) -> str:
     )
 
     global_prompts = list((await session.scalars(global_prompts_stmt)).all())
+    if project is not None and project.style_body is not None:
+        global_prompts = [p for p in global_prompts if p.prompt_type != PromptType.VIRALITY]
     project_prompts = list((await session.scalars(project_prompts_stmt)).all())
 
     sections: list[str] = [
@@ -38,11 +41,15 @@ async def build_system_prompt(project_id: int, session: AsyncSession) -> str:
             for prompt in global_prompts
         )
 
+    if project is not None and project.style_body:
+        sections.append("## Project Writing Style\n" + project.style_body)
+
     if project_prompts:
         sections.append("## Project-Specific Prompts")
         sections.extend(
             f"### {prompt.title}\nType: {prompt.prompt_type.value}\nPriority: {prompt.priority}\n{prompt.body}"
             for prompt in project_prompts
         )
+
 
     return "\n\n".join(sections)

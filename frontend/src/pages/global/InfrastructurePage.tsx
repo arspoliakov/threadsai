@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -21,6 +21,8 @@ const THREADS_PLATFORM: Platform = "threads";
 const SESSION_USERNAME_PLACEHOLDER = "pending_from_session";
 
 export default function InfrastructurePage() {
+  const location = useLocation();
+  const returnToSetup = new URLSearchParams(location.search).get("return_to") === "/app/setup";
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -62,7 +64,7 @@ export default function InfrastructurePage() {
         error: (error) => getApiErrorMessage(error, "Не удалось проверить доступ к профилю."),
       });
       const result = await promise;
-      if (result.status === "active") trackSeoEvent("threads_connected", { method: "session_check" });
+      if (result.status === "active") trackSeoEvent("threads_connection_verified", { method: "session_check" });
       await loadAccounts();
     } catch {
       // The promise toast already explains the failure.
@@ -112,6 +114,7 @@ export default function InfrastructurePage() {
 
   return (
     <section className="workspace-page space-y-5">
+      {returnToSetup && <Link to="/app/setup" className="inline-flex min-h-11 items-center rounded-full border px-5 text-sm">← Вернуться к настройке публикаций</Link>}
       <header className="grid gap-4 border-b border-[#c9c9c3] pb-5 md:grid-cols-[1fr_auto]">
         <div>
           <h1 className="font-display text-4xl leading-none">Аккаунты Threads</h1>
@@ -338,7 +341,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
         status: "active",
       });
       toast.success("Профиль добавлен");
-      trackSeoEvent("threads_profile_added", { method: "cookies" });
+      trackSeoEvent("threads_account_added", { method: "cookies" });
       await onCreated();
     } catch (submitError) {
       toast.error("Профиль не добавлен");
@@ -455,7 +458,7 @@ function BulkImportPanel({ onClose, onImported }: { onClose: () => void; onImpor
           status: "active",
         });
         created += 1;
-        trackSeoEvent("threads_profile_added", { method: "bulk_cookies" });
+        trackSeoEvent("threads_account_added", { method: "bulk_cookies" });
       } catch (importError) {
         failed.push(`#${index + 1}: ${getApiErrorMessage(importError, "не удалось добавить профиль")}`);
       } finally {

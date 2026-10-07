@@ -10,7 +10,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user_id, get_db, require_active_subscription
 from app.ai_engine.generators import generate_post
-from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project, User
+from app.db.models import Account, AccountStatus, Platform, PostingTask, PostingTaskStatus, Project, User, PostingTaskRevision
+from app.services.task_revisions import record_content_revision
 from app.posting.scheduler import schedule_account_queue_refill, _project_day_bounds, _is_project_in_active_window, _project_posts_per_day
 from app.ai_engine.prompt_builder import build_system_prompt
 from app.api.auth import limiter
@@ -194,6 +195,7 @@ async def update_task(
         )
 
     changes = {"posts_chain": posts_chain, "content_text": posts_chain[0]}
+    original_chain = list(task.posts_chain or [task.content_text])
     if task.status == PostingTaskStatus.QUEUED:
         changes.update(status=PostingTaskStatus.DRAFT, scheduled_at=None,
                        generation_metadata=_unapproved_metadata(task.generation_metadata))
@@ -206,6 +208,7 @@ async def update_task(
     ).values(**changes))
     if changed.rowcount != 1:
         raise HTTPException(409, "Пост уже изменился или начал публиковаться. Обновите список.")
+    await record_content_revision(db, task.id, current_user_id, original_chain, posts_chain, "edited")
     await db.commit()
     await db.refresh(task)
     return task
@@ -270,6 +273,8 @@ async def regenerate_task(
     ).values(**regenerated_values))
     if changed.rowcount != 1:
         raise HTTPException(409, "Пост изменился во время генерации. Обновите список и проверьте его состояние.")
+    await record_content_revision(db, task.id, current_user_id, list(source_chain or [source_content]),
+                                  list(regenerated_task.posts_chain or [regenerated_task.content_text]), "regenerated")
     await db.commit()
     await db.refresh(task)
     return task
@@ -380,6 +385,70 @@ async def _get_owned_task(task_id: int, owner_id: int, db: AsyncSession) -> Post
         )
         .limit(1)
     )
+
+
+class TaskRevisionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    task_id: int
+    posts_chain: list[str]
+    reason: str
+    created_at: datetime
+
+    @field_validator("created_at", mode="after")
+    @classmethod
+    def timestamp(cls, value: datetime) -> datetime:
+        return _as_utc(value)
+
+
+class RevisionRestoreInput(BaseModel):
+    expected_posts_chain: list[str] = Field(min_length=1, max_length=20)
+
+
+@router.get("/{task_id}/revisions", response_model=list[TaskRevisionRead])
+async def task_revisions(task_id: int, db: AsyncSession = Depends(get_db),
+                         owner_id: int = Depends(get_current_user_id)):
+    if await _get_owned_task(task_id, owner_id, db) is None:
+        raise HTTPException(404, "Пост не найден")
+    return list((await db.scalars(select(PostingTaskRevision).where(
+        PostingTaskRevision.task_id == task_id, PostingTaskRevision.owner_id == owner_id)
+        .order_by(PostingTaskRevision.id.desc()))).all())
+
+
+@router.post("/{task_id}/revisions/{revision_id}/restore", response_model=PostingTaskRead)
+async def restore_revision(task_id: int, revision_id: int, payload: RevisionRestoreInput,
+                           db: AsyncSession = Depends(get_db), user: User = Depends(require_active_subscription)):
+    task = await _get_owned_task(task_id, user.id, db)
+    if task is None:
+        raise HTTPException(404, "Пост не найден")
+    revision = await db.scalar(select(PostingTaskRevision).where(
+        PostingTaskRevision.id == revision_id, PostingTaskRevision.task_id == task_id,
+        PostingTaskRevision.owner_id == user.id))
+    if revision is None:
+        raise HTTPException(404, "Версия не найдена")
+    if task.status in {PostingTaskStatus.RUNNING, PostingTaskStatus.SUCCESS, PostingTaskStatus.PARTIAL_SUCCESS}:
+        raise HTTPException(409, "Начавшийся или опубликованный пост нельзя заменить")
+    _require_confirmed_publication_state(task)
+    before = list(task.posts_chain or [task.content_text])
+    if before != payload.expected_posts_chain:
+        raise HTTPException(409, "Текст изменился. Обновите редактор перед восстановлением")
+    after = list(revision.posts_chain)
+    if not after or any(not isinstance(p, str) or not p.strip() or len(p) > 500 for p in after):
+        raise HTTPException(422, "Эта версия не подходит для публикации в Threads")
+    changed = await db.execute(update(PostingTask).where(
+        PostingTask.id == task.id, PostingTask.status == task.status,
+        PostingTask.content_text == task.content_text, PostingTask.posts_chain == task.posts_chain,
+        PostingTask.scheduled_at == task.scheduled_at, PostingTask.account_id == task.account_id,
+        _metadata_matches(task.generation_metadata),
+    ).values(posts_chain=after, content_text=after[0], status=PostingTaskStatus.DRAFT,
+             scheduled_at=None, started_at=None, finished_at=None, error_message=None,
+             generation_metadata={**_unapproved_metadata(task.generation_metadata), "restored_from_revision": revision.id}))
+    if changed.rowcount != 1:
+        raise HTTPException(409, "Пост изменился или начал публиковаться. Обновите редактор")
+    await record_content_revision(db, task.id, user.id, before, after, "restored")
+    await db.commit()
+    await db.refresh(task)
+    return task
 
 
 class RewriteInput(BaseModel):

@@ -37,7 +37,7 @@ export function WeekPlanBuilder({ projectId, onCreated }: { projectId: number; o
   }
   return <section className="rounded-2xl border border-[#d8e2da] bg-white p-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Контент на неделю</h2>
-      <p className="mt-1 text-sm text-[#67786e]">Семь разных текстов по вашим рубрикам. Публикация начинается только после согласования.</p></div>
+      <p className="mt-1 text-sm text-[#67786e]">Семь текстов по вашим темам. Сначала вы проверите их и выберете время.</p></div>
       <button type="button" className={button} disabled={busy} onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Свернуть" : "Составить план"}</button></div>
     {open && <form className="mt-4 grid gap-4" onSubmit={e => { e.preventDefault(); void generate(); }}>
       <label className="grid gap-2 text-sm">Рубрики через запятую<input className={field} value={rubrics} maxLength={500} onChange={e => setRubrics(e.target.value)} disabled={busy} /></label>
@@ -55,25 +55,26 @@ export function TaskPlanningControls({ task, accounts, onUpdated, disabled = fal
   const available = accounts.filter(a => a.ready_for_ideas === true);
   const [accountId, setAccountId] = useState(task.account_id || available[0]?.id || 0);
   const [busy, setBusy] = useState(false);
+  const actionLock = useRef(false);
   async function save() {
-    if (busy || disabled) return;
+    if (actionLock.current || disabled) return;
     if (!time || !accountId) { toast.error("Выберите дату, время и рабочий профиль"); return; }
     const when = new Date(time);
     if (!Number.isFinite(when.getTime()) || when.getTime() < Date.now() + 120000) { toast.error("Выберите время хотя бы на две минуты вперёд"); return; }
-    setBusy(true); onBusyChange?.(true);
+    actionLock.current = true; setBusy(true); onBusyChange?.(true);
     try {
       const updated = await scheduleTask(task.id, when.toISOString(), accountId, task.posts_chain.length ? task.posts_chain : [task.content_text]);
       onUpdated(updated); setOpen(false); toast.success("Пост добавлен в расписание");
       trackSeoEvent("draft_scheduled", { task_id: task.id, project_id: task.project_id });
     } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить время")); }
-    finally { setBusy(false); onBusyChange?.(false); }
+    finally { actionLock.current = false; setBusy(false); onBusyChange?.(false); }
   }
   async function pause() {
-    if (busy || disabled) return;
-    setBusy(true); onBusyChange?.(true);
+    if (actionLock.current || disabled) return;
+    actionLock.current = true; setBusy(true); onBusyChange?.(true);
     try { onUpdated(await returnTaskToDraft(task.id)); setOpen(false); toast.success("Пост снят с расписания, текст сохранён"); }
     catch (error) { toast.error(getApiErrorMessage(error, "Не удалось снять пост с расписания")); }
-    finally { setBusy(false); onBusyChange?.(false); }
+    finally { actionLock.current = false; setBusy(false); onBusyChange?.(false); }
   }
   return <div className="mt-4 border-t border-[#e0e8e2] pt-4">
     <div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={busy || disabled} aria-expanded={open} onClick={() => { setAccountId(available.some(a => a.id === task.account_id) ? task.account_id! : available[0]?.id || 0); setTime(task.scheduled_at ? localInput(task.scheduled_at) : ""); setOpen(!open); }}>
@@ -96,39 +97,31 @@ export function TaskRewriteControls({ task, onUpdated, disabled = false, onBusyC
   const [mode, setMode] = useState<RewriteMode>("clearer");
   const [instruction, setInstruction] = useState("");
   const [preview, setPreview] = useState<{ posts_chain: string[]; source_posts_chain: string[] } | null>(null);
-  const [undo, setUndo] = useState<{ before: string[]; after: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
+  const actionLock = useRef(false);
   async function prepare() {
-    if (busy || disabled) return;
-    setBusy(true); onBusyChange?.(true); setPreview(null);
+    if (actionLock.current || disabled) return;
+    actionLock.current = true; setBusy(true); onBusyChange?.(true); setPreview(null);
     try {
       if (task.status === "queued") { onUpdated(await returnTaskToDraft(task.id)); }
       setPreview(await previewTaskRewrite(task.id, mode, instruction));
       trackSeoEvent("rewrite_preview", { task_id: task.id, mode });
     } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось подготовить правку")); }
-    finally { setBusy(false); onBusyChange?.(false); }
+    finally { actionLock.current = false; setBusy(false); onBusyChange?.(false); }
   }
   async function apply() {
-    if (!preview || busy || disabled) return;
-    setBusy(true); onBusyChange?.(true);
+    if (!preview || actionLock.current || disabled) return;
+    actionLock.current = true; setBusy(true); onBusyChange?.(true);
     try {
       const updated = await updateTask(task.id, preview.posts_chain, preview.source_posts_chain);
-      onUpdated(updated); setUndo({ before: preview.source_posts_chain, after: preview.posts_chain });
+      onUpdated(updated);
       setPreview(null); setOpen(false); toast.success("Правка применена. Пост остаётся черновиком.");
       trackSeoEvent("rewrite_applied", { task_id: task.id, mode });
     } catch (error) { toast.error(getApiErrorMessage(error, "Текст изменился — обновите список")); }
-    finally { setBusy(false); onBusyChange?.(false); }
-  }
-  async function revert() {
-    if (!undo || busy || disabled) return;
-    setBusy(true); onBusyChange?.(true);
-    try { onUpdated(await updateTask(task.id, undo.before, undo.after)); setUndo(null); toast.success("Исходный текст восстановлен"); }
-    catch (error) { toast.error(getApiErrorMessage(error, "Не удалось отменить правку")); }
-    finally { setBusy(false); onBusyChange?.(false); }
+    finally { actionLock.current = false; setBusy(false); onBusyChange?.(false); }
   }
   return <div className="mt-4">
-    <div className="flex flex-wrap gap-2"><button className={button} type="button" disabled={busy || disabled} aria-expanded={open} onClick={() => setOpen(!open)}>Улучшить с ИИ</button>
-      {undo && task.status === "draft" && <button className={button} type="button" disabled={busy || disabled} onClick={() => void revert()}>Отменить последнюю ИИ-правку</button>}</div>
+    <div className="flex flex-wrap gap-2"><button className={button} type="button" disabled={busy || disabled} aria-expanded={open} onClick={() => setOpen(!open)}>Улучшить с ИИ</button></div>
     {open && <div className="mt-3 grid gap-3 rounded-2xl bg-[#f5f8f6] p-4">
       <label className="grid gap-2 text-sm">Что изменить?<select className={field} value={mode} onChange={e => { setMode(e.target.value as RewriteMode); setPreview(null); }} disabled={busy || disabled}>
         <option value="clearer">Сделать понятнее</option><option value="shorter">Сократить</option><option value="hook">Улучшить начало</option><option value="warmer">Добавить живой тон</option><option value="custom">Своя правка</option></select></label>

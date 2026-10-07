@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { planCopy } from "../billingPlans";
 
 import { getApiErrorMessage, getBillingStatus, refreshBillingStatus, type BillingStatus } from "../api/client";
@@ -26,6 +26,8 @@ function paymentConfirmed(status: BillingStatus): boolean {
 
 
 export default function BillingPage() {
+  const location = useLocation();
+  const returnToSetup = new URLSearchParams(location.search).get("return_to") === "/app/setup";
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -163,6 +165,7 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-6">
+      {returnToSetup && <Link to="/app/setup" className="inline-flex min-h-11 items-center rounded-full border px-5 text-sm">← Вернуться к настройке публикаций</Link>}
       <section className="workspace-intro rounded-[22px] border border-[#dfe4dc] bg-white/88 p-5 shadow-sm sm:p-7">
         <div className="max-w-3xl">
           <h1 className="font-display text-4xl leading-tight text-[#111] sm:text-5xl">{billing?.subscription_status ? "Ваша подписка" : "Выберите тариф"}</h1>
@@ -176,7 +179,7 @@ export default function BillingPage() {
         </div>
 
         {billing?.subscription_status ? (
-          <Link to="/app" className="mt-5 inline-flex rounded-full bg-[#111] px-6 py-3 text-sm font-semibold text-white">Перейти к проектам →</Link>
+          <Link to={returnToSetup ? "/app/setup" : "/app"} className="mt-5 inline-flex rounded-full bg-[#111] px-6 py-3 text-sm font-semibold text-white">{returnToSetup ? "Продолжить настройку →" : "Перейти к проекту →"}</Link>
         ) : (
           <ol className="mt-5 grid gap-3 rounded-2xl bg-[#f7faf4] p-5 text-sm leading-6 text-[#4f5a50] md:grid-cols-3">
             <li><strong className="block text-[#111]">1. Выберите тариф</strong>Откроется Tribute с условиями подписки.</li>

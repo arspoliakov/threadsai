@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import hashlib
+import json
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -19,6 +21,7 @@ from app.db.models import (
     Platform,
     PostingTask,
     PostingTaskStatus,
+    PostingTaskRevision,
     Project,
     ProjectOperation,
     ProjectOperationStatus,
@@ -31,7 +34,8 @@ from app.db.models import (
 from app.db.repositories.projects import ProjectRepository
 from app.posting.scheduler import calculate_next_account_slot, schedule_project_queue_refill
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
-from app.services.style_assistant import stage_global_style
+from app.services.publication_mode import publication_mode, synchronize_mode
+from app.services.project_workflow import ProjectWorkflowRead, build_project_workflow
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -56,6 +60,7 @@ class ProjectDashboardRead(BaseModel):
     recent_errors: list[str]
     account_states: list[ProjectAccountStateRead]
     last_generation_at: datetime | None
+    workflow: ProjectWorkflowRead
 
 
 class TriggerScrapingRead(BaseModel):
@@ -94,6 +99,25 @@ async def create_project(
     current_user_id: int = Depends(get_current_user_id),
     current_user: User = Depends(require_active_subscription),
 ) -> ProjectRead:
+    onboarding_hash = None
+    if payload.onboarding_request_key is not None:
+        # Serialize the short durable creation transaction across requests.
+        await db.execute(update(User).where(User.id == current_user_id).values(first_name=User.first_name))
+        await db.refresh(current_user, attribute_names=["onboarding_state"])
+        onboarding_hash = hashlib.sha256(json.dumps(payload.model_dump(exclude={"onboarding_request_key"}),
+            sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        saved = current_user.onboarding_state or {}
+        recorded = (saved.get("creation_requests") or {}).get(payload.onboarding_request_key)
+        if recorded is None and saved.get("creation_request_key") == payload.onboarding_request_key:
+            recorded = {"project_id": saved.get("creation_project_id"),
+                        "payload_hash": saved.get("creation_payload_hash")}
+        if recorded is not None:
+            if recorded.get("payload_hash") != onboarding_hash:
+                raise HTTPException(409, "Этот запрос уже сохранён с другими настройками. Начните создание заново.")
+            existing = await db.scalar(select(Project).where(Project.id == recorded.get("project_id"), Project.owner_id == current_user_id))
+            if existing is None:
+                raise HTTPException(409, "Созданный проект был удалён. Начните создание заново.")
+            return existing
     projects_count = await db.scalar(
         select(func.count(Project.id)).where(Project.owner_id == current_user_id)
     )
@@ -123,11 +147,8 @@ async def create_project(
         raw_value=payload.slug or payload.name,
     )
     repository = ProjectRepository(db)
-    if payload.global_style_body is not None:
-        if not payload.global_style_body.strip():
-            raise HTTPException(422, "Стиль не может быть пустым")
-        await stage_global_style(db, current_user_id, payload.global_style_body)
-    project = await repository.create_project(payload.model_copy(update={"slug": safe_slug}), owner_id=current_user_id)
+    project = await repository.create_project(payload.model_copy(update={"slug": safe_slug}), owner_id=current_user_id,
+                                              onboarding_payload_hash=onboarding_hash)
 
     return project
 
@@ -186,7 +207,11 @@ async def update_project(
             },
         )
 
-    if payload.auto_generate is True and current_user.subscription_expires_at is not None:
+    mode_before = publication_mode(project)
+    values = synchronize_mode(payload.model_dump(exclude_unset=True), explicitly_set=payload.model_fields_set)
+    if "style_body" in values and values["style_body"] is None:
+        values["style_body"] = ""
+    if values.get("auto_generate") is True and current_user.subscription_expires_at is not None:
         expiries = [current_user.subscription_expires_at]
         if current_user.complimentary_access_expires_at is not None:
             expiries.append(current_user.complimentary_access_expires_at)
@@ -194,21 +219,24 @@ async def update_project(
         if expires_at <= datetime.now(UTC):
             raise HTTPException(402, "Срок доступа истёк. Продлите подписку перед включением автоматической публикации")
 
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    for key, value in values.items():
         setattr(project, key, value)
 
-    if payload.auto_generate is False:
+    if mode_before == "auto" and publication_mode(project) != "auto":
         # Flush the mode change first, so queue completion sees it under the same
         # write lock. Never touch an explicitly approved or uncertain publication.
         await db.flush()
         await db.execute(update(PostingTask).where(
             PostingTask.project_id == project.id,
             PostingTask.status == PostingTaskStatus.QUEUED,
-            PostingTask.generation_metadata["auto_generated"].as_boolean().is_(True),
+            or_(PostingTask.generation_metadata["auto_generated"].as_boolean().is_(True),
+                PostingTask.generation_metadata["applied_angle"].as_string().is_not(None),
+                PostingTask.generation_metadata["hook_mechanic"].as_string().is_not(None)),
             PostingTask.generation_metadata["approved_by_owner"].as_boolean().is_not(True),
+            PostingTask.generation_metadata["publish_now_requested"].as_boolean().is_not(True),
             PostingTask.generation_metadata["publication_confirmation_pending"].as_boolean().is_not(True),
         ).values(status=PostingTaskStatus.DRAFT, scheduled_at=None,
-                 error_message="Автоматическая публикация выключена. Проверьте текст и согласуйте время."))
+                 error_message="Пост ждёт вашей проверки. Выберите время публикации."))
 
     await db.commit()
     await db.refresh(project)
@@ -249,6 +277,8 @@ async def delete_project(
     await db.execute(update(StudioDraft).where(StudioDraft.imported_task_id.in_(
         select(PostingTask.id).where(PostingTask.project_id == project.id)
     )).values(imported_task_id=None))
+    await db.execute(delete(PostingTaskRevision).where(PostingTaskRevision.task_id.in_(
+        select(PostingTask.id).where(PostingTask.project_id == project.id))))
     await db.execute(delete(PostingTask).where(PostingTask.project_id == project.id))
     await db.execute(delete(SavedTrend).where(SavedTrend.project_id == project.id))
     await db.execute(delete(ProjectPrompt).where(ProjectPrompt.project_id == project.id))
@@ -335,6 +365,7 @@ async def get_project_dashboard(
             for account in account_states
         ],
         last_generation_at=last_generation_at,
+        workflow=await build_project_workflow(project, db),
     )
 
 

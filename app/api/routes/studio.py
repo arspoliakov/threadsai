@@ -203,6 +203,10 @@ async def import_trial(draft_id: int, payload: ImportInput, db: AsyncSession = D
     if draft is None:
         raise HTTPException(404, "Черновик не найден")
     if draft.imported_task_id is not None:
+        existing = await db.scalar(select(PostingTask).where(PostingTask.id == draft.imported_task_id,
+                                                           PostingTask.project_id == project.id))
+        if existing is not None:
+            return {"task_id": existing.id, "project_id": project.id}
         raise HTTPException(409, "Черновик уже перенесён в проект. Откройте его расписание.")
     task = PostingTask(project_id=project.id, platform=Platform.THREADS, account=None,
                        content_text=draft.content_text, posts_chain=[draft.content_text], status=PostingTaskStatus.DRAFT)

@@ -7,6 +7,7 @@ import { FloatingDock, type FloatingDockItem } from "./FloatingDock";
 import { ProfileMenu } from "./ProfileMenu";
 import { AdminEntry } from "./AdminLayout";
 import { ThemeToggle } from "./ThemeToggle";
+import { ProjectSwitcher } from "./ProjectSwitcher";
 import { OnboardingTour } from "./OnboardingTour";
 
 export function AppShell({
@@ -50,7 +51,8 @@ export function AppShell({
           />
           ThreadsGo
         </Link>
-        <p className="mb-3 mt-10 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#67786e]">
+        <div className="mb-5 mt-8"><ProjectSwitcher /></div>
+        <p className="mb-3 mt-4 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#67786e]">
           Кабинет
         </p>
         <nav aria-label="Навигация кабинета" className="workspace-navigation space-y-1">
@@ -69,13 +71,13 @@ export function AppShell({
           ))}
         </nav>
         <div className="mt-auto space-y-1 pt-8">
-          {showStartHelp && <Link
+          <Link
             to="/app/how-it-works"
             className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#67786e] hover:bg-[#f5f8f6]"
           >
             <AppIcon name="spark" />
-            Как начать
-          </Link>}
+            {showStartHelp ? "Как начать" : "Помощь"}
+          </Link>
           <Link
             to="/updates/"
             className="flex items-center justify-between rounded-xl bg-[#f5f8f6] px-3 py-3 text-xs font-medium text-[#49705a]"
@@ -86,9 +88,9 @@ export function AppShell({
       </aside>
       <div className="lg:pl-60">
         <header className="workspace-topbar sticky top-0 z-30 border-b border-[#e0e8e2] bg-white/95 px-4 py-3 backdrop-blur-xl sm:px-8">
-          <div className="mx-auto flex max-w-[1320px] items-center justify-between gap-4">
+          <div className="mx-auto flex max-w-[1320px] items-center justify-between gap-2 sm:gap-4">
             <div className="flex min-w-0 items-center gap-3">
-              <Link to="/app" aria-label="Все проекты" className="lg:hidden">
+              <Link to="/app" aria-label="Все проекты" className="hidden sm:block lg:hidden">
                 <img
                   src="/threadsgo-logo.png"
                   alt=""
@@ -96,10 +98,11 @@ export function AppShell({
                 />
               </Link>
               <div className="min-w-0">
+                <div className="w-[min(25vw,12rem)] lg:hidden"><ProjectSwitcher /></div>
                 <p className="hidden text-[10px] font-medium text-[#67786e] sm:block">
                   ThreadsGo / кабинет
                 </p>
-                <p className="truncate text-sm font-semibold">{title}</p>
+                <p className="hidden truncate text-sm font-semibold lg:block">{title}</p>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2"><AdminEntry /><ThemeToggle /><ProfileMenu /></div>

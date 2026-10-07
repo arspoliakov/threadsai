@@ -1,10 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
-  createProject,
   deleteProject,
   getApiErrorMessage,
   getDashboardSummary,
@@ -13,29 +12,18 @@ import {
   type DashboardProjectSummary,
   type DashboardSummary,
 } from "../api/client";
-import { ProjectContextAssistant } from "../components/ProjectContextAssistant";
-import { StyleAssistant } from "../components/StyleAssistant";
 import { BotStatusCard } from "../components/BotStatusCard";
-import { trackSeoEvent } from "../components/SeoAnalytics";
 import { JourneyNextStep } from "../components/JourneyNextStep";
-import { DashboardWelcome } from "../components/DashboardWelcome";
 import "./dashboard-polish.css";
-
-type NewProjectDraft = {
-  name: string;
-  description: string;
-  target_audience: string;
-  product_context: string;
-  global_style_body?: string;
-};
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
+  const [preferredProjectId, setPreferredProjectId] = useState<number | null>(null);
   const [hasAccounts, setHasAccounts] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] =
     useState<DashboardProjectSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -68,31 +56,16 @@ export default function Dashboard() {
     void loadSummary({ silent: true });
     let cancelled = false;
     void Promise.all([getCurrentUser(), getAccounts()]).then(([user, accounts]) => {
-      if (!cancelled) { setHasSubscription(user.subscription_status); setHasAccounts(accounts.length > 0); }
+      if (!cancelled) { setHasSubscription(user.subscription_status); setHasAccounts(accounts.length > 0); try { setPreferredProjectId(Number(window.sessionStorage.getItem(`threadsgo.current-project.${user.id}`)) || null); } catch { /* Select first project when storage is unavailable. */ } }
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
-  async function handleCreateProject(payload: NewProjectDraft) {
-    const creation = createProject({
-      name: payload.name,
-      slug: createSafeSlug(payload.name),
-      description: payload.description || null,
-      target_audience: payload.target_audience || null,
-      product_context: payload.product_context || null,
-      global_style_body: payload.global_style_body,
-      is_active: true,
-    });
-    toast.promise(creation, {
-      loading: "Создаем проект...",
-      success: "Проект создан",
-      error: (error) => getApiErrorMessage(error, "Не удалось создать проект."),
-    });
-    const project = await creation;
-    setIsCreateOpen(false);
-    trackSeoEvent("project_created", { source: "dashboard" });
-    navigate(`/app/projects/${project.id}`);
-  }
+  useEffect(() => {
+    if (isLoading || !summary || hasSubscription === null || new URLSearchParams(location.search).has("manage") || new URLSearchParams(location.search).has("profile")) return;
+    if (summary.projects.length === 0) navigate("/app/setup", { replace: true });
+    else { const selected = summary.projects.find(project => project.id === preferredProjectId) ?? summary.projects[0]; navigate(`/app/projects/${selected.id}`, { replace: true }); }
+  }, [isLoading, summary, hasSubscription, preferredProjectId, location.search, navigate]);
 
   async function handleDeleteProject(project: DashboardProjectSummary) {
     setDeletingProjectId(project.id);
@@ -141,7 +114,7 @@ export default function Dashboard() {
           <div className="grid gap-3 sm:flex sm:items-center">
             <button
               type="button"
-              onClick={() => setIsCreateOpen(true)}
+              onClick={() => navigate("/app/setup?new=1")}
               className="tg-action inline-flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#141815] px-5 text-sm text-white shadow-sm transition hover:bg-[#70ff35] hover:text-[#07100e] sm:w-fit"
             >
               <PlusIcon />
@@ -159,8 +132,6 @@ export default function Dashboard() {
           </div>
         ) : null}
       </header>
-
-      {!isLoading && summary?.projects.length === 0 && hasSubscription === false && hasAccounts === false && <Link to="/app/studio" className="block rounded-2xl border border-[#d8e2da] bg-white p-5 text-sm"><strong>Попробуйте три текста бесплатно</strong><span className="mt-1 block text-[#67786e]">Посмотрите, как нейросеть пишет по вашей теме →</span></Link>}
 
       {!isLoading && summary && summary.projects.length > 0 ? (() => {
         const attentionProject = summary.projects.find((project) => project.is_active && project.ready_accounts_count === 0)
@@ -205,7 +176,7 @@ export default function Dashboard() {
             onRetry={() => void loadSummary({ silent: true })}
           />
         ) : !summary || summary.projects.length === 0 ? (
-          <EmptyProjects canCreate={hasSubscription !== false} onCreate={() => hasSubscription === false ? navigate("/app/billing") : setIsCreateOpen(true)} />
+          <EmptyProjects onCreate={() => navigate("/app/setup?new=1")} />
         ) : (
           summary.projects.map((project) => (
             <ProjectCard
@@ -217,13 +188,6 @@ export default function Dashboard() {
           ))
         )}
       </div>
-
-      {isCreateOpen ? (
-        <CreateProjectModal
-          onClose={() => setIsCreateOpen(false)}
-          onSubmit={handleCreateProject}
-        />
-      ) : null}
 
       {projectToDelete ? (
         <DeleteProjectDialog
@@ -287,221 +251,6 @@ function getCurrentAction(
   }
 
   return "Следим за публикациями";
-}
-
-export function CreateProjectModal({
-  onClose,
-  onSubmit,
-}: {
-  onClose: () => void;
-  onSubmit: (payload: NewProjectDraft) => Promise<void>;
-}) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [targetAudience, setTargetAudience] = useState("");
-  const [productContext, setProductContext] = useState("");
-  const [contextBusy, setContextBusy] = useState(false);
-  const [globalStyle, setGlobalStyle] = useState("");
-  const [saveError, setSaveError] = useState("");
-  const [previousFocus] = useState(() => typeof document === "undefined" ? null : document.activeElement);
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
-        previousFocus.focus();
-    };
-  }, []);
-
-  const [isSaving, setIsSaving] = useState(false);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (isSaving || contextBusy) return;
-
-    if (!name.trim()) {
-      toast.error("Введите название проекта");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      setSaveError("");
-      await onSubmit({
-        name: name.trim(),
-        description: description.trim(),
-        target_audience: targetAudience.trim(),
-        product_context: productContext.trim(),
-        global_style_body: globalStyle.trim() || undefined,
-      });
-    } catch (error) {
-      setSaveError(
-        getApiErrorMessage(
-          error,
-          "Не удалось создать проект. Данные остались в форме.",
-        ),
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-end bg-[#070909]/55 p-3 backdrop-blur-sm sm:place-items-center sm:p-5">
-      <form
-        onSubmit={handleSubmit}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-project-title"
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && !isSaving && !contextBusy) {
-            event.preventDefault();
-            onClose();
-          }
-          if (event.key !== "Tab") return;
-          const fields = Array.from(
-            event.currentTarget.querySelectorAll<HTMLElement>(
-              "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [href]",
-            ),
-          );
-          const first = fields[0];
-          const last = fields[fields.length - 1];
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last?.focus();
-          }
-          if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first?.focus();
-          }
-        }}
-        className="tg-reveal max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-[32px] border border-[#dfe4dc] bg-[#fbfcf7] shadow-[0_30px_120px_rgba(0,0,0,0.30)]"
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-[#e3e7df] p-6">
-          <div>
-            <h2
-              id="new-project-title"
-              className="font-display text-4xl leading-none tracking-[-0.04em] text-[#111]"
-            >
-              Новый проект
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-[#667066]">
-              Укажите название и тему. Остальные настройки можно добавить позже.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[#dfe4dc] bg-white text-[#141815] transition hover:bg-[#141815] hover:text-white"
-            disabled={isSaving || contextBusy}
-            aria-label="Закрыть"
-          >
-            <CloseIcon />
-          </button>
-        </header>
-
-        <div className="space-y-5 p-6">
-          <label className="block">
-            <span className="text-sm text-[#3f463f]">Название</span>
-            <input
-              autoFocus
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Например: проект для эксперта"
-              className="mt-2 h-12 w-full rounded-2xl border border-[#dfe4dc] bg-white px-4 text-base outline-none transition focus:border-[#141815]"
-              disabled={isSaving || contextBusy}
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm text-[#3f463f]">Описание</span>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Например: помогаю начинающим предпринимателям вести учёт. Пишем о деньгах, налогах и типичных ошибках."
-              rows={3}
-              className="mt-2 w-full resize-y rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6 outline-none transition focus:border-[#141815]"
-              disabled={isSaving || contextBusy}
-            />
-            <span className="mt-2 block text-xs leading-5 text-[#7a8179]">
-              Чем понятнее описание, тем меньше абстрактных постов получится на
-              выходе.
-            </span>
-          </label>
-          <ProjectContextAssistant disabled={isSaving || contextBusy} onBusyChange={setContextBusy} onApply={context => {
-            setDescription(context.description); setTargetAudience(context.target_audience); setProductContext(context.product_context);
-          }} />
-          <details className="rounded-2xl border border-[#dfe4dc] bg-white p-4" open={Boolean(targetAudience || productContext) || undefined}>
-            <summary className="cursor-pointer text-sm font-medium">Подробнее об аудитории и продукте — необязательно</summary>
-            <div className="mt-4 space-y-4">
-          <label className="block text-sm text-[#3f463f]">Аудитория
-            <textarea value={targetAudience} onChange={event => setTargetAudience(event.target.value)} rows={2} maxLength={1200} disabled={isSaving || contextBusy} placeholder="Для кого пишем и что этим людям важно" className="mt-2 w-full rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6" />
-          </label>
-          <label className="block text-sm text-[#3f463f]">Продукт или польза постов
-            <textarea value={productContext} onChange={event => setProductContext(event.target.value)} rows={2} maxLength={1600} disabled={isSaving || contextBusy} placeholder="Что предлагаете: услугу, продукт или полезные знания" className="mt-2 w-full rounded-2xl border border-[#dfe4dc] bg-white p-4 text-base leading-6" />
-          </label>
-            </div>
-          </details>
-          <StyleAssistant disabled={isSaving || contextBusy} onApply={setGlobalStyle} />
-          {globalStyle ? (
-            <div className="space-y-3 rounded-2xl border border-[#dfe4dc] bg-white p-4">
-              <label className="block text-sm text-[#3f463f]">
-                Общий стиль, который сохранится вместе с проектом
-                <textarea
-                  value={globalStyle}
-                  onChange={(event) => setGlobalStyle(event.target.value)}
-                  disabled={isSaving || contextBusy}
-                  rows={6}
-                  maxLength={6000}
-                  className="mt-2 w-full rounded-2xl border border-[#dfe4dc] p-3 text-sm leading-6"
-                />
-              </label>
-              <p className="text-xs leading-5 text-[#667066]">
-                При создании проекта этот текст заменит общий стиль для всех
-                ваших проектов. Темы и настройки других проектов сохранятся.
-              </p>
-              <button
-                type="button"
-                disabled={isSaving || contextBusy}
-                onClick={() => setGlobalStyle("")}
-                className="text-sm underline"
-              >
-                Создать без изменения общего стиля
-              </button>
-            </div>
-          ) : null}
-          {saveError ? (
-            <p
-              role="alert"
-              className="rounded-xl bg-[#fff0eb] p-3 text-sm text-[#9a3524]"
-            >
-              {saveError}
-            </p>
-          ) : null}
-        </div>
-
-        <footer className="grid gap-3 border-t border-[#e3e7df] p-6 sm:flex sm:justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSaving || contextBusy}
-            className="h-12 rounded-full border border-[#cfd5cc] px-5 text-sm text-[#323832] transition hover:border-[#141815] hover:bg-[#141815] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Отмена
-          </button>
-          <button
-            type="submit"
-            disabled={isSaving || contextBusy}
-            className="inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSaving ? <Spinner /> : <PlusIcon />}
-            {isSaving ? "Создаем" : "Создать"}
-          </button>
-        </footer>
-      </form>
-    </div>
-  );
 }
 
 function StatsWidget({
@@ -652,8 +401,8 @@ function SkeletonProjects() {
   );
 }
 
-function EmptyProjects({ onCreate, canCreate }: { onCreate: () => void; canCreate: boolean }) {
-  return <DashboardWelcome onCreate={onCreate} canCreate={canCreate} />;
+function EmptyProjects({ onCreate }: { onCreate: () => void }) {
+  return <div className="rounded-2xl border border-dashed border-[var(--workspace-border)] p-6"><h2 className="text-xl font-semibold">Первый проект пока не создан</h2><p className="mt-3 text-sm opacity-70">Расскажите о своей теме, выберите стиль и посмотрите пробный пост.</p><button type="button" onClick={onCreate} className="mt-4 min-h-11 rounded-full bg-[#151515] px-5 text-sm text-white">Начать настройку</button></div>;
 }
 
 function LoadError({
@@ -729,60 +478,6 @@ function DeleteProjectDialog({
       </section>
     </div>
   );
-}
-
-function createSafeSlug(name: string) {
-  const transliterationMap: Record<string, string> = {
-    а: "a",
-    б: "b",
-    в: "v",
-    г: "g",
-    д: "d",
-    е: "e",
-    ё: "e",
-    ж: "zh",
-    з: "z",
-    и: "i",
-    й: "y",
-    к: "k",
-    л: "l",
-    м: "m",
-    н: "n",
-    о: "o",
-    п: "p",
-    р: "r",
-    с: "s",
-    т: "t",
-    у: "u",
-    ф: "f",
-    х: "h",
-    ц: "ts",
-    ч: "ch",
-    ш: "sh",
-    щ: "sch",
-    ъ: "",
-    ы: "y",
-    ь: "",
-    э: "e",
-    ю: "yu",
-    я: "ya",
-  };
-
-  const normalized = name
-    .toLowerCase()
-    .split("")
-    .map((char) => transliterationMap[char] ?? char)
-    .join("")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  const base = normalized
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-")
-    .slice(0, 64);
-
-  return `${base || "project"}-${Date.now().toString(36)}`;
 }
 
 function formatProjectCountLabel(count: number) {

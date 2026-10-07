@@ -97,7 +97,7 @@ export default function GlobalSettingsPage() {
       setHasSavedStyle(true);
       clearStyleDraft();
       setRecoverableDraft(null);
-      toast.success("Стиль сохранён");
+      toast.success("Шаблон сохранён");
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Не удалось сохранить стиль. Ваш текст остался в редакторе."));
     } finally {
@@ -108,7 +108,7 @@ export default function GlobalSettingsPage() {
   function resetToDefault() {
     setBody(DEFAULT_GLOBAL_PROMPT);
     setRecoverableDraft(null);
-    toast.info("Стандартный стиль добавлен в редактор. Нажмите «Сохранить стиль», чтобы применить его.");
+    toast.info("Стандартный стиль добавлен в редактор. Нажмите «Сохранить шаблон», чтобы использовать его позже.");
   }
 
   return (
@@ -132,11 +132,11 @@ export default function GlobalSettingsPage() {
             <img src="/threadsgo-logo.png" alt="" className="h-8 w-8 object-contain" />
           </div>
           <h1 className="mt-5 font-display text-4xl leading-[0.95] tracking-[-0.04em] sm:text-5xl">
-            Стиль постов
+            Мой шаблон стиля
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-white/62">
             Объясните ИИ, как писать от вашего имени: коротко или подробно, с юмором или серьёзно.
-            Эти правила действуют во всех ваших проектах. Темы и аудитория задаются в каждом проекте отдельно.
+            Сохраните удобный шаблон и берите его при настройке новых проектов. У каждого проекта свой стиль; изменение шаблона не меняет действующие проекты.
           </p>
         </div>
       </header>
@@ -151,14 +151,14 @@ export default function GlobalSettingsPage() {
         </div>
       ) : null}
 
-      {!loadError ? <StyleAssistant disabled={isLoading || isSaving} onApply={generated => {
+      {!loadError ? <StyleAssistant scope="template" disabled={isLoading || isSaving} onApply={generated => {
         setBody(generated);
         setRecoverableDraft(null);
-        toast.info("Стиль добавлен в редактор. Нажмите «Сохранить стиль», чтобы применить его.");
+        toast.info("Стиль добавлен в редактор. Нажмите «Сохранить шаблон», чтобы использовать его позже.");
       }} /> : null}
       {recoverableDraft !== null && !isDirty ? <div role="status" className="rounded-2xl border border-[#c8dfbd] bg-[#f3faef] p-5 text-[#18251c]">
         <p className="font-medium">Остался несохранённый вариант стиля</p>
-        <p className="mt-2 text-sm">Можно вернуть его в редактор. Сохранённые настройки не изменятся, пока вы не нажмёте «Сохранить стиль».</p>
+        <p className="mt-2 text-sm">Можно вернуть его в редактор. Сохранённые настройки не изменятся, пока вы не нажмёте «Сохранить шаблон».</p>
         <div className="mt-3 flex flex-wrap gap-3"><button type="button" onClick={() => { setBody(recoverableDraft); setRecoverableDraft(null); }} className="rounded-full bg-[#18351e] px-4 py-2 text-sm text-white">Восстановить вариант</button><button type="button" onClick={() => { clearStyleDraft(); setRecoverableDraft(null); }} className="rounded-full border border-[#bccdb6] px-4 py-2 text-sm">Оставить сохранённый стиль</button></div>
       </div> : null}
 
@@ -166,7 +166,7 @@ export default function GlobalSettingsPage() {
         <header className="flex flex-col gap-4 border-b border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
             <h2 className="font-display text-3xl leading-none tracking-[-0.04em] text-[#111]">
-              Как ИИ будет писать
+              Инструкции для нового проекта
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[#667066]">
               Например: «Пиши просто, от моего лица, без пафоса и эмодзи.
@@ -185,8 +185,8 @@ export default function GlobalSettingsPage() {
 
         <div className="p-5 sm:p-6">
           <textarea
-            aria-label="Общий стиль постов"
-            maxLength={30000}
+            aria-label="Шаблон стиля для новых проектов"
+            maxLength={12000}
             value={body}
             onChange={(event) => { setBody(event.target.value); setRecoverableDraft(null); }}
             disabled={isLoading || isSaving}
@@ -198,8 +198,8 @@ export default function GlobalSettingsPage() {
         <footer className="flex flex-col gap-3 border-t border-[#e3e7df] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <p className="text-sm leading-6 text-[#667066]">
             {isLoading ? "Загружаем ваш стиль…" : needsSave
-              ? "Сохраните стиль, чтобы ИИ использовал его в следующих текстах. Готовые черновики не изменятся."
-              : "Стиль сохранён. ИИ использует его при создании новых текстов."}
+              ? "Сохраните шаблон, чтобы брать его при настройке новых проектов."
+              : "Шаблон сохранён. Его можно выбрать в мастере настройки или настройках проекта."}
           </p>
           <button
             type="submit"
@@ -207,7 +207,7 @@ export default function GlobalSettingsPage() {
             className="inline-flex h-12 items-center justify-center gap-3 rounded-full bg-[#141815] px-6 text-sm text-white transition hover:bg-[#70ff35] hover:text-[#07100e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? <Spinner /> : null}
-            {isLoading ? "Загружаем…" : isSaving ? "Сохраняем…" : needsSave ? "Сохранить стиль" : "Стиль сохранён"}
+            {isLoading ? "Загружаем…" : isSaving ? "Сохраняем…" : needsSave ? "Сохранить шаблон" : "Шаблон сохранён"}
           </button>
         </footer>
       </form>

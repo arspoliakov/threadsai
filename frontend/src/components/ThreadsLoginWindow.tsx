@@ -109,7 +109,7 @@ export default function ThreadsLoginWindow({ onClose, onConnected }: { onClose: 
       await apiClient.post("/api/v1/threads-login/finish", {}, { headers, timeout: 40000 });
       tokenRef.current = null;
       if (!active.current) return;
-      trackSeoEvent("threads_connected", { method: "browser_window" });
+      trackSeoEvent("threads_connection_verified", { method: "browser_window" });
       onConnected();
     } catch (e) { if (active.current) setError(getApiErrorMessage(e, "Не удалось подтвердить профиль.")); }
     finally { pending.current = false; if (active.current) setBusy(false); }

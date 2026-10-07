@@ -82,13 +82,16 @@ class StyleAssistantTest(unittest.IsolatedAsyncioTestCase):
         async with self.sessions() as session:
             project = await session.get(Project, response.json()["id"])
             self.assertEqual(project.owner_id, 71)
+            self.assertEqual(project.style_body, "New accepted author style")
             prompts = list((await session.scalars(select(GlobalPrompt).where(GlobalPrompt.is_active.is_(True)))).all())
-            self.assertEqual({(p.owner_id, p.body) for p in prompts}, {(71, "New accepted author style"), (72, "foreign"), (71, "format rules")})
+            self.assertEqual({(p.owner_id, p.body) for p in prompts}, {(71, "original"), (72, "foreign"), (71, "format rules")})
         response = await self.client.post("/api/v1/projects/", json={"name": "No style", "slug": "no-style"})
         self.assertEqual(response.status_code, 201)
         async with self.sessions() as session:
             body = await session.scalar(select(GlobalPrompt.body).where(GlobalPrompt.owner_id == 71, GlobalPrompt.prompt_type == PromptType.VIRALITY, GlobalPrompt.is_active.is_(True)))
-            self.assertEqual(body, "New accepted author style")
+            self.assertEqual(body, "original")
+            project = await session.get(Project, response.json()["id"])
+            self.assertIn("original", project.style_body)
 
     async def test_abandoned_transaction_preserves_style(self):
         response = await self.client.put("/api/v1/prompts/global/style", json={"body": "Explicitly saved style"})

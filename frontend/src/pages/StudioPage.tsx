@@ -53,7 +53,7 @@ export default function StudioPage() {
   async function transfer(draftId: number) {
     if (actionLock.current || !projectId) return;
     actionLock.current = true; setBusy(true); setBusyAction("transfer");
-    try { const result = await importStudioDraft(draftId, projectId); navigate(`/app/projects/${result.project_id}/queue`); }
+    try { const result = await importStudioDraft(draftId, projectId); navigate(`/app/projects/${result.project_id}/queue?task=${result.task_id}`); }
     catch (e) { toast.error(getApiErrorMessage(e, "Не удалось перенести черновик")); void load(); }
     finally { actionLock.current = false; setBusy(false); setBusyAction(null); }
   }

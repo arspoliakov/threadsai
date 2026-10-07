@@ -17,6 +17,8 @@ import {
   type Project,
 } from "../../api/client";
 import { trackSeoEvent } from "../../components/SeoAnalytics";
+import { StyleTemplatePicker } from "../../components/StyleTemplatePicker";
+import { StyleAssistant } from "../../components/StyleAssistant";
 import AccountRiskNotice from "../../components/AccountRiskNotice";
 
 const timezoneOptions = [
@@ -51,6 +53,10 @@ export default function ProjectSettingsPage() {
   const projectId = Number(id);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [project, setProject] = useState<Project | null>(null);
+  const [styleBody, setStyleBody] = useState("");
+  const [projectName, setProjectName] = useState("");
+  const [managementBusy, setManagementBusy] = useState(false);
+  const [savingStyle, setSavingStyle] = useState(false);
   const [globalContext, setGlobalContext] = useState("");
   const [targetActions, setTargetActions] = useState<string[]>([]);
   const [conversionMode, setConversionMode] = useState<ConversionMode>("bio_link");
@@ -77,8 +83,8 @@ export default function ProjectSettingsPage() {
   const [tariffPostsPerDayLimit, setTariffPostsPerDayLimit] = useState(20);
 
   useEffect(() => {
-    if (!isLoading && location.hash === "#profiles") {
-      document.getElementById("profiles")?.scrollIntoView({ block: "start", behavior: "smooth" });
+    if (!isLoading && Boolean(location.hash)) {
+      document.getElementById(location.hash === "#accounts" ? "profiles" : location.hash.slice(1))?.scrollIntoView({ block: "start", behavior: "smooth" });
     }
   }, [isLoading, location.hash]);
 
@@ -95,6 +101,8 @@ export default function ProjectSettingsPage() {
       setAccounts(accountsResult);
       setProject(dashboardResult.project);
       if (!preserveDrafts) {
+        setProjectName(dashboardResult.project.name);
+        setStyleBody(dashboardResult.project.style_body ?? "");
         setGlobalContext(dashboardResult.project.global_context || dashboardResult.project.description || "");
         setTargetActions(normalizeTargetActions(dashboardResult.project.target_actions ?? []));
         setConversionMode(dashboardResult.project.conversion_mode ?? "bio_link");
@@ -153,7 +161,7 @@ export default function ProjectSettingsPage() {
       });
       await action;
       notifyProjectUpdated();
-      trackSeoEvent("threads_account_connected", {
+      trackSeoEvent("threads_account_attached", {
         method: "existing_profile",
         project_id: projectId,
         account_id: Number(selectedAccountId),
@@ -286,7 +294,7 @@ export default function ProjectSettingsPage() {
       });
       await savePromise;
       notifyProjectUpdated();
-      trackSeoEvent("threads_account_connected", {
+      trackSeoEvent("threads_login_data_updated", {
         method: "cookies_refresh",
         project_id: projectId,
         account_id: accountId,
@@ -309,7 +317,8 @@ export default function ProjectSettingsPage() {
         success: (result) => result.message,
         error: (error) => getApiErrorMessage(error, "Не удалось проверить доступ. Попробуйте ещё раз или обновите данные входа."),
       });
-      await checkPromise;
+      const result = await checkPromise;
+      if (result.status === "active") trackSeoEvent("threads_connection_verified", { project_id: projectId, account_id: accountId });
       notifyProjectUpdated();
       await loadSettings({ silent: true, preserveDrafts: true });
     } catch {
@@ -350,31 +359,45 @@ export default function ProjectSettingsPage() {
 
       {project && <section id="publication-mode" className="rounded-2xl border border-[#d8e2da] bg-white p-5">
         <h2 className="font-semibold">Режим публикации</h2>
-        <p className="mt-2 text-sm leading-6 text-[#67786e]">Можно доверить ИИ всю работу или готовить посты по кнопке и самим выбирать время выхода.</p>
+        <p className="mt-2 text-sm leading-6 text-[#67786e]">ИИ может готовить посты с вашей проверкой или сразу публиковать по расписанию.</p>
         <fieldset className="mt-4 grid gap-3" disabled={isLoading || isSavingMode}>
-          <legend className="sr-only">Выберите режим публикации проекта</legend>
-          {[{ enabled: false, title: "Проверяю и планирую сам", description: "Запросите пост у ИИ по кнопке или напишите свой. Проверьте текст и назначьте время. ИИ не готовит новые посты в фоне." },
-            { enabled: true, title: "ИИ пишет и публикует сам", description: "ИИ сам создаёт новые посты и отправляет их по расписанию. Каждый текст подтверждать не нужно. Для работы нужны действующая подписка и подключённый аккаунт Threads." }].map(mode =>
-            <label key={String(mode.enabled)} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d8e2da] p-4">
-              <input type="radio" name="publication-mode" className="mt-1" checked={project.auto_generate === mode.enabled} onChange={async () => {
-                if (isSavingMode || project.auto_generate === mode.enabled) return;
+          <legend className="sr-only">Режим проекта</legend>
+          {([{ value: "review", title: "С моей проверкой", description: "ИИ регулярно готовит тексты. Вы проверяете их в разделе «Посты» и выбираете время публикации." },
+            { value: "auto", title: "Автоматически", description: "ИИ готовит и отправляет новые посты по расписанию. Каждый текст подтверждать не нужно." },
+            ...(project.publication_mode === "manual" ? [{ value: "manual", title: "По моему запросу — прежний режим", description: "ИИ готовит текст только по кнопке. Фоновая подготовка выключена." }] : [])] as const).map(mode =>
+            <label key={mode.value} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d8e2da] p-4">
+              <input type="radio" name="publication-mode" className="mt-1" checked={project.publication_mode === mode.value} onChange={async () => {
+                if (isSavingMode || project.publication_mode === mode.value) return;
                 setIsSavingMode(true);
-                try { await updateProject(project.id, { auto_generate: mode.enabled }); notifyProjectUpdated(); await loadSettings({ silent: true, preserveDrafts: true });
-                  toast.success(mode.enabled ? "ИИ будет писать и публиковать сам" : "Новые посты готовятся по вашему запросу"); }
+                try { await updateProject(project.id, { publication_mode: mode.value as "review" | "auto" | "manual" }); notifyProjectUpdated(); await loadSettings({ silent: true, preserveDrafts: true }); toast.success("Режим сохранён"); }
                 catch (error) { toast.error(getApiErrorMessage(error, "Не удалось изменить режим")); }
                 finally { setIsSavingMode(false); }
               }} />
               <span><strong className="block">{mode.title}</strong><span className="mt-1 block text-sm leading-6 text-[#67786e]">{mode.description}</span></span>
             </label>)}
         </fieldset>
-        <p className="mt-3 text-xs leading-5 text-[#67786e]">Собственный текст можно добавить в разделе «Публикации». Для такого черновика вы сами выбираете время, даже если ИИ публикует остальные посты автоматически.</p>
+        {project.publication_mode !== "manual" && <details className="mt-3 text-sm"><summary className="cursor-pointer">Дополнительный режим</summary><button type="button" className="mt-3 rounded-xl border p-3" disabled={isSavingMode} onClick={async () => { setIsSavingMode(true); try { await updateProject(project.id, { publication_mode: "manual" }); notifyProjectUpdated(); await loadSettings({ silent: true, preserveDrafts: true }); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось изменить режим")); } finally { setIsSavingMode(false); } }}>Готовить только по моему запросу</button></details>}
+        <p className="mt-3 text-xs leading-5 text-[#67786e]">Собственный текст можно добавить в разделе «Посты». Для такого черновика вы сами выбираете время, даже если ИИ публикует остальные посты автоматически.</p>
         <details className="mt-3 text-xs leading-5 text-[#67786e]">
           <summary className="cursor-pointer">Что будет с уже подготовленными постами при смене режима</summary>
           <div className="mt-2 space-y-2">
-            <p>Включение автоматической публикации не отправляет старые черновики. Посты из плана недели и пробные тексты тоже нужно запланировать самостоятельно.</p>
-            <p>При выключении новые автоматические посты снимаются с расписания. Посты, которые вы уже запланировали сами, и начавшиеся публикации остаются. Некоторые посты из прежнего автоматического режима могут остаться в очереди — проверьте раздел «Публикации» и отмените ненужные.</p>
+            <p>Смена режима не отправляет старые черновики. Посты из плана недели и пробные тексты тоже нужно запланировать самостоятельно.</p>
+            <p>При переходе к проверке или ручной подготовке будущие автоматические посты снимаются с расписания. Посты, которые вы уже запланировали сами, и начавшиеся публикации остаются. Уже назначенные вами публикации можно изменить в разделе «Посты».</p>
           </div>
         </details>
+      </section>}
+
+      {project && <section id="style" className="scroll-mt-28 rounded-2xl border border-[#d8e2da] bg-white p-5">
+        <h2 className="font-semibold">Стиль этого проекта</h2><p className="mt-2 text-sm opacity-70">Как звучат ваши тексты: тон, длина, юмор и любимые приёмы. Другие проекты сохранят свой стиль.</p>
+        <textarea aria-label="Стиль проекта" value={styleBody} onChange={event => setStyleBody(event.target.value)} maxLength={12000} rows={5} className="mt-4 w-full rounded-xl border bg-transparent p-3 text-sm" disabled={savingStyle} />
+        <StyleAssistant disabled={savingStyle} onApply={setStyleBody} /><StyleTemplatePicker disabled={savingStyle} onApply={setStyleBody} />
+        <button type="button" className="mt-4 rounded-full bg-[#151515] px-5 py-3 text-sm text-white" disabled={savingStyle} onClick={async () => { setSavingStyle(true); try { const saved = await updateProject(project.id, { style_body: styleBody.trim() }); setProject(saved); notifyProjectUpdated(); toast.success("Стиль проекта сохранён"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить стиль")); } finally { setSavingStyle(false); } }}>{savingStyle ? "Сохраняем…" : "Сохранить стиль"}</button>
+        <details className="mt-4 text-sm"><summary className="cursor-pointer">Шаблоны и вдохновение</summary><div className="mt-3 flex flex-wrap gap-4"><Link to="/app/settings">Мой шаблон стиля</Link><Link to={`/app/projects/${project.id}/trends`}>Источники вдохновения</Link></div></details>
+      </section>}
+      {project && <section id="project-management" className="scroll-mt-28 rounded-2xl border border-[#d8e2da] bg-white p-5"><h2 className="font-semibold">Название и работа проекта</h2>
+        <label className="mt-3 block text-sm">Название<input value={projectName} onChange={event => setProjectName(event.target.value)} maxLength={120} className="mt-2 w-full rounded-xl border bg-transparent p-3" /></label>
+        <div className="mt-4 flex flex-wrap gap-3"><button type="button" disabled={managementBusy || !projectName.trim()} className="rounded-full border px-5 py-3 text-sm" onClick={async () => { setManagementBusy(true); try { setProject(await updateProject(project.id, { name: projectName.trim() })); notifyProjectUpdated(); toast.success("Название сохранено"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить название")); } finally { setManagementBusy(false); } }}>Сохранить название</button>
+        <button type="button" disabled={managementBusy} className="rounded-full border px-5 py-3 text-sm" onClick={async () => { setManagementBusy(true); try { setProject(await updateProject(project.id, { is_active: !project.is_active })); notifyProjectUpdated(); toast.success(project.is_active ? "Проект на паузе" : "Проект возобновлён"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось изменить состояние")); } finally { setManagementBusy(false); } }}>{project.is_active ? "Поставить на паузу" : "Возобновить проект"}</button></div><p className="mt-3 text-xs opacity-70">На паузе проект сохраняет настройки и посты. Подготовка и публикации останавливаются.</p>
       </section>}
 
       {loadError ? (
@@ -392,7 +415,7 @@ export default function ProjectSettingsPage() {
       ) : null}
 
       <div className={`${loadError && !project ? "hidden" : "grid"} gap-4 xl:grid-cols-[1.2fr_0.8fr]`}>
-        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
+        <section id="content" className="scroll-mt-28 rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <div className="grid gap-5 lg:grid-cols-[1fr_480px]">
             <div>
               <h2 className="font-display text-3xl">О чём и как писать</h2>
@@ -410,11 +433,12 @@ export default function ProjectSettingsPage() {
                   onChange={(event) => setGlobalContext(event.target.value)}
                   disabled={isLoading || isSavingContext}
                   rows={8}
-                  placeholder="Кто вы, для кого пишете, какие темы хотите обсуждать и какие факты ИИ должен учитывать. Общий стиль всех проектов можно задать в разделе «Стиль постов»."
+                  placeholder="Кто вы, для кого пишете, какие темы хотите обсуждать и какие факты ИИ должен учитывать. Стиль этого проекта настраивается ниже."
                   className="resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-sm leading-6 text-[#24231f] outline-none transition focus:border-[#151515] disabled:opacity-50"
                 />
               </label>
 
+              <details><summary className="cursor-pointer text-sm font-medium">Приглашения и продажи — необязательно</summary><div className="mt-4">
               <div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="field-label">Что предложить читателю</span>
@@ -532,6 +556,7 @@ export default function ProjectSettingsPage() {
                 </label>
               </div>
 
+              </div></details>
               <button
                 type="button"
                 onClick={() => void saveProjectContext()}
@@ -545,8 +570,8 @@ export default function ProjectSettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
-          <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
+        <details className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
+          <summary className="cursor-pointer font-semibold">Стоп-слова — дополнительные настройки</summary><div className="mt-4 grid gap-5 lg:grid-cols-[1fr_420px]">
             <div>
               <h2 className="font-display text-3xl">Запрещенные слова</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66645d]">
@@ -568,7 +593,7 @@ export default function ProjectSettingsPage() {
               </button>
             </div>
           </div>
-        </section>
+        </details>
 
         <section className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <div className="grid gap-5 lg:grid-cols-[1fr_480px]">

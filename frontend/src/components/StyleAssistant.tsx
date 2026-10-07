@@ -5,7 +5,7 @@ import { trackSeoEvent } from "./SeoAnalytics";
 const initialAnswers: StyleAnswers = { tone: "friendly", perspective: "personal", length: "short", humor: "light", selling: "soft", restrictions: "", example: "" };
 const fieldClass = "mt-2 w-full rounded-2xl border border-[#cfd8cc] bg-white p-3 text-sm leading-6 text-[#18251c] outline-none focus:border-[#4b7f35]";
 
-export function StyleAssistant({ onApply, disabled = false }: { onApply: (body: string) => void; disabled?: boolean }) {
+export function StyleAssistant({ onApply, disabled = false, scope = "project" }: { onApply: (body: string) => void; disabled?: boolean; scope?: "project" | "template" }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<StyleAnswers>(initialAnswers);
@@ -69,7 +69,7 @@ export function StyleAssistant({ onApply, disabled = false }: { onApply: (body: 
           {step === 3 ? <label className="block text-sm font-medium">Проверьте и при желании отредактируйте<textarea value={result} maxLength={6000} onChange={e => { setResult(e.target.value); setApplied(false); }} rows={9} className={fieldClass} /></label> : null}
         </fieldset>
         {error ? <p role="alert" className="rounded-xl bg-[#fff0eb] p-3 text-sm leading-6 text-[#9a3524]">{error}</p> : null}
-        <p className="text-sm leading-6 text-[#52634f]">Это общий голос для всех проектов. Темы и аудитории задаются отдельно; конкретные настройки продаж в проекте имеют приоритет. Текущий стиль не изменится, пока вы не сохраните настройки или новый проект.</p>
+        <p className="text-sm leading-6 text-[#52634f]">{scope === "template" ? "Это необязательный шаблон. Его можно взять при настройке нового проекта; действующие проекты сохранят свой стиль." : "Эти инструкции относятся к этому проекту. Они применятся после сохранения настроек проекта."}</p>
         <div className="flex flex-wrap gap-3">
           {step > 0 ? <button type="button" disabled={isGenerating || disabled} onClick={() => setStep(step === 3 ? 0 : step - 1)} className="rounded-full border border-[#bccdb6] bg-white px-5 py-3 text-sm disabled:opacity-50">{step === 3 ? "Изменить ответы" : "Назад"}</button> : null}
           {step < 2 ? <button type="button" onClick={() => setStep(step + 1)} disabled={disabled} className="rounded-full bg-[#18351e] px-5 py-3 text-sm text-white disabled:opacity-50">Далее →</button> : null}

@@ -130,10 +130,10 @@ export default function ProjectTrendsPage() {
     <section className="space-y-5">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-display text-4xl leading-none">Актуальные идеи для постов</h1>
+          <h1 className="font-display text-4xl leading-none">Источники вдохновения</h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66645d]">
             Здесь — приёмы из ленты подключённого профиля: как начать пост, рассказать историю и удержать внимание.
-            ИИ использует их для ваших текстов. Без рабочего профиля лента не читается. В автоматическом режиме
+            ИИ использует их для ваших текстов. Без рабочего профиля лента не читается. Когда ИИ регулярно готовит посты,
             подборку обновляем примерно раз в 3 дня, когда профиль свободен и наступило время работы проекта.
           </p>
         </div>
@@ -148,17 +148,17 @@ export default function ProjectTrendsPage() {
           {isCollecting && hasThreadsProfile
             ? isActuallyReading ? "Читаем ленту" : "В очереди"
             : hasThreadsProfile
-              ? "Обновить подборку идей"
+              ? "Обновить подборку"
               : "Сначала подключите профиль"}
         </button>
       </header>
 
       {!isLoading && dashboard && !hasThreadsProfile ? (
-        <JourneyNextStep title="Для сбора идей нужен аккаунт Threads" description="Подключите его в разделе «Аккаунты» и добавьте в проект. Сохранённая подборка остаётся доступной; ИИ умеет писать и без неё."
+        <JourneyNextStep title="Для чтения ленты нужен аккаунт Threads" description="Подключите его в разделе «Аккаунты» и добавьте в проект. Сохранённая подборка остаётся доступной; ИИ умеет писать и без неё."
           action="Проверить аккаунты" to={`/app/projects/${projectId}/settings#profiles`} />
       ) : !isLoading && trends.length > 0 ? (
-        <JourneyNextStep title="Идеи готовы — пора создать свой текст" description="Подборка помогает выбрать подачу. Вернитесь в обзор проекта, чтобы создать пост на вашу тему."
-          action="К созданию поста" to={`/app/projects/${projectId}`} />
+        <JourneyNextStep title="Приёмы подачи сохранены" description="Подборка помогает выбрать подачу. В разделе «Посты» можно подготовить собственный текст с ИИ."
+          action="К созданию поста" to={`/app/projects/${projectId}/queue?create=ai`} />
       ) : null}
 
       {isCollecting && hasThreadsProfile ? (
@@ -172,24 +172,24 @@ export default function ProjectTrendsPage() {
         </div>
       ) : null}
 
-      <DismissibleTip storageKey="threadsgo.trends-tip" title="Идеи — это не темы для копирования">
+      <DismissibleTip storageKey="threadsgo.trends-tip" title="Подборка помогает выбрать подачу">
         Когда запускается сбор, смотрим, как устроены посты: с чего начинаются и как держат внимание.
         Эти приёмы помогают ИИ писать ваши тексты. Чужие посты не копируем.
       </DismissibleTip>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <MetricCard label="Сохранено идей" value={isLoading ? "..." : String(trends.length)} />
+        <MetricCard label="Сохранено приёмов" value={isLoading ? "..." : String(trends.length)} />
         <MetricCard label="Последнее обновление" value={getLatestTrendDate(trends)} />
       </div>
 
       {isLoading ? (
         <TrendSkeleton />
       ) : loadError && trends.length === 0 ? (
-        <EmptyState title="Идеи пока не загрузились" description={loadError} />
+        <EmptyState title="Подборка пока не загрузилась" description={loadError} />
       ) : trends.length === 0 ? (
         <EmptyState
-          title="Актуальные идеи еще не собраны"
-          description={isCollecting && hasThreadsProfile ? isActuallyReading ? "Подборка появится здесь после сбора. Можно перейти в другой раздел." : "Запрос ждёт своей очереди. Новая подборка появится после завершения сбора." : hasThreadsProfile ? "Нажмите «Обновить подборку идей» выше. Мы изучим ленту и сохраним найденные приёмы здесь." : "Сначала подключите рабочий профиль к проекту. После этого станет доступен сбор идей из ленты."}
+          title="Подборка пока пуста"
+          description={isCollecting && hasThreadsProfile ? isActuallyReading ? "Подборка появится здесь после сбора. Можно перейти в другой раздел." : "Запрос ждёт своей очереди. Новая подборка появится после завершения сбора." : hasThreadsProfile ? "Нажмите «Обновить подборку» выше. Мы изучим ленту и сохраним найденные приёмы здесь." : "Сначала подключите рабочий профиль к проекту. После этого станет доступно чтение ленты."}
         />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
@@ -206,7 +206,7 @@ function TrendCard({ trend, index }: { trend: SavedTrend; index: number }) {
   return (
     <article className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-5 border-b border-[#e7e5de] pb-4">
-        <h2 className="font-display text-2xl leading-tight">Идея №{index + 1}</h2>
+        <h2 className="font-display text-2xl leading-tight">Приём №{index + 1}</h2>
       </div>
 
       <div className="mt-4 grid gap-3">

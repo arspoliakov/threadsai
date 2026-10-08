@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import "../workspace-refresh.css";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { AppIcon } from "./AppIcons";
 import { FloatingDock, type FloatingDockItem } from "./FloatingDock";
 import { ProfileMenu } from "./ProfileMenu";
@@ -18,6 +18,7 @@ export function AppShell({
   title?: string;
   children: ReactNode;
 }) {
+  const inProject = /^\/app\/projects\/\d+(?:\/|$)/.test(useLocation().pathname);
   return (
     <div className="app-refresh workspace-shell min-h-screen bg-[#f6f8f7] text-[#162b25]">
       <a
@@ -40,7 +41,7 @@ export function AppShell({
         </Link>
         <div className="mb-5 mt-8"><ProjectSwitcher /></div>
         <p className="mb-3 mt-4 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#67786e]">
-          Кабинет
+          {inProject ? "Меню проекта" : "Общее меню"}
         </p>
         <nav aria-label="Навигация кабинета" className="workspace-navigation space-y-1">
           {navigation.map((item) => (
@@ -87,7 +88,7 @@ export function AppShell({
               <div className="min-w-0 flex-1">
                 <div className="w-full max-w-64 lg:hidden"><ProjectSwitcher /></div>
                 <p className="hidden text-[10px] font-medium text-[#67786e] sm:block">
-                  ThreadsGo / кабинет
+                ThreadsGo / {inProject ? "проект" : "общее меню"}
                 </p>
                 <p className="hidden truncate text-sm font-semibold lg:block">{title}</p>
               </div>

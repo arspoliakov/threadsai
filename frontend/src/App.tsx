@@ -33,6 +33,7 @@ const AdminUsersPage = lazy(() => import("./pages/global/AdminUsersPage"));
 const BillingPage = lazy(() => import("./pages/BillingPage"));
 const InfrastructurePage = lazy(() => import("./pages/global/InfrastructurePage"));
 const GlobalSettingsPage = lazy(() => import("./pages/global/GlobalSettingsPage"));
+const GlobalStylePage = lazy(() => import("./pages/global/GlobalStylePage"));
 const HowItWorksPage = lazy(() => import("./pages/global/HowItWorksPage"));
 const ProjectOverviewPage = lazy(() => import("./pages/project/ProjectOverviewPage"));
 const ProjectQueuePage = lazy(() => import("./pages/project/ProjectQueuePage"));
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="how-it-works" element={<HowItWorksPage />} />
             <Route path="infrastructure" element={<InfrastructurePage />} />
             <Route path="settings" element={<GlobalSettingsPage />} />
+            <Route path="settings/style" element={<GlobalStylePage />} />
             <Route path="admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboardPage />} />
               <Route path="users" element={<AdminUsersPage />} />

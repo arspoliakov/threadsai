@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
   deleteProject,
   getApiErrorMessage,
   getDashboardSummary,
-  getCurrentUser,
-  getAccounts,
   type DashboardProjectSummary,
   type DashboardSummary,
 } from "../api/client";
@@ -18,11 +16,7 @@ import "./dashboard-polish.css";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
-  const [preferredProjectId, setPreferredProjectId] = useState<number | null>(null);
-  const [hasAccounts, setHasAccounts] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [projectToDelete, setProjectToDelete] =
     useState<DashboardProjectSummary | null>(null);
@@ -54,18 +48,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     void loadSummary({ silent: true });
-    let cancelled = false;
-    void Promise.all([getCurrentUser(), getAccounts()]).then(([user, accounts]) => {
-      if (!cancelled) { setHasSubscription(user.subscription_status); setHasAccounts(accounts.length > 0); try { setPreferredProjectId(Number(window.sessionStorage.getItem(`threadsgo.current-project.${user.id}`)) || null); } catch { /* Select first project when storage is unavailable. */ } }
-    }).catch(() => {});
-    return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (isLoading || !summary || hasSubscription === null || new URLSearchParams(location.search).has("manage") || new URLSearchParams(location.search).has("profile")) return;
-    if (summary.projects.length === 0) navigate("/app/setup", { replace: true });
-    else { const selected = summary.projects.find(project => project.id === preferredProjectId) ?? summary.projects[0]; navigate(`/app/projects/${selected.id}`, { replace: true }); }
-  }, [isLoading, summary, hasSubscription, preferredProjectId, location.search, navigate]);
 
   async function handleDeleteProject(project: DashboardProjectSummary) {
     setDeletingProjectId(project.id);

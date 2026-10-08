@@ -281,7 +281,7 @@ export default function ProjectSettingsPage() {
   async function saveAccountCookies(accountId: number, cookies: string) {
     const normalizedCookies = cookies.trim();
     if (!normalizedCookies) {
-      toast.error("Вставьте свежий JSON cookies");
+      toast.error("Вставьте новые данные входа из своего браузера");
       return;
     }
 
@@ -567,7 +567,7 @@ export default function ProjectSettingsPage() {
         <h2 className="font-semibold">Стиль этого проекта</h2><p className="mt-2 text-sm opacity-70">Как звучат ваши тексты: тон, длина, юмор и любимые приёмы. Другие проекты сохранят свой стиль.</p>
         <textarea aria-label="Стиль проекта" value={styleBody} onChange={event => setStyleBody(event.target.value)} maxLength={12000} rows={5} className="mt-4 w-full rounded-xl border bg-transparent p-3 text-sm" disabled={savingStyle} />
         <button type="button" className="mt-4 rounded-full bg-[#151515] px-5 py-3 text-sm text-white" disabled={savingStyle} onClick={async () => { setSavingStyle(true); try { const saved = await updateProject(project.id, { style_body: styleBody.trim() }); setProject(saved); notifyProjectUpdated(); toast.success("Стиль проекта сохранён"); } catch (error) { toast.error(getApiErrorMessage(error, "Не удалось сохранить стиль")); } finally { setSavingStyle(false); } }}>{savingStyle ? "Сохраняем…" : "Сохранить стиль"}</button>
-        <details className="mt-4 text-sm"><summary className="cursor-pointer">Помощь со стилем и источники вдохновения</summary><div className="mt-4"><StyleAssistant disabled={savingStyle} onApply={setStyleBody} /><StyleTemplatePicker disabled={savingStyle} onApply={setStyleBody} /></div><div className="mt-3 flex flex-wrap gap-4"><Link to="/app/settings">Мой шаблон стиля</Link><Link to={`/app/projects/${project.id}/trends`}>Источники вдохновения</Link></div></details>
+        <details className="mt-4 text-sm"><summary className="cursor-pointer">Помощь со стилем и источники вдохновения</summary><div className="mt-4"><StyleAssistant disabled={savingStyle} onApply={setStyleBody} /><StyleTemplatePicker disabled={savingStyle} onApply={setStyleBody} /></div><div className="mt-3 flex flex-wrap gap-4"><Link to="/app/settings/style">Мой шаблон стиля</Link><Link to={`/app/projects/${project.id}/trends`}>Источники вдохновения</Link></div></details>
       </section>}
         <details data-settings-pane="content" className="rounded-[24px] border border-[#deded7] bg-white p-5 shadow-sm xl:col-span-2">
           <summary className="cursor-pointer font-semibold">Стоп-слова — дополнительные настройки</summary><div className="mt-4 grid gap-5 lg:grid-cols-[1fr_420px]">
@@ -869,13 +869,13 @@ function AccountCard({
           </div>
           <details className="rounded-2xl border border-[#d88a35]/40 bg-white/70 p-4">
             <summary className="cursor-pointer text-sm text-[#4a2b08]">Обновить данные входа</summary>
-            <p className="mt-3 text-xs leading-5 text-[#66645d]">В браузере, где вы уже вошли в Threads, экспортируйте cookies в формате JSON через Cookie-Editor. После сохранения нажмите «Проверить и возобновить» выше.</p>
+            <p className="mt-3 text-xs leading-5 text-[#66645d]">Перенесите вход из браузера, где уже открыт ваш профиль. <Link to="/app/infrastructure" className="underline">В разделе «Все аккаунты» есть пошаговая инструкция и загрузка файла.</Link> Если данные уже скопированы, вставьте их здесь. После сохранения нажмите «Проверить и возобновить» выше.</p>
             <textarea
             value={cookiesDraft}
             onChange={(event) => setCookiesDraft(event.target.value)}
             disabled={isBusy}
             rows={5}
-            placeholder="Вставьте свежие данные входа в формате JSON"
+            placeholder="Вставьте скопированные данные входа. Редактировать их не нужно."
             className="mt-3 w-full resize-y rounded-2xl border border-[#d8d8d2] bg-white p-4 text-xs leading-5 text-[#24231f] outline-none transition focus:border-[#151515]"
           />
           <div className="flex flex-wrap gap-2">

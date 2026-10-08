@@ -8,7 +8,9 @@ import {
   deleteAccount,
   getApiErrorMessage,
   getAccounts,
+  getProjects,
   unlinkAccount,
+  updateAccount,
   type Account,
   type AccountStatus,
   type Platform,
@@ -24,6 +26,7 @@ export default function InfrastructurePage() {
   const location = useLocation();
   const returnToSetup = new URLSearchParams(location.search).get("return_to") === "/app/setup";
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [projectNames, setProjectNames] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isBrowserOpen, setIsBrowserOpen] = useState(false);
@@ -32,6 +35,7 @@ export default function InfrastructurePage() {
   const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
+  const [accountToUpdate, setAccountToUpdate] = useState<Account | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   async function loadAccounts() {
@@ -39,7 +43,9 @@ export default function InfrastructurePage() {
     setLoadError(null);
 
     try {
-      setAccounts(await getAccounts());
+      const [items, projects] = await Promise.all([getAccounts(), getProjects().catch(() => [])]);
+      setAccounts(items);
+      setProjectNames(Object.fromEntries(projects.map(project => [project.id, project.name])));
     } catch (error) {
       const message = getApiErrorMessage(error, "Не удалось загрузить профили.");
       setLoadError(message);
@@ -128,11 +134,11 @@ export default function InfrastructurePage() {
           <details className="text-sm">
             <summary className="cursor-pointer text-[#66645d]">Другие способы подключения</summary>
             <div className="mt-3 grid gap-2">
-              <p className="text-xs leading-5 text-[var(--workspace-muted)]">У существующего аккаунта сначала проверьте вход в карточке. Для обновления данных откройте его настройки в проекте. Новое подключение создаёт отдельный профиль.</p>
-              <button type="button" onClick={() => setIsCreateOpen(true)} className="rounded-2xl border border-[#151515] px-4 py-2 text-left transition hover:bg-[#151515] hover:text-white">
-                Вставить данные входа
+              <p className="text-xs leading-5 text-[var(--workspace-muted)]">У существующего аккаунта сначала проверьте вход в карточке. Обновить данные можно там же. Новое подключение создаёт отдельный профиль.</p>
+              <button type="button" onClick={() => setIsCreateOpen(true)} className="rounded-2xl border border-[var(--workspace-border)] px-4 py-2 text-left text-[var(--workspace-ink)] transition hover:bg-[var(--workspace-soft)]">
+                Перенести вход из своего браузера
               </button>
-              <button type="button" onClick={() => setIsBulkOpen(true)} className="rounded-2xl border border-[#151515] px-4 py-2 text-left transition hover:bg-[#151515] hover:text-white">
+              <button type="button" onClick={() => setIsBulkOpen(true)} className="rounded-2xl border border-[var(--workspace-border)] px-4 py-2 text-left text-[var(--workspace-ink)] transition hover:bg-[var(--workspace-soft)]">
                 Добавить несколько профилей
               </button>
             </div>
@@ -193,6 +199,7 @@ export default function InfrastructurePage() {
               <AccountCard
                 key={account.id}
                 account={account}
+                projectName={account.project_id === null ? undefined : projectNames[account.project_id]}
                 checking={checkingId === account.id}
                 unlinking={unlinkingId === account.id}
                 deleting={deletingId === account.id}
@@ -200,22 +207,25 @@ export default function InfrastructurePage() {
                 onCheck={() => void handleCheckSession(account.id)}
                 onUnlink={() => void handleUnlink(account.id)}
                 onDelete={() => setAccountToDelete(account)}
+                onUpdate={() => setAccountToUpdate(account)}
               />
             ))
           )}
         </div>
       </section>
 
-      {isCreateOpen ? (
+      {isCreateOpen || accountToUpdate ? (
         <CreateAccountPanel
-          onClose={() => setIsCreateOpen(false)}
+          account={accountToUpdate ?? undefined}
+          onClose={() => { setIsCreateOpen(false); setAccountToUpdate(null); }}
           onCreated={async () => {
             setIsCreateOpen(false);
+            setAccountToUpdate(null);
             await loadAccounts();
           }}
         />
       ) : null}
-      {isBrowserOpen ? <ThreadsLoginWindow onClose={() => setIsBrowserOpen(false)} onConnected={() => { setIsBrowserOpen(false); void loadAccounts(); }} /> : null}
+      {isBrowserOpen ? <ThreadsLoginWindow onClose={() => setIsBrowserOpen(false)} onUseImport={() => { setIsBrowserOpen(false); setIsCreateOpen(true); }} onConnected={() => { setIsBrowserOpen(false); void loadAccounts(); }} /> : null}
 
       {isBulkOpen ? (
         <BulkImportPanel
@@ -241,6 +251,7 @@ export default function InfrastructurePage() {
 
 function AccountCard({
   account,
+  projectName,
   checking,
   unlinking,
   deleting,
@@ -248,8 +259,10 @@ function AccountCard({
   onCheck,
   onUnlink,
   onDelete,
+  onUpdate,
 }: {
   account: Account;
+  projectName?: string;
   checking: boolean;
   unlinking: boolean;
   deleting: boolean;
@@ -257,6 +270,7 @@ function AccountCard({
   onCheck: () => void;
   onUnlink: () => void;
   onDelete: () => void;
+  onUpdate: () => void;
 }) {
   return (
     <article className="rounded-2xl border border-[#e1e1dc] bg-[#fbfaf5] p-4 transition hover:border-[#151515] hover:shadow-sm">
@@ -275,7 +289,7 @@ function AccountCard({
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#77766f]">Проект</p>
           <p className="mt-1 text-sm text-[#24231f]">
             {account.project_id === null ? "Ещё не выбран в проекте" : (
-              <Link to={`/app/projects/${account.project_id}`} className="underline underline-offset-4">Открыть проект #{account.project_id}</Link>
+              <Link to={`/app/projects/${account.project_id}`} className="underline underline-offset-4">{projectName ? `«${projectName}»` : "Открыть проект"}</Link>
             )}
           </p>
         </div>
@@ -283,7 +297,7 @@ function AccountCard({
           <ActionButton onClick={onCheck} disabled={busy}>
             {checking ? "Проверяем..." : account.status === "active" ? "Проверить вход" : "Проверить и возобновить"}
           </ActionButton>
-          {(account.status === "cookies_expired" || account.status === "error" || account.status === "blocked") && account.project_id !== null && <Link to={`/app/projects/${account.project_id}/settings#profiles`} className="inline-flex min-h-11 items-center rounded-xl border border-[var(--workspace-border)] px-3 text-sm">Обновить данные входа</Link>}
+          {(account.status === "cookies_expired" || account.status === "error" || account.status === "blocked") && <ActionButton onClick={onUpdate} disabled={busy}>Обновить данные входа</ActionButton>}
           {account.project_id !== null ? (
             <ActionButton onClick={onUnlink} disabled={busy}>
               {unlinking ? "отключаем..." : "Отключить от проекта"}
@@ -318,10 +332,21 @@ function AccountCard({
   );
 }
 
-function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCreated: () => Promise<void> }) {
+function CreateAccountPanel({ onClose, onCreated, account }: { onClose: () => void; onCreated: () => Promise<void>; account?: Account }) {
   const [cookiesInput, setCookiesInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function readSessionFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 1024 * 1024) { setError("Файл слишком большой. Выберите файл данных входа размером до 1 МБ."); return; }
+    try {
+      const value = await file.text();
+      if (!value.trim()) throw new Error();
+      setCookiesInput(value);
+      setError(null);
+    } catch { setError("Не удалось прочитать файл. Попробуйте выбрать его ещё раз."); }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -331,7 +356,8 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
     try {
       const cookiesPayload = normalizeCookies(cookiesInput);
 
-      await createAccount({
+      if (account) await updateAccount(account.id, { cookies_encrypted: cookiesPayload });
+      else await createAccount({
         project_id: null,
         platform: THREADS_PLATFORM,
         username: SESSION_USERNAME_PLACEHOLDER,
@@ -342,23 +368,23 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
         cookies_encrypted: cookiesPayload,
         status: "active",
       });
-      toast.success("Профиль добавлен");
-      trackSeoEvent("threads_account_added", { method: "cookies" });
+      toast.success(account ? "Данные входа обновлены. Теперь проверьте вход в карточке." : "Профиль добавлен");
+      trackSeoEvent(account ? "threads_login_data_updated" : "threads_account_added", { method: account ? "cookies_refresh" : "cookies" });
       await onCreated();
     } catch (submitError) {
-      toast.error("Профиль не добавлен");
-      setError(getApiErrorMessage(submitError, "Не удалось добавить профиль. Проверьте данные входа и попробуйте снова."));
+      toast.error(account ? "Данные входа не обновлены" : "Профиль не добавлен");
+      setError(getApiErrorMessage(submitError, "Не удалось сохранить данные входа. Проверьте их и попробуйте снова."));
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/45">
+    <div className="fixed inset-0 z-50 bg-black/45" role="dialog" aria-modal="true" aria-labelledby="session-import-title">
       <aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-black bg-[#f6f6f2]">
         <header className="flex items-center justify-between border-b border-[#c9c9c3] px-7 py-6">
           <div>
-            <h2 className="font-display text-3xl">Вставить данные входа</h2>
+            <h2 id="session-import-title" className="font-display text-3xl">{account ? `Обновить вход ${formatUsername(account.username)}` : "Перенести вход из браузера"}</h2>
           </div>
           <button
             type="button"
@@ -372,24 +398,32 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-y-auto px-7 py-8">
           <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
-            Этот способ подходит, если вы уже вошли в Threads в своём браузере.
-            После добавления нажмите «Проверить вход» — ThreadsGo проверит доступ и определит имя профиля.
+            Запасной способ, если вход в нашем окне не получается. Пароль не нужен: вы переносите уже выполненный вход из своего браузера. Может потребоваться повторная проверка Threads.
           </div>
 
+          <ol className="mt-5 list-decimal space-y-3 pl-5 text-sm leading-6 text-[var(--workspace-ink)]">
+            <li><a href="https://www.threads.com/" target="_blank" rel="noreferrer" className="underline">Откройте Threads ↗</a> на компьютере в браузере, где вы уже вошли. Убедитесь, что видите свой профиль.</li>
+            <li>Откройте установленное расширение Cookie-Editor для этой вкладки. Нажмите Export → JSON (экспорт данных входа). Если расширения нет, его нужно установить из магазина расширений вашего браузера. Это не обязательный способ: можно вернуться к входу в нашем окне.</li>
+            <li>Вставьте скопированные данные ниже. Если сохранили их в файл, выберите этот файл. Ничего в нём менять не нужно.</li>
+            <li>Нажмите «{account ? "Сохранить данные входа" : "Добавить профиль"}», затем «{account && account.status !== "active" ? "Проверить и возобновить" : "Проверить вход"}» в карточке. {account ? "Сохранение данных само по себе не возобновляет публикации." : ""}</li>
+          </ol>
+          <p className="mt-4 text-xs leading-5 text-[var(--workspace-muted)]">Эти данные дают доступ к вашему аккаунту. Передавайте их только здесь, не отправляйте в переписку или поддержку.</p>
+
+          <label className="mt-5 grid gap-2 text-sm"><span>Загрузить файл данных входа</span><input type="file" accept=".json,.txt,application/json,text/plain" disabled={isSubmitting} onChange={event => { void readSessionFile(event.target.files?.[0]); event.target.value = ""; }} className="w-full rounded-xl border border-[var(--workspace-border)] p-3" /></label>
+
           <label className="mt-8 grid gap-2">
-            <span className="field-label">Данные входа из браузера</span>
+            <span className="field-label">Или вставить скопированные данные</span>
             <textarea
               value={cookiesInput}
               onChange={(event) => setCookiesInput(event.target.value)}
               disabled={isSubmitting}
               required
               rows={8}
-              placeholder='[{"name":"sessionid","value":"...","domain":".threads.net"}]'
+              placeholder="Вставьте данные, скопированные из браузера. Редактировать их не нужно."
               className="field-control resize-none leading-6"
             />
             <div className="rounded-2xl border border-[#e1e1dc] bg-white px-4 py-3 text-xs leading-5 text-[#66645d]">
-              Откройте threads.net в браузере, где профиль уже авторизован. В расширении Cookie-Editor нажмите
-              Export JSON и вставьте результат сюда. ThreadsGo не потребуется хранить пароль от аккаунта.
+              Данные входа сохраняются в зашифрованном виде. Пароль от аккаунта здесь не нужен.
             </div>
           </label>
 
@@ -405,7 +439,7 @@ function CreateAccountPanel({ onClose, onCreated }: { onClose: () => void; onCre
               disabled={isSubmitting}
               className="w-full rounded-2xl border border-[#151515] bg-[#151515] px-5 py-4 font-mono text-xs uppercase tracking-[0.16em] text-white transition hover:bg-transparent hover:text-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {isSubmitting ? "Добавляем..." : "Добавить профиль"}
+              {isSubmitting ? "Сохраняем…" : account ? "Сохранить данные входа" : "Добавить профиль"}
             </button>
           </div>
         </form>

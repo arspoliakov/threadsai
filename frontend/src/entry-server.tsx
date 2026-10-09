@@ -31,6 +31,7 @@ export function getSeoDocument(url: string) {
             "@context": "https://schema.org",
             "@type": "Article",
             headline: article.h1,
+            image: new URL(article.image?.src ?? DEFAULT_OG_IMAGE, SITE_URL).href,
             description: article.description,
             datePublished: article.publishedAt,
             dateModified: article.updatedAt,
@@ -86,7 +87,7 @@ export function getSeoDocument(url: string) {
     canonical,
     robots,
     updatedAt: page?.updatedAt,
-    ogImage: `${SITE_URL}${DEFAULT_OG_IMAGE}`,
+    ogImage: new URL(article?.image?.src ?? DEFAULT_OG_IMAGE, SITE_URL).href,
     ogType: article ? "article" : "website",
     schema,
   };

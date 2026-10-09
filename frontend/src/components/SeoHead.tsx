@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
+import { findSeoArticle } from "../seo/articles";
 import { DEFAULT_OG_IMAGE, findSeoPage, SITE_URL } from "../seo/site";
 
 function setMeta(selector: string, attribute: "name" | "property", key: string, content: string) {
@@ -40,7 +41,11 @@ export default function SeoHead() {
     }
     canonical.href = canonicalUrl;
 
-    setMeta('meta[property="og:image"]', "property", "og:image", `${SITE_URL}${DEFAULT_OG_IMAGE}`);
+    const article = findSeoArticle(location.pathname);
+    const imageUrl = new URL(article?.image?.src ?? DEFAULT_OG_IMAGE, SITE_URL).href;
+    setMeta('meta[property="og:image"]', "property", "og:image", imageUrl);
+    setMeta('meta[name="twitter:image"]', "name", "twitter:image", imageUrl);
+    setMeta('meta[property="og:type"]', "property", "og:type", article ? "article" : "website");
     document.dispatchEvent(new Event("threadsgo:seo-ready"));
   }, [location.pathname]);
 

@@ -190,7 +190,7 @@ export default function ResourcesPage() {
                 className="border-t border-[#d9ddd4] py-5 hover:text-[#377457]"
               >
                 <p className="text-sm text-[#69766e]">
-                  {article.readingMinutes} минут
+                  {article.readingMinutes} мин.
                 </p>
                 <h3 className="mt-2 font-display text-3xl">{article.h1}</h3>
                 <p className="mt-3 line-clamp-3 leading-7 text-[#526056]">

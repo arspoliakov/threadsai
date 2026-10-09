@@ -9,6 +9,8 @@ export default function ArticlePage() {
   const article = findSeoArticle(location.pathname);
   if (!article) return <NotFoundPage />;
 
+  const image = article.image;
+
   return (
     <main className="public-reader min-h-screen bg-[#f5f6f1] text-[#07100e]">
       <header className="border-b border-[#d9ddd4] bg-white">
@@ -51,7 +53,7 @@ export default function ArticlePage() {
         </nav>
         <p className="mt-10 text-sm uppercase tracking-[0.14em] text-[#377457]">
           ThreadsGo · Обновлено {formatDate(article.updatedAt)} ·{" "}
-          {article.readingMinutes} минут
+          {article.readingMinutes} мин.
         </p>
         <h1 className="mt-6 max-w-4xl font-display text-5xl leading-[0.96] sm:text-7xl">
           {article.h1}
@@ -59,6 +61,21 @@ export default function ArticlePage() {
         <p className="mt-7 max-w-3xl text-xl leading-9 text-[#526056]">
           {article.lead}
         </p>
+
+        {image && (
+          <figure className="mt-10 overflow-hidden rounded-3xl border border-[#d9ddd4]">
+            <img
+              data-article-image="hero"
+              src={image.src}
+              alt={image.alt}
+              width={image.width}
+              height={image.height}
+              fetchPriority="high"
+              decoding="async"
+              className="block h-auto w-full"
+            />
+          </figure>
+        )}
 
         <div className="mt-14 grid gap-12 lg:grid-cols-[minmax(0,1fr)_15rem]">
           <div className="space-y-12">
@@ -96,7 +113,7 @@ export default function ArticlePage() {
               </section>
             ))}
 
-            {article.sources?.length && (
+            {!!article.sources?.length && (
               <section className="border-t border-[#aeb8b0] pt-7">
                 <h2 className="font-display text-3xl">
                   Источники о функциях платформы
@@ -121,19 +138,6 @@ export default function ArticlePage() {
                 </p>
               </section>
             )}
-            <section className="border-y border-[#aeb8b0] bg-white px-6 py-8 sm:px-8">
-              <h2 className="font-display text-3xl">{article.cta.title}</h2>
-              <p className="mt-4 max-w-2xl leading-7 text-[#526056]">
-                {article.cta.text}
-              </p>
-              <Link
-                to={article.cta.path}
-                className="home-primary mt-6 inline-flex rounded-full bg-[#07100e] px-6 py-3.5 text-sm text-white"
-              >
-                {article.cta.label}
-              </Link>
-            </section>
-
             <section className="border-t border-[#aeb8b0] pt-7">
               <h2 className="font-display text-3xl">Короткие ответы</h2>
               {article.faq.map((item) => (
@@ -142,6 +146,23 @@ export default function ArticlePage() {
                   <p className="mt-2 leading-7 text-[#526056]">{item.answer}</p>
                 </div>
               ))}
+            </section>
+            <section
+              data-article-registration="banner"
+              aria-labelledby="article-registration-title"
+              className="relative overflow-hidden rounded-3xl border border-[#aeb8b0] bg-white px-6 py-8 sm:px-8 sm:py-10"
+            >
+              <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full border-[24px] border-[#aeb8b0] opacity-20" />
+              <p className="text-sm uppercase tracking-[0.14em] text-[#377457]">Меньше рутины · Больше своего голоса</p>
+              <h2 id="article-registration-title" className="relative mt-4 font-display text-3xl sm:text-4xl">Пусть идеи станут постами</h2>
+              <p className="relative mt-4 max-w-2xl leading-7 text-[#526056]">
+                ThreadsGo помогает писать посты в вашем стиле, собирать очередь и публиковать по расписанию. Проверяйте тексты сами или включайте публикацию без согласования — выбор остаётся за вами.
+              </p>
+              <div className="relative mt-6 flex flex-wrap items-center gap-4">
+                <Link to="/register?intent=start" data-analytics-cta="start_trial" className="home-primary inline-flex rounded-full bg-[#07100e] px-6 py-3.5 text-sm text-white">Создать профиль ThreadsGo →</Link>
+                <Link to="/pricing/" className="text-sm text-[#377457] underline underline-offset-4">Посмотреть тарифы</Link>
+              </div>
+              <p className="mt-5 text-sm leading-6 text-[#69766e]">Регистрация не подключает платную подписку автоматически. Охваты и продажи не гарантируются.</p>
             </section>
           </div>
 

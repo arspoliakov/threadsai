@@ -16,7 +16,9 @@ export default function SeoLandingPage() {
   const location = useLocation();
   const page = findSeoPage(location.pathname);
   const [articleQuery, setArticleQuery] = useState("");
+  const [articleCategory, setArticleCategory] = useState("all");
   const visibleArticles = publishedSeoArticles.filter((article) =>
+    (articleCategory === "all" || articleCategory === articleCategoryFor(article.path)) &&
     `${article.h1} ${article.description}`
       .toLocaleLowerCase("ru")
       .includes(articleQuery.trim().toLocaleLowerCase("ru")),
@@ -140,6 +142,9 @@ export default function SeoLandingPage() {
                 ? `Материалов: ${visibleArticles.length}`
                 : "Ничего не найдено. Попробуйте более короткий запрос."}
             </p>
+            <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Темы статей">
+              {[["all", "Все статьи"], ["threads", "Threads"], ["planning", "Контент-планы"], ["ai", "ИИ и тексты"]].map(([value, label]) => <button key={value} type="button" aria-pressed={articleCategory === value} onClick={() => setArticleCategory(value)} className={`min-h-11 rounded-full border border-[#aeb8b0] px-4 text-sm ${articleCategory === value ? "home-primary bg-[#07100e] text-white" : "bg-white text-[#07100e]"}`}>{label}</button>)}
+            </div>
             <div className="mt-7 grid gap-5 md:grid-cols-2">
               {visibleArticles.map((article) => (
                 <Link
@@ -147,8 +152,9 @@ export default function SeoLandingPage() {
                   to={article.path}
                   className="border-t border-[#aeb8b0] py-6"
                 >
+                  {article.image && <img src={article.image.src} alt="" width={article.image.width} height={article.image.height} loading="lazy" decoding="async" className="mb-5 aspect-[8/5] w-full rounded-2xl object-cover" />}
                   <p className="text-sm text-[#69766e]">
-                    {article.readingMinutes} минут
+                    {article.readingMinutes} мин.
                   </p>
                   <h3 className="mt-3 font-display text-3xl">{article.h1}</h3>
                   <p className="mt-4 leading-7 text-[#526056]">
@@ -189,6 +195,12 @@ export default function SeoLandingPage() {
       </footer>
     </main>
   );
+}
+
+function articleCategoryFor(path: string) {
+  if (/\/blog\/(?:content-plan|content-rubrics|threads-posting-schedule)/.test(path)) return "planning";
+  if (/\/blog\/(?:ai-|how-to-write|personal-brand-strategy)/.test(path)) return "ai";
+  return "threads";
 }
 
 const defaultSections = [

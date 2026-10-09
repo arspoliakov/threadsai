@@ -6,6 +6,7 @@ export type ArticleSection = {
 };
 
 export type SeoArticle = {
+  image?: { src: string; alt: string; width: number; height: number };
   sources?: Array<{ title: string; url: string }>;
   status: "draft" | "published";
   path: string;
@@ -227,6 +228,7 @@ export const seoArticles: SeoArticle[] = [
   },
   ...moreSeoArticles,
   ...growthSeoArticles,
+  ...octoberSeoArticles,
 ];
 
 export function findSeoArticle(path: string) {
@@ -237,3 +239,4 @@ export function findSeoArticle(path: string) {
 export const publishedSeoArticles = seoArticles.filter((article) => article.status === "published").sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 import { moreSeoArticles } from "./moreArticles";
 import { growthSeoArticles } from "./growthArticles";
+import { octoberSeoArticles } from "./octoberArticles";

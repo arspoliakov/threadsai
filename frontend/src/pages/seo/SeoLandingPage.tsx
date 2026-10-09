@@ -6,6 +6,8 @@ import PublicSeoTool from "../../components/PublicSeoTool";
 import { publishedSeoArticles } from "../../seo/articles";
 import { findSeoPage } from "../../seo/site";
 
+const articleCategories = [["all", "Все статьи"], ["threads", "Threads"], ["planning", "Контент-планы"], ["ai", "ИИ и тексты"], ["marketing", "Маркетинг"], ["formats", "Форматы контента"]];
+
 const relatedLinks = [
   { to: "/blog/threads-first-post/", label: "Подготовить первый пост" },
   { to: "/threads-content-plan/", label: "Собрать контент-план" },
@@ -143,7 +145,7 @@ export default function SeoLandingPage() {
                 : "Ничего не найдено. Попробуйте более короткий запрос."}
             </p>
             <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Темы статей">
-              {[["all", "Все статьи"], ["threads", "Threads"], ["planning", "Контент-планы"], ["ai", "ИИ и тексты"]].map(([value, label]) => <button key={value} type="button" aria-pressed={articleCategory === value} onClick={() => setArticleCategory(value)} className={`min-h-11 rounded-full border border-[#aeb8b0] px-4 text-sm ${articleCategory === value ? "home-primary bg-[#07100e] text-white" : "bg-white text-[#07100e]"}`}>{label}</button>)}
+              {articleCategories.map(([value, label]) => <button key={value} type="button" aria-pressed={articleCategory === value} onClick={() => setArticleCategory(value)} className={`min-h-11 rounded-full border border-[#aeb8b0] px-4 text-sm ${articleCategory === value ? "home-primary bg-[#07100e] text-white" : "bg-white text-[#07100e]"}`}>{label}</button>)}
             </div>
             <div className="mt-7 grid gap-5 md:grid-cols-2">
               {visibleArticles.map((article) => (
@@ -198,7 +200,9 @@ export default function SeoLandingPage() {
 }
 
 function articleCategoryFor(path: string) {
-  if (/\/blog\/(?:content-plan|content-rubrics|threads-posting-schedule)/.test(path)) return "planning";
+    if (path.startsWith("/blog/content-marketing-")) return "marketing";
+    if (/\/blog\/(?:content-types|website-content-types|content-formats|visual-content|educational-content|informational-content|interactive-content|text-content|user-generated-content|advertising-content|entertainment-content|useful-content|vk-content-types|blog-post-types|post-cards|personal-post-topics)\//.test(path)) return "formats";
+    if (/\/blog\/(?:content-plan|content-rubrics|threads-posting-schedule|.+-content-plan)/.test(path)) return "planning";
   if (/\/blog\/(?:ai-|how-to-write|personal-brand-strategy)/.test(path)) return "ai";
   return "threads";
 }

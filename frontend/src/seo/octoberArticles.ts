@@ -8,12 +8,13 @@ const illustrations = {
   threads: { src: "/blog/images/threads-2026-10.webp", alt: "Объёмные экраны и облака сообщений на тёмно-зелёном фоне" },
   security: { src: "/blog/images/security-2026-10.webp", alt: "Защитный щит рядом с карточкой профиля и замком" },
   ai: { src: "/blog/images/ai-2026-10.webp", alt: "Открытый блокнот, карточки текста и светящийся шар" },
+  marketing: { src: "/blog/images/marketing-2026-10.webp", alt: "Мятное облако сообщения соединено стеклянными дорожками с четырьмя группами читателей" },
 };
 
-function withIllustration(article: SeoArticle, group: number): SeoArticle {
+export function withIllustration(article: SeoArticle, group: number): SeoArticle {
   const kind = group === 0 || article.path.includes("content-plan-") || article.path.includes("content-rubrics")
     ? "planning"
-    : group === 2 ? "ai"
+    : group === 3 ? "marketing" : group === 2 ? "ai"
     : /login|recovery|blocked|registration|visitors|rules|instagram-connection/.test(article.path)
       ? "security" : "threads";
   const text = [article.lead, ...article.sections.flatMap((section) => [

@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.mjs && node scripts/inject-metrika.mjs",
+    "seo:metadata": "vite build --ssr src/seo/articles.ts --outDir .seo-meta-bundle && node scripts/generate-article-metadata.mjs",
+    "dev": "vite build --ssr src/seo/articles.ts --outDir .seo-meta-bundle && node scripts/generate-article-metadata.mjs && vite",
+    "build": "vite build --ssr src/seo/articles.ts --outDir .seo-meta-bundle && node scripts/generate-article-metadata.mjs && tsc -b && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.mjs && node scripts/inject-metrika.mjs",
     "check:seo": "node scripts/check-seo.mjs",
     "submit:indexnow": "node scripts/submit-indexnow.mjs",
     "preview": "vite preview"

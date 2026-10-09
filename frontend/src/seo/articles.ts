@@ -228,6 +228,7 @@ export const seoArticles: SeoArticle[] = [
   },
   ...moreSeoArticles,
   ...growthSeoArticles,
+  ...expansionSeoArticles,
   ...octoberSeoArticles,
 ];
 
@@ -240,3 +241,4 @@ export const publishedSeoArticles = seoArticles.filter((article) => article.stat
 import { moreSeoArticles } from "./moreArticles";
 import { growthSeoArticles } from "./growthArticles";
 import { octoberSeoArticles } from "./octoberArticles";
+import { expansionSeoArticles } from "./expansionArticles";

@@ -27,6 +27,8 @@ frontend/.env
 frontend/.env.production
 frontend/.env.bak*
 frontend/dist-release.tar.gz
+frontend/.generated/
+frontend/.seo-meta-bundle/
 
 # Logs and temporary files
 *.log

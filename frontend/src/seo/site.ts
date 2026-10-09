@@ -1,7 +1,7 @@
 export const SITE_URL = "https://threadsgo.ru";
 export const DEFAULT_OG_IMAGE = "/landing/dashboard-mockup.webp";
 import { latestProductUpdateDate } from "../productUpdates";
-import { publishedSeoArticles } from "./articles";
+import { findArticleMetadata } from "./articleMetadata";
 
 export type SeoPage = {
   path: string;
@@ -625,10 +625,10 @@ export function normalizePath(path: string) {
   return path.endsWith("/") ? path : `${path}/`;
 }
 
-export function findSeoPage(path: string) {
+export function findSeoPage(path: string): SeoPage | undefined {
   const normalized = normalizePath(path);
   const page = [...seoPages, ...systemSeoPages].find((item) => normalizePath(item.path) === normalized);
   if (page) return page;
-  const article = publishedSeoArticles.find((item) => item.path === normalized);
+  const article = findArticleMetadata(normalized);
   return article ? { ...article, kind: "article" as const, index: true } : undefined;
 }

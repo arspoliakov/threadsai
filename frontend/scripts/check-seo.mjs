@@ -7,9 +7,17 @@ const urls = [...sitemap.matchAll(/<loc>https:\/\/threadsgo\.ru([^<]*)<\/loc>/g)
 const seenTitles = new Set();
 const seenDescriptions = new Set();
 const failures = [];
-const octoberManifest = JSON.parse(await readFile(join(process.cwd(), "..", "docs", "seo-wordstat-2026-10-10.json"), "utf8"));
-const octoberPaths = new Set(octoberManifest.topics.map((topic) => topic.path));
-if (octoberPaths.size !== 50) failures.push("Октябрьская SEO-подборка должна содержать 50 уникальных страниц");
+const manifestFiles = ["seo-wordstat-2026-10-10.json", "seo-wordstat-expansion-2026-10-10.json"];
+const octoberPaths = new Set();
+for (const manifestFile of manifestFiles) {
+  const manifest = JSON.parse(await readFile(join(process.cwd(), "..", "docs", manifestFile), "utf8"));
+  const paths = manifest.topics.map((topic) => topic.path);
+  if (new Set(paths).size !== 50) failures.push(`${manifestFile}: подборка должна содержать 50 уникальных страниц`);
+  for (const path of paths) {
+    if (octoberPaths.has(path)) failures.push(`${path}: повторяется между SEO-подборками`);
+    octoberPaths.add(path);
+  }
+}
 for (const path of octoberPaths) {
   if (!urls.includes(path)) failures.push(`${path}: новая статья отсутствует в sitemap`);
 }

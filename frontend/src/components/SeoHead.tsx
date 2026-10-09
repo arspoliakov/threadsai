@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-import { findSeoArticle } from "../seo/articles";
+import { findArticleMetadata } from "../seo/articleMetadata";
 import { DEFAULT_OG_IMAGE, findSeoPage, SITE_URL } from "../seo/site";
 
 function setMeta(selector: string, attribute: "name" | "property", key: string, content: string) {
@@ -41,7 +41,7 @@ export default function SeoHead() {
     }
     canonical.href = canonicalUrl;
 
-    const article = findSeoArticle(location.pathname);
+    const article = findArticleMetadata(location.pathname);
     const imageUrl = new URL(article?.image?.src ?? DEFAULT_OG_IMAGE, SITE_URL).href;
     setMeta('meta[property="og:image"]', "property", "og:image", imageUrl);
     setMeta('meta[name="twitter:image"]', "name", "twitter:image", imageUrl);

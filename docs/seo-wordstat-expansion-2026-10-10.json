@@ -1,0 +1,460 @@
+{
+  "checkedAt": "2026-10-10",
+  "period": "2026-09-04 / 2026-10-03",
+  "region": "all",
+  "devices": "all",
+  "source": "Яндекс Wordstat: https://wordstat.yandex.ru/",
+  "countMeaning": "Широкая частотность с учетом словоформ и уточнений, не уникальные люди и не прогноз трафика; группы пересекаются.",
+  "topics": [
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-strategy/",
+      "title": "Стратегия контент-маркетинга: от цели к рабочему брифу",
+      "keyword": "контент маркетинг стратегия",
+      "wordstatBroadCount": 540,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-metrics/",
+      "title": "Метрики контент-маркетинга: что считать и как принимать решения",
+      "keyword": "метрики контент маркетинга",
+      "wordstatBroadCount": 229,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-tools/",
+      "title": "Инструменты контент-маркетинга: минимальный рабочий набор",
+      "keyword": "инструмент контент маркетинга",
+      "wordstatBroadCount": 182,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-goals/",
+      "title": "Цели контент-маркетинга: как выбрать одну и проверить прогресс",
+      "keyword": "контент маркетинг цель",
+      "wordstatBroadCount": 175,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-company/",
+      "title": "Контент-маркетинг компании: кто отвечает за идеи, факты и выпуск",
+      "keyword": "контент маркетинг компании",
+      "wordstatBroadCount": 167,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-seo/",
+      "title": "SEO и контент-маркетинг: как связать запрос, статью и следующий шаг",
+      "keyword": "seo контент маркетинга",
+      "wordstatBroadCount": 123,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-automation/",
+      "title": "Автоматизация контент-маркетинга: что поручить системе, а что проверять",
+      "keyword": "автоматизация контент маркетинга",
+      "wordstatBroadCount": 111,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-examples/",
+      "title": "Примеры контент-маркетинга: пять учебных разборов без выдуманных результатов",
+      "keyword": "контент маркетинг примеры",
+      "wordstatBroadCount": 110,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-agency/",
+      "title": "Работа с контент-агентством: бриф, согласование и контроль качества",
+      "keyword": "контент маркетинг агентства",
+      "wordstatBroadCount": 104,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-product/",
+      "title": "Контент-маркетинг продукта: как объяснить пользу и ограничения",
+      "keyword": "контент маркетинг продукта",
+      "wordstatBroadCount": 103,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-channels/",
+      "title": "Каналы контент-маркетинга: как выбрать площадку под задачу",
+      "keyword": "каналы контент маркетинга",
+      "wordstatBroadCount": 88,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-expert/",
+      "title": "Экспертный контент: как превратить знания в понятные публикации",
+      "keyword": "экспертный контент маркетинг",
+      "wordstatBroadCount": 61,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-small-business/",
+      "title": "Контент-маркетинг малого бизнеса: работа с небольшим бюджетом",
+      "keyword": "контент маркетинг для малого бизнеса",
+      "wordstatBroadCount": 58,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-b2b/",
+      "title": "B2B-контент: объясняем сложную услугу разным участникам решения",
+      "keyword": "контент маркетинг b2b",
+      "wordstatBroadCount": 22,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-team/",
+      "title": "Контент-команда: роли, передача задач и редакционная проверка",
+      "keyword": "отдел контент маркетинга",
+      "wordstatBroadCount": 42,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-distribution/",
+      "title": "Продвижение готового контента: план распространения без спама",
+      "keyword": "контент маркетинг продвижение",
+      "wordstatBroadCount": 559,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "A",
+      "path": "/blog/content-marketing-brief/",
+      "title": "Бриф на контент-маркетинг: какие вводные собрать перед работой",
+      "keyword": "разработка контент маркетинга",
+      "wordstatBroadCount": 298,
+      "seed": "контент маркетинг",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BC%D0%B0%D1%80%D0%BA%D0%B5%D1%82%D0%B8%D0%BD%D0%B3"
+    },
+    {
+      "group": "B",
+      "path": "/blog/content-types/",
+      "title": "Виды контента: выбираем задачу публикации",
+      "keyword": "виды контента",
+      "wordstatBroadCount": 6620,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/website-content-types/",
+      "title": "Контент сайта: что объясняют главная, тарифы, FAQ и статьи",
+      "keyword": "контент сайта виды",
+      "wordstatBroadCount": 726,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/content-formats/",
+      "title": "Форматы контента: одну мысль превращаем в текст, видео и карточки",
+      "keyword": "виды форматов контента",
+      "wordstatBroadCount": 282,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/visual-content/",
+      "title": "Визуальный контент: фото, схема или иллюстрация",
+      "keyword": "виды визуального контента",
+      "wordstatBroadCount": 280,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/educational-content/",
+      "title": "Образовательный контент: как научить одному действию за пост",
+      "keyword": "образовательный контент виды",
+      "wordstatBroadCount": 267,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/informational-content/",
+      "title": "Информационный пост: как сообщить новость понятно",
+      "keyword": "вид информационного контента",
+      "wordstatBroadCount": 171,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/interactive-content/",
+      "title": "Интерактивный контент: вопросы и задания для содержательных ответов",
+      "keyword": "виды интерактивного контента",
+      "wordstatBroadCount": 127,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/text-content/",
+      "title": "Текстовый контент: заметка, разбор, инструкция или история",
+      "keyword": "виды текстового контента",
+      "wordstatBroadCount": 126,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/user-generated-content/",
+      "title": "Пользовательский контент: как работать с отзывами и историями",
+      "keyword": "виды пользовательского контента",
+      "wordstatBroadCount": 112,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/advertising-content/",
+      "title": "Рекламный контент: объясняем предложение без скрытых обещаний",
+      "keyword": "виды рекламного контента",
+      "wordstatBroadCount": 54,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/entertainment-content/",
+      "title": "Развлекательный контент бренда: юмор, наблюдения и границы",
+      "keyword": "виды развлекательного контента",
+      "wordstatBroadCount": 52,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/useful-content/",
+      "title": "Полезный контент: проверяем, может ли читатель применить совет",
+      "keyword": "виды полезного контента",
+      "wordstatBroadCount": 11,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/vk-content-types/",
+      "title": "Контент для сообщества VK: распределяем форматы по задачам",
+      "keyword": "виды контента вк",
+      "wordstatBroadCount": 172,
+      "seed": "виды контента",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%D0%B0"
+    },
+    {
+      "group": "B",
+      "path": "/blog/blog-post-types/",
+      "title": "Посты для блога: как выбрать заметку, кейс или разбор",
+      "keyword": "виды постов в блоге",
+      "wordstatBroadCount": 382,
+      "seed": "виды постов",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BF%D0%BE%D1%81%D1%82%D0%BE%D0%B2"
+    },
+    {
+      "group": "B",
+      "path": "/blog/post-cards/",
+      "title": "Пост в карточках: структура, которую удобно читать",
+      "keyword": "пост в виде карточек",
+      "wordstatBroadCount": 52,
+      "seed": "виды постов",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B2%D0%B8%D0%B4%D1%8B%20%D0%BF%D0%BE%D1%81%D1%82%D0%BE%D0%B2"
+    },
+    {
+      "group": "B",
+      "path": "/blog/personal-post-topics/",
+      "title": "Личный пост: о чём рассказать и где оставить границу приватности",
+      "keyword": "темы для личного поста",
+      "wordstatBroadCount": 82,
+      "seed": "темы для постов",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D1%82%D0%B5%D0%BC%D1%8B%20%D0%B4%D0%BB%D1%8F%20%D0%BF%D0%BE%D1%81%D1%82%D0%BE%D0%B2"
+    },
+    {
+      "group": "C",
+      "path": "/blog/video-content-plan/",
+      "title": "Контент-план видео: идея, сценарий, съёмка и выпуск",
+      "keyword": "контент план видео контента",
+      "wordstatBroadCount": 651,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/vk-content-plan/",
+      "title": "Контент-план VK: пример недели для сообщества",
+      "keyword": "контент план вк",
+      "wordstatBroadCount": 484,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/daily-content-plan/",
+      "title": "Контент-план на день: выбираем одну посильную задачу",
+      "keyword": "контент план на день",
+      "wordstatBroadCount": 276,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/annual-content-plan/",
+      "title": "Контент-план на год: сезонные темы и гибкий календарь",
+      "keyword": "контент план на год",
+      "wordstatBroadCount": 224,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/education-content-plan/",
+      "title": "План образовательного контента: путь от вопроса к навыку",
+      "keyword": "план образовательного контента",
+      "wordstatBroadCount": 218,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/stories-content-plan/",
+      "title": "Контент-план сторис: короткие серии с понятным завершением",
+      "keyword": "контент план сторис",
+      "wordstatBroadCount": 128,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/community-content-plan/",
+      "title": "Контент-план сообщества: новости, опыт участников и разговор",
+      "keyword": "контент план сообщества",
+      "wordstatBroadCount": 188,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/instagram-content-plan/",
+      "title": "Контент-план Instagram: связываем профиль, публикации и серии",
+      "keyword": "контент план для инстаграм",
+      "wordstatBroadCount": 179,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/course-content-plan/",
+      "title": "Контент-план онлайн-курса: отвечаем на вопросы до записи",
+      "keyword": "контент план курсы",
+      "wordstatBroadCount": 55,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/studio-content-plan/",
+      "title": "Контент-план творческой студии: процесс, работы и организация",
+      "keyword": "контент план для студии",
+      "wordstatBroadCount": 77,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/craft-content-plan/",
+      "title": "Контент-план мастера: показываем изделия и процесс без повторов",
+      "keyword": "контент план для мастеров",
+      "wordstatBroadCount": 112,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/library-content-plan/",
+      "title": "Контент-план библиотеки: книги, события и читательские вопросы",
+      "keyword": "контента план библиотеки",
+      "wordstatBroadCount": 67,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/media-center-content-plan/",
+      "title": "Контент-план медиацентра: заявки, дедлайны и редакционный выпуск",
+      "keyword": "контент план медиацентра",
+      "wordstatBroadCount": 53,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/clothing-content-plan/",
+      "title": "Контент-план бренда одежды: ассортимент, детали и выбор",
+      "keyword": "контент план одежда",
+      "wordstatBroadCount": 49,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/email-content-plan/",
+      "title": "Контент-план email: цепочка писем с одной задачей на письмо",
+      "keyword": "контент план email",
+      "wordstatBroadCount": 48,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/reels-content-plan/",
+      "title": "План коротких видео: конкретные идеи и съёмочный список",
+      "keyword": "контент план рилс",
+      "wordstatBroadCount": 74,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    },
+    {
+      "group": "C",
+      "path": "/blog/content-plan-software/",
+      "title": "Программа для контент-плана: как выбрать по процессу команды",
+      "keyword": "контент план программа",
+      "wordstatBroadCount": 89,
+      "seed": "контент план",
+      "wordstatSourceUrl": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82%20%D0%BF%D0%BB%D0%B0%D0%BD"
+    }
+  ]
+}
